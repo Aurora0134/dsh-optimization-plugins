@@ -10,12 +10,14 @@
  *  - the `/workflow` and `/dwf` commands;
  *  - the `dynamic-workflows` skill (ZCode's own authoring contract) plus a short prompt section.
  */
+import { constants as fsConstants, readFileSync } from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileWorkflowScript, extractMetadataHeader } from './host/compiler.js';
 import { createRuntime } from './host/runtime.js';
 import { createStore } from './host/store.js';
+import { registerWorkflowUiApi } from './host/ui-api.js';
 import { createWorkspace } from './host/workspace.js';
 import { createWorkflowTools } from './host/tools.js';
 import {
@@ -42,17 +44,150 @@ const MODE_ALIASES = new Map([
 ]);
 
 /**
+ * Resolve a configured mode value, including ZCode's aliases.
+ * @param {unknown} raw
+ * @returns {'disabled' | 'onDemand' | 'alwaysOn' | undefined} undefined when the value is not a mode
+ */
+function explicitMode(raw) {
+  if (typeof raw !== 'string') return undefined;
+  const value = raw.trim();
+  if (MODES.has(value)) return /** @type {'disabled' | 'onDemand' | 'alwaysOn'} */ (value);
+  return MODE_ALIASES.get(value);
+}
+
+/**
  * Normalize the configured mode to ZCode's enum.
  * @param {unknown} raw
  * @returns {'disabled' | 'onDemand' | 'alwaysOn'}
  */
 function normalizeMode(raw) {
-  if (typeof raw !== 'string') return 'alwaysOn';
-  const value = raw.trim();
-  if (MODES.has(value)) return /** @type {'disabled' | 'onDemand' | 'alwaysOn'} */ (value);
-  const alias = MODE_ALIASES.get(value);
-  if (alias !== undefined) return /** @type {'disabled' | 'onDemand' | 'alwaysOn'} */ (alias);
-  return 'alwaysOn';
+  return explicitMode(raw) ?? 'alwaysOn';
+}
+
+/**
+ * Read the fallback mode persisted when `configEditor` cannot write the profile patch.
+ * @param {string} file
+ * @returns {string | undefined}
+ */
+function readStoredMode(file) {
+  try {
+    const raw = JSON.parse(readFileSync(file, 'utf8'));
+    return typeof raw?.mode === 'string' ? raw.mode : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Mode persistence for the settings row.
+ *
+ * `configEditor` is the primary channel: it writes the profile patch and reconciles the Loader,
+ * so the plugin reloads with the new mode and the model-facing gate changes immediately. A
+ * profile without it falls back to `$DSH_HOME/zcode-workflow/settings.json`, which overrides the
+ * patch config at the next start only.
+ *
+ * @param {object} options
+ * @param {object} options.ctx plugin context
+ * @param {'disabled' | 'onDemand' | 'alwaysOn'} options.appliedMode mode this process runs with
+ * @param {string} options.settingsFile fallback file path
+ * @param {{ warn?: Function }} [options.logger]
+ */
+function createModeController({ ctx, appliedMode, settingsFile, logger = console }) {
+  // `name` is this package's name, which is also the profile row id and name the bundle inserts.
+  let applied = appliedMode;
+  let stored = explicitMode(readStoredMode(settingsFile)) ?? appliedMode;
+  /** @type {Promise<boolean> | undefined} */
+  let writableProbe;
+
+  /** @returns {object | undefined} the profile row this plugin can edit */
+  const entryFor = () => {
+    const editor = ctx.get?.('configEditor');
+    if (editor === undefined) return undefined;
+    try {
+      const rows = editor.entries();
+      return rows.find((entry) => entry?.options?.id === name || entry?.options?.name === name);
+    } catch (error) {
+      logger.warn?.(`zcode-workflow: could not read config entries: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  };
+
+  /** @returns {Record<string, unknown>} a JSON object from an arbitrary value */
+  const recordOf = (value) => (value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? /** @type {Record<string, unknown>} */ (value)
+    : {});
+
+  /** @returns {Promise<boolean>} */
+  const fileWritable = async () => {
+    if (writableProbe === undefined) {
+      writableProbe = (async () => {
+        try {
+          const dir = path.dirname(settingsFile);
+          await fsp.mkdir(dir, { recursive: true });
+          await fsp.access(dir, fsConstants.W_OK);
+          return true;
+        } catch {
+          return false;
+        }
+      })();
+    }
+    return writableProbe;
+  };
+
+  /** @param {string} next */
+  const writeSettings = async (next) => {
+    await fsp.mkdir(path.dirname(settingsFile), { recursive: true });
+    let current = {};
+    try {
+      current = recordOf(JSON.parse(await fsp.readFile(settingsFile, 'utf8')));
+    } catch {
+      current = {};
+    }
+    await fsp.writeFile(settingsFile, `${JSON.stringify({ ...current, mode: next }, null, 2)}\n`, 'utf8');
+  };
+
+  const readMode = async () => {
+    const viaConfig = entryFor() !== undefined;
+    // A fallback file that was written after this process started is a pending choice: it wins
+    // at the next start, so the row must show it now and say when it takes effect.
+    const pending = stored !== applied;
+    return {
+      mode: pending ? stored : applied,
+      writable: viaConfig || await fileWritable(),
+      effective: pending || !viaConfig ? 'restart' : 'immediate',
+    };
+  };
+
+  /** @param {string} next @returns {Promise<{ mode: string, effective: string }>} */
+  const writeMode = async (next) => {
+    const canonical = explicitMode(next);
+    if (canonical === undefined) throw new Error(`unknown workflow mode "${String(next)}"`);
+    const editor = ctx.get?.('configEditor');
+    const entry = editor === undefined ? undefined : entryFor();
+    if (entry !== undefined) {
+      try {
+        // The edit reconciles the Loader and reloads this plugin, so a stale fallback file must
+        // be gone BEFORE the reload or it would shadow the patch value the edit just wrote.
+        await fsp.rm(settingsFile, { force: true });
+        await editor.edit(entry, (current) => ({ ...recordOf(current), mode: canonical }));
+        applied = canonical;
+        stored = canonical;
+        return { mode: canonical, effective: 'immediate' };
+      } catch (error) {
+        logger.warn?.(`zcode-workflow: configEditor rejected the mode change (${error instanceof Error ? error.message : String(error)}); using ${settingsFile}`);
+      }
+    }
+    await writeSettings(canonical);
+    stored = canonical;
+    return { mode: canonical, effective: 'restart' };
+  };
+
+  return { readMode, writeMode };
+}
+
+/** Windows canonical paths may differ only in case. */
+function samePath(left, right) {
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
 /**
@@ -95,8 +230,11 @@ function dshHome() {
  * @param {object} [config] Loader row config
  */
 export function apply(ctx, config = {}) {
-  const mode = normalizeMode(config.mode);
-  if (mode === 'disabled') return;
+  const homeDir = dshHome();
+  const settingsFile = path.join(homeDir, 'zcode-workflow', 'settings.json');
+  // An explicit fallback file outranks the patch config: it is only written when configEditor
+  // could not persist a mode change, and keeps that choice across restarts.
+  const mode = explicitMode(readStoredMode(settingsFile)) ?? normalizeMode(config.mode);
   /** The host logger is optional; console keeps a failure visible without a service dependency. */
   let logger = console;
   try {
@@ -105,7 +243,6 @@ export function apply(ctx, config = {}) {
   } catch {
     // keep console
   }
-  const homeDir = dshHome();
   const store = createStore({ homeDir, getProjectRoot: () => process.cwd() });
   const storesByCwd = new Map();
   const workspacesByCwd = new Map();
@@ -176,6 +313,61 @@ export function apply(ctx, config = {}) {
   // A tool call resolves the project root from its agent; this registry lets one plugin
   // instance serve every project without recreating tools per session.
   const runtimeLookup = (cwd) => (cwd === undefined || cwd.length === 0 ? baseRuntime : runtimeFor(cwd));
+
+  /**
+   * Admit a browser-supplied project root only when it names a registered workspace. Without a
+   * registry, the process working directory is the only project this profile serves.
+   * @param {unknown} raw
+   * @returns {Promise<string | undefined>}
+   */
+  const resolveProjectRoot = async (raw) => {
+    if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+    let requested;
+    try {
+      requested = await fsp.realpath(raw);
+    } catch {
+      return undefined;
+    }
+    let roots;
+    try {
+      const registry = ctx.get?.('workspaceRegistry');
+      roots = registry === undefined ? [process.cwd()] : registry.list().map((workspace) => workspace?.path);
+    } catch {
+      return undefined;
+    }
+    for (const root of roots) {
+      if (typeof root !== 'string' || root === '') continue;
+      const canonical = await fsp.realpath(root).catch(() => path.resolve(root));
+      if (samePath(requested, canonical)) return canonical;
+    }
+    return undefined;
+  };
+
+  const modeController = createModeController({ ctx, appliedMode: mode, settingsFile, logger });
+
+  // The browser data channel stays registered in every mode so the settings row can read and
+  // change the mode while the model-facing surface is off; run/start itself refuses to start a
+  // run while the applied mode is disabled.
+  if (typeof ctx.inject === 'function') {
+    ctx.inject(['webServer', 'connection'], (child) => {
+      registerWorkflowUiApi({
+        ctx: child,
+        storeFor,
+        runtimeFor,
+        resolveProjectRoot,
+        readMode: modeController.readMode,
+        writeMode: modeController.writeMode,
+        logger,
+      });
+    });
+  } else {
+    logger.warn?.('zcode-workflow: ctx.inject is unavailable; the browser data channel is not registered');
+  }
+
+  if (mode === 'disabled') {
+    logger.info?.('zcode-workflow: mode is disabled; model-facing tools stay off and only the browser data channel is registered');
+    return;
+  }
 
   /**
    * Resolve the calling agent's working directory.

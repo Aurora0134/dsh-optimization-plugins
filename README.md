@@ -41,6 +41,20 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 
 `/workflow [要求]` 是显式入口：加载技能、要求模型用 `CreateWorkflow`；`onDemand` 模式下它同时激活工具。`/dwf [list|cancel [runId]|resume <runId>]` 管理运行。
 
+## 界面
+
+浏览器半是静态 Client 模块，数据走本包注册的同源路由 `/zcode-workflow/*`（Host 端每条路由先过 `connection` 的信任与登录校验），不依赖 Host→Client RPC。
+
+| 界面 | 位置 | 内容 |
+| --- | --- | --- |
+| 工作流目录 | 左侧栏面板图标 + 中央面板 | 按工作区列出项目与全局已保存工作流；运行（新对话）、删除、全局移到项目、刷新 |
+| 运行详情 | 右侧栏 tab | 状态、步骤与阶段、子代理、留白、产物（文本/图片预览）、报告、日志、命令、结果/错误；停止运行 |
+| 会话状态 | 会话标题栏右侧 | 运行中数量、运行列表、停止、打开目录；无运行时隐藏 |
+| 工具卡片 | 对话内 `tool.call.toolview` | 11 个工具的卡片，含「查看实例详情」入口 |
+| 设置 | 设置 → 通用 | 动态工作流三态：关闭 / 通过命令启用 / 始终开启 |
+
+界面文案在 `locale/*.json` 与 `locale/ui/*.json`。构建产物 `client.js` 由 `client-src/` 拼接生成：改源码或文案后运行 `node scripts/build-client.mjs`。
+
 ## 工作流脚本
 
 脚本的完整契约就是 ZCode 自己的 `dynamic-workflows` 技能，已随插件注册进 DSH 技能目录（`skills/SKILL.md`、`examples.md`、`patterns.md` 为 ZCode 原文拷贝）：
@@ -72,17 +86,18 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 4. **hole**：ZCode 的 hole 由 `FillWorkflowHole` 现场编译并拼接函数体，且能在补丁点看到此前所有绑定；本插件用 JSON 值解除 hole 的等待（`FillWorkflowHole` 的 `value`），补丁代码拿不到脚本内绑定。依赖上游变量的 hole 分支应直接写在脚本里。
 5. **缓存重放**：`AmendWorkflow` 以 `resumedFrom` 建立新运行；DSH 版尚未实现按（子代理名 + ask 文本）复用旧 journal 的记录级缓存，修订后会重新跑改动前后的所有 ask。
 6. **持久化位置**：ZCode 把运行 journal 写在会话 SQLite；本插件写项目目录下的 JSONL/JSON 文件。
-7. **UI**：ZCode 有工作流对话卡片、运行详情侧栏、Automations→Workflows 页、状态面板、设置里的三态选择器等完整界面。本插件已移植**对话内的工具卡片**（11 个工具各有一个 `tool.call.toolview` 卡片，标题/状态词/阶段数/脚本/诊断/结果按 ZCode 的文案与状态机呈现）与 `/workflow`、`/dwf` 命令；运行详情侧栏、工作流目录页、状态面板与设置选择器未移植（DSH 的这些位置需要 Host→Client 数据通道，当前版本未暴露）。
+7. **UI**：ZCode 的完整界面已按 DSH 槽位移植（工具卡片、工作流目录、运行详情、会话状态、设置三态）。行为差异：运行详情从右侧栏打开，没有挂载会话时降级为浮层；目录页的「运行」在新对话里交给模型执行（全局面板没有活动会话，不能直接起 run）；数据是 2–5 秒轮询而不是 ZCode 的会话快照订阅；设置改动写入 profile patch，可能触发插件重载；刷新浏览器后右栏 tab 的打开参数不保留。
 8. **暂停/等待**：ZCode 的 hole 通知、escalation、阻塞提醒会主动注入主会话；本插件在完成时用 `followup` 投递通知——若主代理正在一轮对话中，通知会排在下一轮，而不是立刻打断。
 9. **确认窗口**：ZCode 在启动运行前弹脚本确认；DSH 由工具权限/审批层决定，本插件不另设确认窗口。
 
 ## 验证
 
-- 单元测试：`node --test zcode-workflow/test/compiler.test.mjs zcode-workflow/test/store.test.mjs zcode-workflow/test/workspace.test.mjs` → 84 个测试全部通过（编译器 64、存储 9、工作区 11）。
+- 单元测试：`node --test test/*.test.mjs` → 107 个测试全部通过（编译器 64、存储 9、工作区 11、Host 数据通道 21、前端构建 2）。
 - 集成测试：真实 compiler/store/workspace/runtime/tools 串起一次含 2 个阶段、3 个子代理、typed ask、report 与 artifact 的运行，状态 `completed`。
 - 真实运行：在 `desktop` profile 安装后跑通多子代理运行（typed ask 结构化返回）、保存工作流并按 args 重跑、`EvalWorkflowSnippet`、编译诊断、hole 等待与 `FillWorkflowHole`、`AmendWorkflow` 的 script_unchanged 拒绝。
-- 已安装状态：`include:zcode-workflow` 为 `active`；11 个工具出现在模型工具表；`tool.call.toolview` 上 11 个 key 的注册均 `active`。
-- 未验证：真实浏览器里的像素级观感（无浏览器控制），运行详情侧栏/目录页（未实现）。
+- 已安装状态：`include:zcode-workflow` 为 `active`；11 个工具出现在模型工具表；`tool.call.toolview` 上 11 个 key 的注册均 `active`；Client 槽 `main`、`sidebar.panellist`、`settings.general.item`、`conversation.session.header.utilities`、`sidebar.right.pane.tab` 均注册成功。
+- 前端渲染冒烟：用构建产物和 React 服务端渲染逐个渲染 7 个槽组件，全部无异常；覆盖工具卡、目录页、侧栏图标、设置行、运行详情、详情标题、会话状态入口。
+- 未验证：真实浏览器里的像素级观感与交互手感。Host 半（`index.js`、`host/ui-api.js`）改动需重启 Harness 后才注册路由；`client.js` 热更即时生效。
 
 ## 来源与许可
 
@@ -90,6 +105,7 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 
 ## 开发
 
+- 构建前端：改 `client-src/**` 或 `locale/**` 后运行 `node scripts/build-client.mjs`（`client.js` 是产物，不要手改）。
 - 语法检查：`node --check index.js && node --check client.js && node --check host/*.js`
-- 单元测试：`node --test zcode-workflow/test/*.test.mjs`
-- 改 `host/**` 后重启 Harness；改 `client.js` 热更
+- 单元测试：`node --test test/*.test.mjs`
+- 改 `host/**` 或 `index.js` 后重启 Harness；改 `client.js` 热更。

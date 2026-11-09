@@ -14,11 +14,14 @@
   "files": [
     "index.js",
     "client.js",
+    "client-src/*.js",
+    "scripts/*.mjs",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
     "host/*.js",
     "skills/*.md",
+    "docs/*.md",
     "README.md"
   ],
   "dsh": {
