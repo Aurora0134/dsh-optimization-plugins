@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session rollback",
+    "description": "Rolls a session back to a user message: removes that message and everything after it, and restores the files those turns changed."
+  }
+}
