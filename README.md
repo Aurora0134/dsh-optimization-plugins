@@ -97,6 +97,7 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 - 真实运行：在 `desktop` profile 安装后跑通多子代理运行（typed ask 结构化返回）、保存工作流并按 args 重跑、`EvalWorkflowSnippet`、编译诊断、hole 等待与 `FillWorkflowHole`、`AmendWorkflow` 的 script_unchanged 拒绝。
 - 已安装状态：`include:zcode-workflow` 为 `active`；11 个工具出现在模型工具表；`tool.call.toolview` 上 11 个 key 的注册均 `active`；Client 槽 `main`、`sidebar.panellist`、`settings.general.item`、`conversation.session.header.utilities`、`sidebar.right.pane.tab` 均注册成功。
 - 前端渲染冒烟：用构建产物和 React 服务端渲染逐个渲染 7 个槽组件，全部无异常；覆盖工具卡、目录页、侧栏图标、设置行、运行详情、详情标题、会话状态入口。
+- Host 数据通道：除单元测试外，用真实 store/runtime 起一次运行并通过路由读取 `runs`、`run`、`workflows`、`mode` 与 404 分支，全部符合契约。
 - 未验证：真实浏览器里的像素级观感与交互手感。Host 半（`index.js`、`host/ui-api.js`）改动需重启 Harness 后才注册路由；`client.js` 热更即时生效。
 
 ## 来源与许可
