@@ -15,6 +15,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileWorkflowScript, extractMetadataHeader } from './host/compiler.js';
+import { userMessage } from './host/messages.js';
 import { createRuntime } from './host/runtime.js';
 import { createStore } from './host/store.js';
 import { registerWorkflowUiApi } from './host/ui-api.js';
@@ -604,19 +605,13 @@ export function apply(ctx, config = {}) {
           };
         }
         try {
-          agent.followup({
-            content: [{
-              type: 'text',
-              text: [
-                'The user explicitly asked for a dynamic workflow with /workflow:',
-                '',
-                raw,
-                '',
-                'Load the `dynamic-workflows` skill, then write and run a workflow with CreateWorkflow. The explicit request is binding: use a workflow even if one reply could answer.',
-              ].join('\n'),
-            }],
-            source: { kind: 'user' },
-          });
+          agent.followup(userMessage([
+            'The user explicitly asked for a dynamic workflow with /workflow:',
+            '',
+            raw,
+            '',
+            'Load the `dynamic-workflows` skill, then write and run a workflow with CreateWorkflow. The explicit request is binding: use a workflow even if one reply could answer.',
+          ].join('\n')));
           return { kind: 'success', text: 'Starting a dynamic workflow for this request…' };
         } catch (error) {
           return { kind: 'error', text: `could not start the workflow turn: ${error instanceof Error ? error.message : String(error)}` };

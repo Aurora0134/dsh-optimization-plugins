@@ -11,6 +11,7 @@
  */
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { userMessage } from './messages.js';
 import { TOOL_DESCRIPTIONS } from './prompt.js';
 import { createSubagentRunner } from './subagent.js';
 
@@ -229,7 +230,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, config = {}
    */
   const notifierFor = (agent) => (text) => {
     try {
-      const result = agent.followup({ content: [{ type: 'text', text }], source: { kind: 'user' } });
+      const result = agent.followup(userMessage(text));
       if (result !== undefined && typeof result.catch === 'function') {
         result.catch((error) => logger.warn?.(`zcode-workflow: notification delivery failed: ${error instanceof Error ? error.message : String(error)}`));
       }

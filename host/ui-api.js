@@ -17,6 +17,7 @@
  */
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { userMessage } from './messages.js';
 import { createSubagentRunner } from './subagent.js';
 import { validateAgainstSchema } from './runtime.js';
 
@@ -321,7 +322,7 @@ export function registerWorkflowUiApi({
    */
   const notifyAgent = (agent, text) => {
     try {
-      const result = agent.followup({ content: [{ type: 'text', text }], source: { kind: 'user' } });
+      const result = agent.followup(userMessage(text));
       if (result !== undefined && typeof result.catch === 'function') {
         result.catch((error) => logger.warn?.(`zcode-workflow: run notification failed: ${error instanceof Error ? error.message : String(error)}`));
       }

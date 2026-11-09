@@ -492,6 +492,9 @@ test('POST /run/start starts the saved script with the agent-bound runner and no
   request.notify('<workflow-run status="completed" />');
   const followup = fixture.calls.find((entry) => entry[0] === 'followup');
   assert.equal(followup[1].content[0].text, '<workflow-run status="completed" />');
+  assert.equal(followup[1].role, 'user');
+  assert.equal(typeof followup[1].id, 'string');
+  assert.ok(followup[1].id.length > 0);
   assert.deepEqual(followup[1].source, { kind: 'user' });
 });
 
