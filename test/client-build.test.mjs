@@ -16,7 +16,9 @@ test('client.js is built from client-src and locale files', () => {
   const before = readFileSync(clientPath, 'utf8');
   execFileSync(process.execPath, [path.join(root, 'scripts', 'build-client.mjs')], { cwd: root });
   const after = readFileSync(clientPath, 'utf8');
-  assert.equal(after, before, 'client.js is stale; run node scripts/build-client.mjs');
+  // Git may check the committed artifact out with CRLF on Windows; the generator always writes LF.
+  const normalize = (text) => text.replace(/\r\n/g, '\n');
+  assert.equal(normalize(after), normalize(before), 'client.js is stale; run node scripts/build-client.mjs');
   execFileSync(process.execPath, ['--check', clientPath]);
 });
 
