@@ -1,8 +1,9 @@
 /**
  * 事件 → 运行快照投影（ZCode 3.17.2 的 `Im` reducer）。
  *
- * 契约来源：notes/engine.md §2.1（26 种事件与是否消费）、§3（Im 字段、派生 actor 状态、
- * 并发窗口、阶段与留白、unlistedByPhase 口径）。实现逐条对照 `applyWorkflowRunEvent`
+ * 契约来源：桌面端的事件折叠契约（见 docs/port-contract.md 的"运行态与派生"）：
+ * 26 种事件与是否消费、Im 字段、派生 actor 状态、
+ * 并发窗口、阶段与留白、unlistedByPhase 口径。实现逐条对照 `applyWorkflowRunEvent`
  * （zcode-cli.js:55964-56179）及其 helper，目的不是"大致相似"，而是让同一份事件流在
  * Node 侧折叠出的快照与桌面端一致：节点上限、淘汰计数、actor 状态派生、阶段矩阵都按原分支。
  *

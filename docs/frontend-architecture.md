@@ -55,7 +55,7 @@ part 的职责：
 
 ## Host 路由契约
 
-路由由 `host/ui-api.js` 注册，均先过 `ctx.connection.requestRejection(req)`；失败返回其状态码。完整的请求/响应字段见 `docs/port-contract.md` 与 `notes/` 里对照真实实现的规格；这里是路径索引：
+路由由 `host/ui-api.js` 注册，均先过 `ctx.connection.requestRejection(req)`；失败返回其状态码。完整的请求/响应字段见 `docs/port-contract.md`；这里是路径索引：
 
 - 运行态：`GET /runs`、`GET /run`、`GET /run/events`、`GET /run/artifacts`、`GET /run/workspace`、`GET /run/node`。
 - 产物：`GET /artifact/data`（看板条目分页）、`GET /artifact/read`（字节分片）。

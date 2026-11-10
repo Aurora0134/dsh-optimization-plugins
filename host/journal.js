@@ -1,7 +1,7 @@
 /**
  * 运行事件日志（对应 ZCode 3.17.2 的 `dwf_event` 表）。
  *
- * 设计约束来自契约（notes/engine.md §2.3、§2.5、§4.2）：
+ * 设计约束来自桌面端的 journal 契约（见 docs/port-contract.md 的"事件模型"）：
  * - 追加即真源：事件只增不改，`sequence` 在每个 run 内从 0 连续自增（SQL 里是
  *   `coalesce(max(sequence)+1, 0)`）；
  * - `afterSequence` 是排他下界（`sequence > ?`）；
@@ -16,7 +16,7 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-/** 26 种事件类型（notes/engine.md §2.1 全集）。 */
+/** 26 种事件类型（桌面端事件全集，见 docs/port-contract.md）。 */
 export const EVENT_TYPES = Object.freeze({
   RUN_STARTED: 'run-started',
   RUN_LAUNCHED: 'run-launched',

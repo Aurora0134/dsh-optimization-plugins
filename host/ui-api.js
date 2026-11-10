@@ -1,7 +1,7 @@
 /**
  * Browser data channel for the workflow UI.
  *
- * Route names mirror ZCode 3.17.2's workflow RPC surface one-for-one (notes/engine.md §1):
+ * Route names mirror ZCode 3.17.2's workflow RPC surface one-for-one (see docs/port-contract.md):
  * the seven run-data calls, the eight saved-workflow calls and the workspace policy. The client
  * half (`client-src/10-api.js`) is the fixed counterpart, so a path or parameter name here must not
  * drift from it.

@@ -2,7 +2,7 @@
  * 工作流执行引擎（G2 宿主调度引擎）。
  *
  * 这是 `beauty/zcode-cli.js:649150-651267`（WorkflowEngine + AskScheduler + AgentRuntimeWorkflowDriver）
- * 的移植，行为按 `notes/cli.md` §4 落地：
+ * 的移植，行为契约见 docs/port-contract.md：
  *
  * - 节点生命周期：queued → dispatched → executing/waiting/repairing/nudged → settled
  *   （每个迁移都写 journal 节点行 + 一条同名事件）。

@@ -7,7 +7,7 @@
  *   而是调用宿主注入的 `__host.*`（`beauty/zcode-cli.js:648735-648860`）。
  * - 旧版把 `ask<T>` 改写成 `__zcodeSchema("T")` 标记；现行 lowering 是「站点 id + `__host.ask`」，
  *   journal/重放都按站点 id 做键，`<T>` 只用来生成 JSON Schema 供结果校验。
- * - 诊断码与文案按 ZCode 0.21.1 的 9001-9012 逐字复刻（`notes/cli.md` §3.2）。
+ * - 诊断码与文案按 ZCode 0.21.1 的 9001-9012 逐字复刻（契约见 docs/port-contract.md）。
  *
  * 这里没有 TypeScript 编译器：结构分析用本模块自己的 tokenizer（所以检查永远不会命中注释、
  * 字符串或模板字面量内部的文字），类型擦除交给 Node 内建的 `stripTypeScriptTypes`
