@@ -2314,34 +2314,40 @@ export function createStore(options = {}) {
    * @returns {Promise<{ ok: true, from: string, to: string, path: string } | { ok: false, reason: string, message: string }>}
    */
   const moveSavedWorkflow = async (name, options = {}) => {
-    const from = options.from ?? 'global';
-    const to = options.to ?? 'project';
     const nameCheck = validateSavedWorkflowName(name);
     if (!nameCheck.ok) return { ok: false, reason: 'invalid_name', message: INVALID_SAVED_NAME_MESSAGE };
-    if (from !== 'global' || to !== 'project') {
-      return { ok: false, reason: 'unsupported', message: 'only global → project workflow moves are supported' };
-    }
     const root = resolveRoot(options.cwd);
+    // 契约 workflows/move 只收 {workspace, name}，方向由「它现在住在哪」决定：
+    // 项目副本遮蔽全局副本，所以先找项目、再找全局，目标就是另一侧（engine.md:260）。
+    const requested = options.from;
+    const order = requested === 'project' || requested === 'global' ? [requested] : ['project', 'global'];
     let source;
-    for (const { dir } of savedRoots(root, 'global')) {
-      const file = path.join(dir, `${name}${SAVED_EXTENSION}`);
-      if (await exists(file)) {
-        source = file;
-        break;
+    let from;
+    for (const scope of order) {
+      for (const { dir } of savedRoots(root, scope)) {
+        const file = path.join(dir, `${name}${SAVED_EXTENSION}`);
+        if (await exists(file)) {
+          source = file;
+          from = scope;
+          break;
+        }
       }
+      if (source !== undefined) break;
     }
-    if (source === undefined) return { ok: false, reason: 'not_found', message: `no global workflow named "${name}"` };
-
-    const targetDir = savedTargetDir(root, 'project');
+    if (source === undefined) return { ok: false, reason: 'not_found', message: `no saved workflow named "${name}" in either scope` };
+    const to = from === 'project' ? 'global' : 'project';
+    const targetDir = savedTargetDir(root, to);
     const target = path.join(targetDir, `${name}${SAVED_EXTENSION}`);
     if (await exists(target)) {
-      return { ok: false, reason: 'target_exists', message: `a project workflow named "${name}" already exists at ${target}` };
+      return { ok: false, reason: 'target_exists', message: `a ${to} workflow named "${name}" already exists at ${target}` };
     }
     await fsp.mkdir(targetDir, { recursive: true });
     try {
       await fsp.rename(source, target);
     } catch (error) {
-      if (error?.code !== 'EXDEV') throw error;
+      if (error?.code !== 'EXDEV') {
+        return { ok: false, reason: 'write_error', message: error instanceof Error ? error.message : String(error) };
+      }
       await fsp.copyFile(source, target);
       await fsp.unlink(source);
     }

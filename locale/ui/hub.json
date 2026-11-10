@@ -93,7 +93,6 @@
     "workflows.hub.global.hint": "Visible from every project",
     "workflows.hub.global.empty": "No global workflows yet. Good for flows that depend on no particular project, such as deep research.",
     "workflows.hub.global.unsupported": "The current agent does not support global workflows.",
-    "workflows.hub.global.noLocalRuntime": "Could not reach the local agent; global workflows are unavailable.",
     "workflows.hub.empty.title": "No saved workflows in your open projects yet",
     "workflows.hub.empty.hint": "Design a workflow with ZCode in chat, then have it save the workflow to a project once it works. Projects that aren't open don't appear here.",
     "workflows.hub.noWorkspace": "Open a workspace to see its workflows.",
@@ -260,11 +259,7 @@
     "chat.statusPanel.endedWorkflows": "Ended workflows",
     "chat.statusPanel.workflowsLive": "{count} running",
     "taskList.workflowRun.ariaLabel": "Workflow run {name}: {status}",
-    "taskList.workflowRun.moreRuns": "+{count} more",
-    "taskList.workflowRun.moreStations": "+{count}",
-    "taskList.workflowRun.liveCount": "{count} workflows running",
-    "taskList.workflowRun.holeWaiting": "{name} · waiting",
-    "workflowDirectory.title": "Workflow directory",
+    "workflowDirectory.title": "Workflow runs",
     "workflowDirectory.running": "Running",
     "workflowDirectory.runningEmpty": "No workflows are running",
     "workflowDirectory.ended": "Ended",
@@ -295,7 +290,8 @@
     "chat.toolCall.workflow.hole.head.title": "Hole “{name}” · filled by the agent · {time}",
     "chat.toolCall.workflow.hole.head.title.untimed": "Hole “{name}” · filled by the agent",
     "chat.toolCall.workflow.hole.open": "Open the fill of “{name}”",
-    "chat.toolCall.workflow.hole.waited": "Waiting · {time}"
+    "chat.toolCall.workflow.hole.waited": "Waiting · {time}",
+    "sidePane.workflowDirectory": "Workflow runs"
   },
   "zh": {
     "chat.permission.title": "需要权限",
@@ -391,7 +387,6 @@
     "workflows.hub.global.hint": "对所有项目可见",
     "workflows.hub.global.empty": "还没有全局工作流。适合放不依赖某个项目的流程，例如深度调研。",
     "workflows.hub.global.unsupported": "当前 agent 不支持全局工作流。",
-    "workflows.hub.global.noLocalRuntime": "无法连接本地 agent，全局工作流暂不可用。",
     "workflows.hub.empty.title": "已打开的项目里还没有保存的工作流",
     "workflows.hub.empty.hint": "在对话里让 ZCode 设计工作流，跑通之后再让它保存到项目里。未打开的项目不会出现在这里。",
     "workflows.hub.noWorkspace": "打开一个项目以查看它的工作流。",
@@ -558,11 +553,7 @@
     "chat.statusPanel.endedWorkflows": "已结束的工作流",
     "chat.statusPanel.workflowsLive": "{count} 个运行中",
     "taskList.workflowRun.ariaLabel": "工作流实例 {name}：{status}",
-    "taskList.workflowRun.moreRuns": "+{count} 个实例",
-    "taskList.workflowRun.moreStations": "+{count}",
-    "taskList.workflowRun.liveCount": "{count} 个工作流在跑",
-    "taskList.workflowRun.holeWaiting": "{name} · 等待补全",
-    "workflowDirectory.title": "工作流目录",
+    "workflowDirectory.title": "工作流实例",
     "workflowDirectory.running": "正在运行",
     "workflowDirectory.runningEmpty": "没有正在运行的工作流",
     "workflowDirectory.ended": "已结束",
@@ -593,6 +584,7 @@
     "chat.toolCall.workflow.hole.head.title": "留白「{name}」· 由主代理补全 · {time}",
     "chat.toolCall.workflow.hole.head.title.untimed": "留白「{name}」· 由主代理补全",
     "chat.toolCall.workflow.hole.open": "打开补全「{name}」",
-    "chat.toolCall.workflow.hole.waited": "等待中 · {time}"
+    "chat.toolCall.workflow.hole.waited": "等待中 · {time}",
+    "sidePane.workflowDirectory": "工作流目录"
   }
 }

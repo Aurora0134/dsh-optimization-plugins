@@ -60,23 +60,6 @@
     "resume.action": "恢复工作流运行",
     "run.status.unknown": "未知"
   },
-  "settings": {
-    "title": "动态工作流",
-    "description": "让模型用脚本编排大量子代理并行工作，处理复杂任务、交付专业结果。",
-    "mode.label": "动态工作流",
-    "mode.description": "选择模型什么时候可以运行工作流。",
-    "option.disabled": "关闭",
-    "option.disabled.description": "不能创建新的工作流，工作流目录页也会隐藏；已保存的工作流和过去的运行记录仍可查看。",
-    "option.onDemand": "通过命令启用",
-    "option.onDemand.description": "只有输入 /workflow 命令才会运行新的工作流。",
-    "option.alwaysOn": "始终开启",
-    "option.alwaysOn.description": "除了 /workflow 命令，模型也会根据你的意图主动运行工作流。",
-    "option.default": "默认",
-    "saveError": "保存动态工作流设置失败。",
-    "saved": "已保存",
-    "restartRequired": "重启应用后生效。",
-    "current": "当前"
-  },
   "ui": {
     "ui.justNow": "刚刚",
     "ui.minutesAgo": "{count} 分钟前",

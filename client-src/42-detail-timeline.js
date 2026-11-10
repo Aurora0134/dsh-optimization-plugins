@@ -159,18 +159,37 @@ function WfTimeline(props) {
         'data-testid': 'workflow-timeline-arc',
         'aria-hidden': 'true',
       },
+      WF_H('defs', null,
+        WF_H('linearGradient', { id: 'zwf-march-light-gradient', x1: '0%', y1: '0%', x2: '100%', y2: '0%' },
+          WF_H('stop', { offset: 0, stopColor: 'var(--dsw-alias-state-warn-primary)', stopOpacity: 0 }),
+          WF_H('stop', { offset: 0.8, stopColor: 'var(--dsw-alias-state-warn-primary)' }))),
       WF_H('g', { 'data-rail-kind': 'stream' },
-        layout.rails.map((rail) => WF_H('g', { key: rail.key },
-          WF_H('path', {
-            className: `zwf-rail zwf-rail-${rail.kind}`,
-            'data-testid': 'workflow-timeline-rail',
-            d: `M${rail.x1} ${rail.y}H${rail.x2}`,
-          }),
-          [0, 1, 2].map((offset) => WF_H('path', {
-            key: offset,
-            className: 'zwf-rail-chevron',
-            d: `M${rail.x1 + 10 + offset * 6} ${rail.y - 3}l4 3-4 3`,
-          }))))),
+        layout.rails.map((rail, railIndex) => {
+          // The segment into a running (or hole-waiting) station is the one still being walked.
+          const next = layout.columns[railIndex + 1];
+          const marching = next !== undefined && (next.status === 'running' || next.hole === 'waiting');
+          return WF_H('g', { key: rail.key },
+            WF_H('path', {
+              className: `zwf-rail zwf-rail-${rail.kind}`,
+              'data-testid': 'workflow-timeline-rail',
+              d: `M${rail.x1} ${rail.y}H${rail.x2}`,
+            }),
+            marching
+              ? WF_H('path', {
+                className: 'zwf-rail-march',
+                'data-testid': 'workflow-march-light',
+                d: `M${rail.x1} ${rail.y}H${rail.x2}`,
+                fill: 'none',
+                stroke: 'url(#zwf-march-light-gradient)',
+              })
+              : null,
+            WF_H('g', { 'data-stream-ink': marching ? 'march' : 'faint', 'data-testid': 'workflow-stream-chevrons' },
+              [0, 1, 2].map((offset) => WF_H('path', {
+                key: offset,
+                className: 'zwf-rail-chevron',
+                d: `M${rail.x1 + 10 + offset * 6} ${rail.y - 3}l4 3-4 3`,
+              }))));
+        })),
       layout.arcs.map((arc) => WF_H('path', {
         key: arc.key,
         className: 'zwf-arc',

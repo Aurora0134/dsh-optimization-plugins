@@ -486,6 +486,20 @@ function WfRunHealth(props) {
  * The configure popover: the subagent model and the concurrency bound for this run, the
  * consequence of changing either, and the apply control.
  */
+/**
+ * 把 `POST /run/configure` 的拒绝码翻成一句话。三种拒绝各有各的处置方式（找不到 / 已经是
+ * 这个值 / 运行已结束），压成一句「设置没能调整」等于让用户自己猜。
+ * @param {unknown} rawCode
+ */
+function retuneRejection(rawCode) {
+  const code = String(rawCode ?? '');
+  if (code === 'run_not_found') return { key: 'run.settings.rejection.not_found' };
+  if (code === 'retune_unchanged') return { key: 'run.settings.rejection.unchanged' };
+  if (code === 'run_settled') return { key: 'run.settings.rejection.not_configurable' };
+  if (code === 'run-settings-unsupported') return { key: 'run.settings.rejection.unsupported' };
+  return { key: 'run.settings.rejection.generic', params: { code: code.length > 0 ? code : 'run-settings-failed' } };
+}
+
 function WfRunSettingsPopover(props) {
   const { run, t, open, onClose } = props;
   if (open !== true) return null;
@@ -495,22 +509,29 @@ function WfRunSettingsPopover(props) {
   const defaultBound = wfNum(props.defaultBound) ?? 4;
   const [bound, setBound] = React.useState(() => concurrency?.limit ?? concurrency?.cap ?? defaultBound);
   const [rejection, setRejection] = React.useState(undefined);
+  const [applying, setApplying] = React.useState(false);
   const configure = props.onConfigure;
   const model = wfText(run?.subagentModel);
-  const consequence = status === 'running'
-    ? 'run.settings.consequence.running'
-    : status === 'pending' ? 'run.settings.consequence.pending'
-      : status === 'stopped' ? 'run.settings.consequence.stopped'
-        : status === 'errored' ? 'run.settings.consequence.errored'
-          : 'run.settings.consequence.running';
+  // 这个移植只调并发上限，而并发上限是当场生效的（`POST /run/configure`），所以运行中的
+  // 运行看到的是「立即应用」；已经结束的运行没有引擎可调，直接说明调不了。
+  const live = status === 'running' || status === 'pending';
+  const consequence = live
+    ? 'run.settings.consequence.concurrencyLive'
+    : 'run.settings.rejection.not_configurable';
   const apply = async () => {
+    if (applying) return;
     setRejection(undefined);
-    if (typeof configure === 'function') {
-      const answer = await configure({ bound, model });
-      if (answer !== undefined) setRejection(answer);
+    if (typeof configure !== 'function') {
+      setRejection({ key: 'run.settings.rejection.unsupported' });
       return;
     }
-    setRejection({ key: 'run.settings.rejection.unsupported' });
+    setApplying(true);
+    try {
+      const answer = await configure({ bound, model });
+      if (answer !== undefined) setRejection(answer);
+    } finally {
+      setApplying(false);
+    }
   };
   return WF_H('div', {
     className: 'zwf-settings-popover',
@@ -571,8 +592,10 @@ function WfRunSettingsPopover(props) {
       type: 'button',
       className: 'zwf-btn zwf-btn-primary zwf-btn-sm',
       'data-testid': 'workflow-run-settings-apply',
+      disabled: applying || !live,
       onClick: () => { void apply(); },
-    }, WF_H('span', { className: 'zwf-btn-label' }, say('run.settings.apply')))));
+    }, WF_H('span', { className: 'zwf-btn-label' },
+      say(applying ? 'run.settings.applying' : 'run.settings.apply')))));
 }
 
 /* ---------------------------------- pane ----------------------------------- */
@@ -602,12 +625,12 @@ function WfDetailPane(props) {
         maxConcurrency: bound,
       });
       if (answer?.ok !== true) {
-        return { key: 'run.settings.rejection.generic', params: { code: String(answer?.error?.code ?? 'run-settings-failed') } };
+        return retuneRejection(answer?.error?.code);
       }
       state.reload();
       return undefined;
     } catch (error) {
-      return { key: 'run.settings.rejection.generic', params: { code: String(error?.code ?? 'run-settings-failed') } };
+      return retuneRejection(error?.code);
     }
   };
   const artifacts = useWfArtifacts(scope, run);

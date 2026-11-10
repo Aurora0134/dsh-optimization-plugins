@@ -38,7 +38,6 @@ function apply(ctx) {
       try {
         disposers.push(ctx.locale.register(NS, { en: EN, zh: ZH }));
         disposers.push(ctx.locale.register(UI_NS, { en: UI_EN, zh: UI_ZH }));
-        disposers.push(ctx.locale.register(SETTINGS_NS, { en: SETTINGS_EN, zh: SETTINGS_ZH }));
       } catch (error) {
         console.error('zcode-workflow: locale registration failed', error);
       }

@@ -60,23 +60,6 @@
     "resume.action": "Resume workflow run",
     "run.status.unknown": "Unknown"
   },
-  "settings": {
-    "title": "Dynamic workflows",
-    "description": "Let the model orchestrate many subagents with a script, so it can take on complex tasks and deliver polished results.",
-    "mode.label": "Dynamic workflows",
-    "mode.description": "Choose when the model may run a workflow.",
-    "option.disabled": "Off",
-    "option.disabled.description": "No new workflow can start, and the Workflows page is hidden. Saved workflows and past runs stay viewable.",
-    "option.onDemand": "Only on command",
-    "option.onDemand.description": "Only the /workflow command starts a new workflow.",
-    "option.alwaysOn": "Always on",
-    "option.alwaysOn.description": "The model may also start a workflow from your intent, without /workflow.",
-    "option.default": "Default",
-    "saveError": "Could not save the dynamic-workflows setting.",
-    "saved": "Saved",
-    "restartRequired": "Takes effect after the app restarts.",
-    "current": "Current"
-  },
   "ui": {
     "ui.justNow": "Just now",
     "ui.minutesAgo": "{count} min ago",

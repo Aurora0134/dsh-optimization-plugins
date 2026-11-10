@@ -436,6 +436,50 @@ function WfHubBody(props) {
   const startEntry = (entry) => setDialog({ kind: 'launch', entry });
   const openEntry = (entry) => setDetail({ entry, revision: 0 });
 
+  /**
+   * Move one project workflow into the global catalogue.
+   *
+   * Global workflows need a host that serves the global scope and a move route that accepts the
+   * project → global direction. When either is missing the action says so with the official
+   * "global workflows are not supported" wording, because a refusal here is a missing capability,
+   * not a missing file. A move that fails for another reason keeps the official failure wording,
+   * and the list is left as it was, so a project workflow never disappears on a failed promote.
+   */
+  const promoteEntry = async (entry) => {
+    if (typeof projectRoot !== 'string' || projectRoot === '') return;
+    const unsupported = () => announce(say('workflows.hub.global.unsupported'));
+    if (payload?.global?.unsupported === true) {
+      unsupported();
+      return;
+    }
+    // 提升失败说清楚「为什么」：官方文案是「提升失败：{reason}」，`{reason}` 要一句人话，
+    // 不能把路由的内部码直接摆给用户；只有「这个 agent 没有全局目录」才是能力缺失。
+    const failedWith = (reason) => announce(say('workflows.hub.promote.failed', {
+      reason: reason === 'target_exists'
+        ? say('workflows.hub.move.targetExists')
+        : wfHubReasonWord(t, reason === '' ? 'read_error' : reason),
+    }));
+    try {
+      const result = await WF_API.moveWorkflow({ projectRoot, name: entry.name });
+      if (result !== null && typeof result === 'object' && result.ok === false) {
+        const reason = typeof result.reason === 'string' ? result.reason : '';
+        if (reason === 'unsupported') unsupported();
+        else failedWith(reason);
+        loaded.reload();
+        return;
+      }
+      setDetail(null);
+      loaded.reload();
+    } catch (error) {
+      wfHubWarn('promoting a saved workflow', error);
+      if (error?.code === 'run-settings-unsupported' || error?.code === 'unsupported') {
+        unsupported();
+      } else {
+        failedWith(error?.code === 'workflow-not-found' ? 'not_found' : 'read_error');
+      }
+    }
+  };
+
   const header = WF_H('div', { className: 'zwf-page-head' },
     WF_H('div', { className: 'zwf-page-titles' },
       WF_H('h1', { className: 'zwf-page-title' }, say('workflows.hub.sectionTitle')),
@@ -570,6 +614,7 @@ function WfHubBody(props) {
           return copied;
         },
         onMove: (entry) => setDialog({ kind: 'move', entry }),
+        onPromote: promoteEntry,
         onDelete: (entry) => setDialog({ kind: 'delete', entry }),
       }));
       nodes.push(WF_H(WfHubGroup, {
@@ -592,6 +637,7 @@ function WfHubBody(props) {
           return copied;
         },
         onMove: (entry) => setDialog({ kind: 'move', entry }),
+        onPromote: promoteEntry,
         onDelete: (entry) => setDialog({ kind: 'delete', entry }),
       }));
     }
@@ -696,6 +742,7 @@ function WfHubGroup(props) {
         onRevise: props.onRevise,
         onCopyPath: props.onCopyPath,
         onMove: props.onMove,
+        onPromote: props.onPromote,
         onDelete: props.onDelete,
       }))));
 }
@@ -765,7 +812,9 @@ function WfHubCard(props) {
         id: 'promote',
         label: WF_H('span', { 'data-testid': 'workflow-promote' }, say('workflows.hub.card.promoteToGlobal')),
         icon: WF_H(WF_ICON.globe, { size: 14 }),
-        disabled: true,
+        onSelect: () => {
+          void props.onPromote(entry);
+        },
       },
     null,
     { id: 'delete', label: say('workflows.hub.card.delete'), icon: WF_H(WF_ICON.close, { size: 14 }), danger: true, onSelect: () => props.onDelete(entry) },
@@ -971,7 +1020,7 @@ function WfHubArtifacts(props) {
   const artifacts = props.artifacts.slice(0, 6);
   return WF_H('div', { className: 'zwf-hub-artifacts' },
     WF_H('span', { className: 'zwf-hub-artifacts-label' }, wfHubSay(props.t, 'workflows.hub.artifacts.latest')),
-    WF_H('div', { className: 'zwf-hub-artifacts-list', 'data-testid': 'workflow-run-artifact-chips' },
+    WF_H('div', { className: 'zwf-hub-artifacts-list', 'data-testid': 'workflow-detail-artifacts' },
       artifacts.map((artifact, index) => {
         const record = artifact !== null && typeof artifact === 'object' ? artifact : {};
         const title = typeof record.title === 'string' && record.title !== '' ? record.title : String(record.id ?? '');

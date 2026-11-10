@@ -194,6 +194,57 @@ function wfArtifactTitle(artifact) {
   return artifact.title ?? artifact.id;
 }
 
+/** Kinds drawn from a structured definition rather than from their bytes. */
+const WF_ARTIFACT_PRESET_KINDS = ['table', 'chart', 'metrics', 'board'];
+
+/**
+ * Whether one structured artifact can be drawn at all.
+ * The three states are the ones the pane distinguishes: no definition at all (`missing`), a
+ * definition its kind cannot read (`invalid`), and a definition that renders even when it carries
+ * no rows yet (`ok`). A missing or unreadable definition must never read as "no data".
+ * @param {string} kind
+ * @param {unknown} spec
+ * @returns {'ok' | 'missing' | 'invalid'}
+ */
+function wfArtifactSpecState(kind, spec) {
+  if (spec === undefined || spec === null) return 'missing';
+  if (typeof spec !== 'object' || Array.isArray(spec)) return 'invalid';
+  if (kind === 'chart') {
+    const series = Array.isArray(spec.y) ? spec.y : [spec.y];
+    const usable = series.filter((entry) => (typeof entry === 'string'
+      ? entry !== ''
+      : entry !== null && typeof entry === 'object' && typeof entry.field === 'string'));
+    return usable.length === 0 ? 'invalid' : 'ok';
+  }
+  if (kind === 'metrics') {
+    const declared = Array.isArray(spec.metrics) ? spec.metrics : [];
+    const usable = declared.filter((entry) => (typeof entry === 'string'
+      ? entry !== ''
+      : entry !== null && typeof entry === 'object' && typeof entry.field === 'string'));
+    return usable.length === 0 ? 'invalid' : 'ok';
+  }
+  if (kind === 'board') {
+    return Array.isArray(spec.columns) && spec.columns.length > 0 ? 'ok' : 'invalid';
+  }
+  return 'ok';
+}
+
+/**
+ * The version mark of an artifact: shown from the second version on, silent for the first one
+ * because "v1" is what an unversioned artifact already means.
+ * @param {{artifact: object, version?: number, t?: Function}} props
+ */
+function WfArtifactVersionMark(props) {
+  const version = wfNum(props.version) ?? wfNum(props.artifact?.version) ?? 1;
+  if (version < 2) return null;
+  return WF_H('span', {
+    className: 'zwf-artifact-chip-version zwf-mono',
+    'data-testid': 'workflow-run-artifact-version',
+    'data-version': String(version),
+    title: WF_UI.say(props.t, UI_EN, 'run.artifacts.version', { version: String(version) }),
+  }, WF_UI.say(props.t, UI_EN, 'run.artifacts.versionTail', { version: String(version) }));
+}
+
 /** One table cell: primitives as-is, everything else compact JSON. */
 function wfArtifactCell(value) {
   if (value === null || value === undefined) return '';
@@ -360,7 +411,8 @@ function WfArtifactChart(props) {
       values: series.map((line) => wfNum(wfFieldValue(entry.value, line.field))),
     }))
     .filter((point) => point.values.some((value) => value !== undefined));
-  if (series.length === 0 || points.length === 0) {
+  if (series.length === 0) return null;
+  if (points.length === 0) {
     return WF_H('div', { className: 'zwf-artifact-empty', 'data-testid': 'workflow-run-artifact-items' },
       WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.preset.empty')));
   }
@@ -426,10 +478,7 @@ function WfArtifactMetrics(props) {
       if (value !== undefined && value !== null) latest[metric.field] = value;
     }
   }
-  if (metrics.length === 0) {
-    return WF_H('div', { className: 'zwf-artifact-empty', 'data-testid': 'workflow-run-artifact-items' },
-      WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.preset.empty')));
-  }
+  if (metrics.length === 0) return null;
   return WF_H('div', { className: 'zwf-artifact-metrics', 'data-testid': 'workflow-run-artifact-items' },
     metrics.map((metric) => WF_H('div', { key: metric.field, className: 'zwf-artifact-metric' },
       WF_H('span', { className: 'zwf-artifact-metric-label' }, metric.label ?? metric.field),
@@ -458,6 +507,7 @@ function WfArtifactBoard(props) {
     else other.push(card);
   }
   const otherLabel = WF_UI.say(t, UI_EN, 'run.artifacts.preset.otherColumn');
+  if (columns.length === 0) return null;
   const renderCard = (card) => WF_H('div', { key: card.key, className: 'zwf-artifact-card' },
     WF_H('span', { className: 'zwf-artifact-card-title' },
       card.title === undefined ? card.key : String(card.title)));
@@ -498,9 +548,10 @@ function WfArtifactText(props) {
 function WfArtifactPreview(props) {
   const { artifact, t, scope, version, enabled } = props;
   const kind = artifact.kind;
-  const wantsItems = ['table', 'chart', 'metrics', 'board'].includes(kind);
+  const wantsItems = WF_ARTIFACT_PRESET_KINDS.includes(kind);
   const wantsBytes = ['file', 'markdown', 'image', 'html'].includes(kind);
-  const items = useWfArtifactItems(scope, artifact, version, enabled === true && wantsItems);
+  const specState = wantsItems ? wfArtifactSpecState(kind, artifact.spec) : 'ok';
+  const items = useWfArtifactItems(scope, artifact, version, enabled === true && wantsItems && specState === 'ok');
   const bytes = useWfArtifactBytes(scope, artifact, version, enabled === true && wantsBytes);
   const say = (key, params) => WF_UI.say(t, UI_EN, key, params);
   const mediaType = bytes.mediaType ?? artifact.contentType;
@@ -508,7 +559,17 @@ function WfArtifactPreview(props) {
   const text = wantsBytes && textual && bytes.bytes !== undefined ? wfDecodeBytes(bytes.bytes) : undefined;
   let body;
   if (wantsItems) {
-    if (items.loading && items.items.length === 0) {
+    if (specState === 'missing') {
+      body = WF_H('p', {
+        className: 'zwf-artifact-empty-text',
+        'data-testid': 'workflow-run-artifact-preset-missing',
+      }, say('run.artifacts.unavailable'));
+    } else if (specState === 'invalid') {
+      body = WF_H('p', {
+        className: 'zwf-artifact-empty-text',
+        'data-testid': 'workflow-run-artifact-preset-invalid',
+      }, say('run.artifacts.presetInvalid'));
+    } else if (items.loading && items.items.length === 0) {
       body = WF_H('div', { className: 'zwf-artifact-empty', 'data-testid': 'workflow-artifact-loading' },
         WF_H(WF_UI.Spinner, { inline: true }),
         WF_H('span', { className: 'zwf-artifact-empty-text', 'data-testid': 'workflow-artifact-preview-pending' }, say('run.artifacts.loading')));
@@ -667,6 +728,7 @@ function WfArtifactPrimary(props) {
       WF_H('span', { className: 'zwf-artifact-title', 'data-testid': 'workflow-artifact-title', title: wfArtifactTitle(artifact) }, wfArtifactTitle(artifact)),
       WF_H('span', { className: 'zwf-artifact-badge', 'data-testid': 'workflow-run-artifact-badge' }, wfArtifactKindLabel(t, artifact.kind)),
       size === undefined ? null : WF_H('span', { className: 'zwf-artifact-bytes zwf-mono', 'data-testid': 'workflow-run-artifact-bytes' }, size),
+      WF_H(WfArtifactVersionMark, { artifact, version, t }),
       WF_H('span', { className: 'zwf-artifact-chips', 'data-testid': 'workflow-run-artifact-chips' },
         WF_H(WfArtifactStepper, { artifact, t, version, onVersion }))),
     artifact.description === undefined

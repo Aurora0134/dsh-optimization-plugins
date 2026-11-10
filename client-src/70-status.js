@@ -212,14 +212,6 @@ function wfStatusProgress(t, run) {
   return { kind: 'status', text: wfStatusWord(t, wfStatusState(run)) };
 }
 
-/** The project a run belongs to, when the snapshot carries one. */
-function wfStatusProject(run) {
-  const root = wfStatusText(run?.projectRoot, run?.workspacePath, run?.cwd, run?.workspace);
-  if (root === '') return '';
-  const parts = root.replace(/[\\/]+$/u, '').split(/[\\/]/u);
-  return parts[parts.length - 1] ?? root;
-}
-
 /**
  * Split one `/runs` payload into the two groups the panel shows.
  * @param {unknown} payload `{ runs, truncated }` response body
@@ -329,7 +321,6 @@ function WfStatusIsland(props) {
   const elapsed = started === 0 ? '' : WF_UI.duration(started, now);
   const progress = wfStatusProgress(t, run);
   const word = wfStatusWord(t, state);
-  const project = wfStatusProject(run);
   const label = `${say('chat.toolCall.workflow.openRunDetails')} \u00b7 ${name} \u00b7 ${word}${progress.text === '' ? '' : ` \u00b7 ${progress.text}`}`;
   const tone = WF_UI.statusTone(state);
   return WF_H('li', {
@@ -356,7 +347,6 @@ function WfStatusIsland(props) {
   WF_H('div', { className: 'zwf-island-main' },
     WF_H('div', { className: 'zwf-island-line', 'data-workflow-island-line': 'name', 'data-testid': 'workflow-island-line' },
       WF_H('span', { className: 'zwf-island-name', title: name }, name),
-      project === '' ? null : WF_H('span', { className: 'zwf-island-project', 'data-testid': 'workflow-run-project', title: project }, project),
       elapsed === '' ? null : WF_H('span', { className: 'zwf-island-time', 'data-workflow-run-elapsed': 'true', 'data-testid': 'workflow-run-elapsed' }, elapsed)),
     WF_H('div', {
       className: 'zwf-island-line zwf-island-line-phase',
@@ -504,8 +494,11 @@ function WfStatusDirectoryRow(props) {
   return WF_H('button', {
     type: 'button',
     className: 'zwf-dirrow',
+    'data-testid': 'workflow-run-card',
     'data-run-id': wfStatusId(run),
     'data-run-status': state,
+    'data-workflow-run-id': wfStatusId(run),
+    'data-workflow-run-status': state,
     'aria-label': say('chat.toolCall.workflow.openRunDetails'),
     onClick: () => props.onOpen(run),
   },
@@ -757,7 +750,7 @@ function WfStatusEntry(props) {
     }));
 
   const panel = open
-    ? WF_H('div', { className: 'zwf-status-menu', role: 'dialog', 'aria-label': say('workflowDirectory.title') },
+    ? WF_H('div', { className: 'zwf-status-menu', role: 'dialog', 'aria-label': say('sidePane.workflowDirectory') },
       view === 'live' ? liveView : directoryView)
     : null;
 
@@ -826,7 +819,7 @@ const WF_STATUS_CSS = `
 .zwf-status-trigger[aria-expanded=true]{background:color-mix(in oklab,var(--dsw-alias-label-primary) 9%,transparent);color:var(--dsw-alias-label-primary)}
 .zwf-status-trigger:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
 .zwf-status-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-brand-primary) 16%,transparent);color:var(--dsw-alias-brand-primary);font-size:11px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
-.zwf-status-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);overflow-y:auto;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 36px rgb(0 0 0 / .18)}
+.zwf-status-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);overflow-y:auto;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:var(--dsw-shadow-lv3)}
 .zwf-status-view{display:flex;flex-direction:column;gap:4px;min-width:0}
 .zwf-status-head{display:flex;align-items:center;gap:6px;min-width:0;padding:6px 8px 4px}
 .zwf-status-title{font-size:11.5px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.02em}

@@ -51,7 +51,7 @@ const WF_DETAIL_CSS = `
 .zwf-result-untracked{border-style:dashed;background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
 .zwf-questions-unknown{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-primary)}
 /* settings popover */
-.zwf-settings-popover{display:flex;flex-direction:column;gap:10px;margin:8px 16px 0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 32px rgb(0 0 0 / .2)}
+.zwf-settings-popover{display:flex;flex-direction:column;gap:10px;margin:8px 16px 0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:var(--dsw-shadow-lv3)}
 .zwf-settings-head{display:flex;align-items:center;gap:8px}
 .zwf-settings-title{flex:1;font-size:13px;line-height:20px;font-weight:600}
 .zwf-settings-row{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -79,8 +79,11 @@ const WF_DETAIL_CSS = `
 .zwf-timeline-canvas{position:relative}
 .zwf-timeline-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .zwf-rail{stroke:color-mix(in oklab,var(--dsw-alias-label-primary) 22%,transparent);stroke-width:1;fill:none}
+.zwf-rail-march{stroke-width:1.35;stroke-linecap:round;fill:none;opacity:.95}
 .zwf-rail-chevron{stroke:color-mix(in oklab,var(--dsw-alias-label-primary) 32%,transparent);stroke-width:1;fill:none}
+[data-stream-ink="march"] .zwf-rail-chevron{stroke:var(--dsw-alias-state-warn-primary)}
 .zwf-arc{stroke:color-mix(in oklab,var(--dsw-alias-brand-primary) 45%,transparent);stroke-width:1;fill:none}
+@media (prefers-reduced-motion: no-preference){.zwf-rail-march{animation:zwf-march-pulse 1.6s ease-in-out infinite}@keyframes zwf-march-pulse{0%,100%{opacity:.35}50%{opacity:.95}}}
 .zwf-fills{position:absolute;top:0;left:0;height:100%;pointer-events:none}
 .zwf-fill-frame{position:absolute;top:0;height:100%;border-radius:8px;background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 8%,transparent)}
 .zwf-fill-heads{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
@@ -224,6 +227,8 @@ const WF_DETAIL_CSS = `
 .zwf-artifact-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-brand-primary)}
 .zwf-artifact-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:19px;font-weight:500}
 .zwf-artifact-badge{flex:none;padding:0 5px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-chip-version{flex:none;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;font-variant-numeric:tabular-nums}
+.zwf-completion-row .zwf-artifact-chip-version,.zwf-completion-line .zwf-artifact-chip-version{margin-left:auto}
 .zwf-artifact-bytes{flex:none;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
 .zwf-artifact-chips{display:inline-flex;align-items:center;gap:4px;flex:none}
 .zwf-artifact-chip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);cursor:pointer}

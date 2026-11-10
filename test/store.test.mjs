@@ -456,18 +456,20 @@ test('saved workflows: invalid name, overwrite, delete, move', async (t) => {
   assert.equal(moved.to, 'project');
   assert.equal(moved.path, path.join(f.project, '.dsh', 'workflows', `mover${SAVED_EXTENSION}`));
   assert.equal((await f.store.getSavedWorkflow('mover', { cwd: f.project })).scope, 'project');
-  assert.deepEqual(await f.store.moveSavedWorkflow('mover', { cwd: f.project }), {
-    ok: false,
-    reason: 'not_found',
-    message: 'no global workflow named "mover"',
-  });
+  // 契约 workflows/move 不带方向（engine.md:260）：同一份工作流再调一次就搬回全局。
+  const back = await f.store.moveSavedWorkflow('mover', { cwd: f.project });
+  assert.equal(back.ok, true);
+  assert.equal(back.from, 'project');
+  assert.equal(back.to, 'global');
+  assert.equal(back.path, path.join(f.home, 'workflows', `mover${SAVED_EXTENSION}`));
+  assert.equal((await f.store.getSavedWorkflow('mover', { cwd: f.project })).scope, 'global');
+  assert.equal((await f.store.moveSavedWorkflow('nobody-here', { cwd: f.project })).reason, 'not_found');
 
   await f.store.saveSavedWorkflow({ cwd: f.home, name: 'collide', scope: 'global', code: 'return 5;' });
   await f.store.saveSavedWorkflow({ cwd: f.project, name: 'collide', scope: 'project', code: 'return 6;' });
   const collision = await f.store.moveSavedWorkflow('collide', { cwd: f.project });
   assert.equal(collision.ok, false);
   assert.equal(collision.reason, 'target_exists');
-  assert.equal((await f.store.moveSavedWorkflow('collide', { from: 'project', to: 'global', cwd: f.project })).reason, 'unsupported');
 
   assert.equal(await f.store.deleteSavedWorkflow('collide', { scope: 'global', cwd: f.project }), true);
   assert.equal(await f.store.deleteSavedWorkflow('collide', { scope: 'global', cwd: f.project }), false);

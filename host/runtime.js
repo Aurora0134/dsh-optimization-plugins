@@ -2816,7 +2816,17 @@ export function createRuntime({
     const runStatus = stored?.status ?? 'running';
     // 契约 km 的 status 不是事件给的，是按引用该 actor 的 node 派生（engine.md:592-596）。
     const activeRun = runStatus === 'pending' || runStatus === 'running';
-    const nodesOfActor = (actor) => nodes.filter((node) => node.actorSiteId === actor.siteId && node.actorOrdinal === actor.ordinal);
+    // 快照是被轮询的，按 actor 建一次索引，避免 actors × nodes 的重复过滤。
+    /** @type {Map<string, object[]>} */
+    const nodesByActor = new Map();
+    for (const node of nodes) {
+      if (node.actorSiteId === undefined) continue;
+      const key = `${node.actorSiteId}@${node.actorOrdinal ?? 0}`;
+      const bucket = nodesByActor.get(key);
+      if (bucket === undefined) nodesByActor.set(key, [node]);
+      else bucket.push(node);
+    }
+    const nodesOfActor = (actor) => nodesByActor.get(`${actor.siteId}@${actor.ordinal}`) ?? [];
     const derivedActors = actors.map((actor) => {
       const mine = nodesOfActor(actor);
       const working = mine.some((node) => node.phase === 'executing' || node.phase === 'repairing' || node.phase === 'nudged');

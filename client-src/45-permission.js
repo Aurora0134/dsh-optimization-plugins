@@ -1257,8 +1257,8 @@ const WF_PERMISSION_CSS = `
 .zwf-perm-hint-glyph{display:inline-flex;flex:none}
 .zwf-perm-failure{flex:1 1 100%;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
 .zwf-perm-foot .zwf-btn:last-child{margin-left:auto}
-.zwf-perm-layer{position:fixed;z-index:90;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgb(0 0 0 / .42)}
-.zwf-perm-dialog{box-sizing:border-box;display:flex;flex-direction:column;width:min(880px,100%);max-height:min(88vh,900px);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,14px);background:var(--dsw-alias-bg-overlay);box-shadow:0 24px 64px rgb(0 0 0 / .3);overflow:hidden}
+.zwf-perm-layer{position:fixed;z-index:90;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--dsw-alias-bg-mask-1)}
+.zwf-perm-dialog{box-sizing:border-box;display:flex;flex-direction:column;width:min(880px,100%);max-height:min(88vh,900px);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,14px);background:var(--dsw-alias-bg-overlay);box-shadow:var(--dsw-elevation-prominent);overflow:hidden}
 .zwf-perm-dialog-head{display:flex;align-items:center;gap:8px;flex:none;padding:14px 16px 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .zwf-perm-dialog-title{flex:none;font-size:14px;line-height:22px;font-weight:600;color:var(--dsw-alias-label-primary)}
 .zwf-perm-dialog-badge{flex:none;height:20px;padding:0 8px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 12%,transparent);color:var(--dsw-alias-state-warn-primary);font-size:11px;line-height:20px}

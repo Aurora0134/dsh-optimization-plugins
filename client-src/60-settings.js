@@ -180,7 +180,7 @@ const WF_SETTINGS_CSS = `
 .zwf-set-seg-item:hover:not(:disabled){color:var(--dsw-alias-label-primary)}
 .zwf-set-seg-item:disabled{opacity:.5;cursor:default}
 .zwf-set-seg-item:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.zwf-set-seg-item-active{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.zwf-set-seg-item-active{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-shadow-lv1)}
 .zwf-set-seg-label{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .zwf-set-seg-tag{flex:none;height:16px;padding:0 5px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px;font-weight:400}
 @media (max-width:560px){.zwf-set-row{flex-direction:column;align-items:stretch;gap:12px}.zwf-set-control{align-items:flex-start}.zwf-set-seg{flex-wrap:wrap}}

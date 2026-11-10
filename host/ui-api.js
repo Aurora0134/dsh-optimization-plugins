@@ -1261,7 +1261,9 @@ export function registerWorkflowUiApi({
       async POST(req, res, query, body) {
         const name = requiredString(body, 'name');
         const cwd = await cwdFrom(body);
-        const moved = await storeFor(cwd).moveSavedWorkflow(name, { from: 'global', to: 'project', cwd });
+        // 方向由它现在住在哪决定（项目副本遮蔽全局副本）：契约 workflows/move 只收 {workspace, name}，
+        // 返回的 from/to 告诉调用方实际搬了哪一侧。
+        const moved = await storeFor(cwd).moveSavedWorkflow(name, { cwd });
         if (!moved?.ok) {
           const status = moved?.reason === 'not_found' ? 404 : moved?.reason === 'invalid_name' ? 400 : 409;
           sendJson(res, status, {
