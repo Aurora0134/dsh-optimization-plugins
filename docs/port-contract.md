@@ -61,6 +61,22 @@
 - 文案逐字取自真实产品的中文字典，英文按同义书写；键与真实消息 ID 同名同层级，便于比对。
 - 交互锚点沿用真实产品的 `data-testid`，名称不改写，便于逐项核对。
 
+## 已知偏差（逐条记录，便于后来者判断"这是 bug 还是环境差异"）
+
+| 项 | 真实实现 | 本移植 | 原因 |
+| --- | --- | --- | --- |
+| 脚本执行 | 独立 node 子进程 + `node:vm` | 本进程 `node:vm` cell，同一套 JSON 行协议与停滞检测 | 插件运行在 Host 进程内，没有可控的子进程入口；代价是无进程级崩溃与内存隔离 |
+| typed ask 交付 | 子代理会话内注入 `submit_result` 工具 | schema 尾巴 + 要求可解析 JSON；repair 以违规文本、nudge 以逐字提示词再开一回合 | DSH subagent 不能在会话中途动态注册工具 |
+| actor 上下文 | 同一会话跨 ask 累积 | 提示词尾部合成历史 | 同上 |
+| amend 闭环 | 可带 transcript 种子、可自动续跑 | 新 run，不做缓存导入；resume 才按 journal 重放 | 未在真实实现的证据范围内 |
+| 运行态存储 | 会话 SQLite（`dwf_run/actor/node/event`） | JSON 文件等价映射，字段与保留策略一致 | 插件没有会话库写入通道 |
+| 保存的工作流目录 | `.zcode/workflows`（全局 `~/.zcode/workflows`） | `.dsh/workflows`（全局 `$DSH_HOME/workflows`），读取兼容旧目录 | 跟随 Harness 的目录约定 |
+| `TaskOutput`/`TaskStop` | 通用后台任务工具 | 按 run 语义（`run_id`）使用；停止入口为本移植扩展 `StopWorkflowRun` | Harness 没有等价的后台任务工具 |
+| 模型可调行 | 可从模型目录挑选子代理模型 | 无模型目录通道，只留并发可调与模型只读展示 | Harness 未向插件暴露模型清单 |
+| 运行目录视图 | 独立右栏 | 放进状态入口弹层的第二视图 | 没有对应的 `sidePane` 槽位 |
+| 启动已保存工作流 | 直接按名启动 | 开一条新会话并把名称与参数写进提示词 | 没有跨会话的启动路由 |
+| `/run/fill`、`/run/answer` 错误码 | §1 未定义 | `fault.workflowRunFill.*`、`fault.workflowRunAnswer.notPending` | 语义自洽的补充命名 |
+
 ## 验收
 
 1. 规格里每个表面、每个状态、每条文案、每个 testid 都能在代码里指到。
