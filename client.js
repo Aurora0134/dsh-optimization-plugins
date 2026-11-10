@@ -6995,9 +6995,9 @@ function wfDetailArtifacts(run) {
   }).filter((artifact) => artifact.id !== '');
 }
 
-/** The artifact the ledger marks primary, else the newest one that carries a preview. */
+/** The artifact the ledger marks primary; without one the panel shows its gallery instead. */
 function wfPrimaryArtifact(artifacts) {
-  return artifacts.find((artifact) => artifact.primary === true) ?? artifacts[0];
+  return artifacts.find((artifact) => artifact.primary === true);
 }
 
 /** Table-like artifacts ship their rows in the published spec. */
@@ -8002,7 +8002,7 @@ function WfArtifactsSection(props) {
   const [versions, setVersions] = React.useState({});
   const [selected, setSelected] = React.useState(undefined);
   const primary = wfPrimaryArtifact(artifacts);
-  const rest = artifacts.filter((artifact) => artifact !== primary);
+  const rest = artifacts.filter((artifact) => artifact !== (selected ?? primary));
   const versionOf = React.useCallback((artifact) => versions[artifact.id] ?? artifact.version ?? 1, [versions]);
   const setVersion = React.useCallback((artifact, version) => {
     setVersions((current) => ({ ...current, [artifact.id]: version }));
@@ -8010,26 +8010,24 @@ function WfArtifactsSection(props) {
   if (artifacts.length === 0) return null;
   const shown = selected ?? primary;
   const body = shown === undefined
-    ? null
-    : primary === undefined
-      ? WF_H(WfArtifactGallery, { artifacts, t, versionOf, onSelect: setSelected })
-      : WF_H(WF_FRAGMENT, null,
-        WF_H('div', { className: 'zwf-artifact-primary-body', 'data-testid': 'workflow-run-artifact-primary-body' },
-          WF_H(WfArtifactPrimary, {
-            artifact: shown,
-            t,
-            scope,
-            version: versionOf(shown),
-            onVersion: (version) => setVersion(shown, version),
-          })),
-        WF_H(WfArtifactIndex, {
-          artifacts: rest,
+    ? WF_H(WfArtifactGallery, { artifacts, t, versionOf, onSelect: setSelected })
+    : WF_H(WF_FRAGMENT, null,
+      WF_H('div', { className: 'zwf-artifact-primary-body', 'data-testid': 'workflow-run-artifact-primary-body' },
+        WF_H(WfArtifactPrimary, {
+          artifact: shown,
           t,
-          versionOf,
-          onSelect: (artifact) => {
-            setSelected(artifact);
-          },
-        }));
+          scope,
+          version: versionOf(shown),
+          onVersion: (version) => setVersion(shown, version),
+        })),
+      WF_H(WfArtifactIndex, {
+        artifacts: rest,
+        t,
+        versionOf,
+        onSelect: (artifact) => {
+          setSelected(artifact);
+        },
+      }));
   return WF_H('section', {
     className: 'zwf-artifacts',
     'data-testid': 'workflow-artifacts',
@@ -9992,6 +9990,7 @@ function WfWorkspacePane(props) {
   const scope = React.useMemo(() => ({ sessionId, runId }), [sessionId, runId]);
   const refreshKey = wfNum(props.run?.lastEventSequence) ?? 0;
   const workspace = useWfWorkspace(scope, refreshKey);
+  const listRef = React.useRef(undefined);
   const [opened, setOpened] = React.useState(() => new Set());
   const [loadedCount, setLoadedCount] = React.useState(0);
   React.useEffect(() => {
@@ -10011,6 +10010,13 @@ function WfWorkspacePane(props) {
       else next.add(key);
       return next;
     });
+    // The card a click lands on is brought to the top of the ledger once it has expanded.
+    if (typeof requestAnimationFrame === 'function' && listRef.current !== null && listRef.current !== undefined) {
+      requestAnimationFrame(() => {
+        const node = listRef.current?.querySelector(`[data-card-key="${key}"]`);
+        node?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+      });
+    }
   }, []);
   const statusWord = WF_UI.statusText(t, UI_EN, wfDetailRunStatus(props.run));
   const phases = new Set(workspace.nodes.map((node) => node.phaseName).filter(Boolean)).size;
@@ -10056,7 +10062,7 @@ function WfWorkspacePane(props) {
         body: WF_UI.say(t, UI_EN, 'script.notStarted.body'),
       }));
   } else {
-    body = WF_H('div', { className: 'zwf-ws-list', 'data-testid': 'workflow-workspace-list' },
+    body = WF_H('div', { className: 'zwf-ws-list', 'data-testid': 'workflow-workspace-list', ref: listRef },
       chapters.map((chapter) => WF_H(WfWorkspaceChapter, {
         key: chapter.key,
         chapter,
@@ -10356,7 +10362,9 @@ const WF_DETAIL_CSS = `
 .zwf-ws-round{display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px}
 .zwf-ws-rule{flex:1;height:1px;background:var(--dsw-alias-border-l1);min-width:8px}
 .zwf-ws-chapter-meta{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.zwf-ws-card{display:grid;grid-template-columns:26px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:6px 8px 8px;border-radius:9px;min-width:0}
+.zwf-ws-card{display:grid;grid-template-columns:26px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:6px 8px 8px;border-radius:9px;min-width:0;animation:zwf-ws-entry .18s ease-out both}
+@keyframes zwf-ws-entry{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.zwf-ws-card{animation:none}}
 .zwf-ws-card:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
 .zwf-ws-glyph{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
 .zwf-ws-card-failed .zwf-ws-glyph{background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}

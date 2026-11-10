@@ -351,6 +351,7 @@ function WfWorkspacePane(props) {
   const scope = React.useMemo(() => ({ sessionId, runId }), [sessionId, runId]);
   const refreshKey = wfNum(props.run?.lastEventSequence) ?? 0;
   const workspace = useWfWorkspace(scope, refreshKey);
+  const listRef = React.useRef(undefined);
   const [opened, setOpened] = React.useState(() => new Set());
   const [loadedCount, setLoadedCount] = React.useState(0);
   React.useEffect(() => {
@@ -370,6 +371,13 @@ function WfWorkspacePane(props) {
       else next.add(key);
       return next;
     });
+    // The card a click lands on is brought to the top of the ledger once it has expanded.
+    if (typeof requestAnimationFrame === 'function' && listRef.current !== null && listRef.current !== undefined) {
+      requestAnimationFrame(() => {
+        const node = listRef.current?.querySelector(`[data-card-key="${key}"]`);
+        node?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+      });
+    }
   }, []);
   const statusWord = WF_UI.statusText(t, UI_EN, wfDetailRunStatus(props.run));
   const phases = new Set(workspace.nodes.map((node) => node.phaseName).filter(Boolean)).size;
@@ -415,7 +423,7 @@ function WfWorkspacePane(props) {
         body: WF_UI.say(t, UI_EN, 'script.notStarted.body'),
       }));
   } else {
-    body = WF_H('div', { className: 'zwf-ws-list', 'data-testid': 'workflow-workspace-list' },
+    body = WF_H('div', { className: 'zwf-ws-list', 'data-testid': 'workflow-workspace-list', ref: listRef },
       chapters.map((chapter) => WF_H(WfWorkspaceChapter, {
         key: chapter.key,
         chapter,

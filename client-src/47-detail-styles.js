@@ -273,7 +273,9 @@ const WF_DETAIL_CSS = `
 .zwf-ws-round{display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px}
 .zwf-ws-rule{flex:1;height:1px;background:var(--dsw-alias-border-l1);min-width:8px}
 .zwf-ws-chapter-meta{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.zwf-ws-card{display:grid;grid-template-columns:26px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:6px 8px 8px;border-radius:9px;min-width:0}
+.zwf-ws-card{display:grid;grid-template-columns:26px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:6px 8px 8px;border-radius:9px;min-width:0;animation:zwf-ws-entry .18s ease-out both}
+@keyframes zwf-ws-entry{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.zwf-ws-card{animation:none}}
 .zwf-ws-card:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
 .zwf-ws-glyph{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
 .zwf-ws-card-failed .zwf-ws-glyph{background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
