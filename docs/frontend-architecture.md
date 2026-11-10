@@ -25,6 +25,7 @@ part 的职责：
 | `33-snippet.js` | `EvalWorkflowSnippet` 片段卡 |
 | `34-script.js` | 脚本代码块、编译诊断、脚本折叠、设置变更行 |
 | `35-tool-cards.js` | 其余工具卡（状态、列表、保存、停止、续跑、提问）与兜底 |
+| `36-digest.js` | 运行卡折叠体之后的摘要条：阶段缩略、待答问题、留白、产物、恢复/停止 |
 | `40-detail.js` | 右侧栏运行详情容器与 `WF_DETAIL.open/openScript` |
 | `41-detail-model.js` | 详情的数据获取与派生 |
 | `42-detail-timeline.js` | 事件时间线 |
