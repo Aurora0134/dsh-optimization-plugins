@@ -217,7 +217,7 @@ function WfArtifactsSection(props) {
   const [versions, setVersions] = React.useState({});
   const [selected, setSelected] = React.useState(undefined);
   const primary = wfPrimaryArtifact(artifacts);
-  const rest = artifacts.filter((artifact) => artifact !== primary);
+  const rest = artifacts.filter((artifact) => artifact !== (selected ?? primary));
   const versionOf = React.useCallback((artifact) => versions[artifact.id] ?? artifact.version ?? 1, [versions]);
   const setVersion = React.useCallback((artifact, version) => {
     setVersions((current) => ({ ...current, [artifact.id]: version }));
@@ -225,26 +225,24 @@ function WfArtifactsSection(props) {
   if (artifacts.length === 0) return null;
   const shown = selected ?? primary;
   const body = shown === undefined
-    ? null
-    : primary === undefined
-      ? WF_H(WfArtifactGallery, { artifacts, t, versionOf, onSelect: setSelected })
-      : WF_H(WF_FRAGMENT, null,
-        WF_H('div', { className: 'zwf-artifact-primary-body', 'data-testid': 'workflow-run-artifact-primary-body' },
-          WF_H(WfArtifactPrimary, {
-            artifact: shown,
-            t,
-            scope,
-            version: versionOf(shown),
-            onVersion: (version) => setVersion(shown, version),
-          })),
-        WF_H(WfArtifactIndex, {
-          artifacts: rest,
+    ? WF_H(WfArtifactGallery, { artifacts, t, versionOf, onSelect: setSelected })
+    : WF_H(WF_FRAGMENT, null,
+      WF_H('div', { className: 'zwf-artifact-primary-body', 'data-testid': 'workflow-run-artifact-primary-body' },
+        WF_H(WfArtifactPrimary, {
+          artifact: shown,
           t,
-          versionOf,
-          onSelect: (artifact) => {
-            setSelected(artifact);
-          },
-        }));
+          scope,
+          version: versionOf(shown),
+          onVersion: (version) => setVersion(shown, version),
+        })),
+      WF_H(WfArtifactIndex, {
+        artifacts: rest,
+        t,
+        versionOf,
+        onSelect: (artifact) => {
+          setSelected(artifact);
+        },
+      }));
   return WF_H('section', {
     className: 'zwf-artifacts',
     'data-testid': 'workflow-artifacts',

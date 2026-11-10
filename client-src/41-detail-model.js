@@ -251,9 +251,9 @@ function wfDetailArtifacts(run) {
   }).filter((artifact) => artifact.id !== '');
 }
 
-/** The artifact the ledger marks primary, else the newest one that carries a preview. */
+/** The artifact the ledger marks primary; without one the panel shows its gallery instead. */
 function wfPrimaryArtifact(artifacts) {
-  return artifacts.find((artifact) => artifact.primary === true) ?? artifacts[0];
+  return artifacts.find((artifact) => artifact.primary === true);
 }
 
 /** Table-like artifacts ship their rows in the published spec. */
