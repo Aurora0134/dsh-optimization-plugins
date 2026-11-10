@@ -87,7 +87,6 @@ window.__ModuleLoader__.load({
   justify-content: center;
   padding: 24px;
   background: var(--dsw-alias-bg-mask-1);
-  backdrop-filter: var(--dsw-mask-blur);
 }
 .dsr-dialog {
   box-sizing: border-box;
@@ -100,7 +99,7 @@ window.__ModuleLoader__.load({
   padding: 20px;
   border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-lg);
-  background: var(--dsw-specific-menu);
+  background: var(--dsw-alias-bg-layer-1);
   box-shadow: var(--dsw-elevation-panel);
   color: var(--dsw-alias-label-primary);
   font-size: var(--dsh-content-font-size, 14px);
