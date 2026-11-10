@@ -1159,8 +1159,9 @@ function typeRangeToSchema(tokens, pairs, from, to, declarations, typeDecls, vis
     const item = typeRangeToSchema(tokens, pairs, from, to - 2, declarations, typeDecls, visiting);
     return { type: 'array', items: item ?? {} };
   }
-  // Array<T> / Record<string, T>
-  if (isIdent(tokens[from]) && isPunct(tokens[from + 1], '<') && pairs.get(from + 1) === to - 1) {
+  // Array<T> / Record<string, T>：`<` 不参与括号配对，所以用「首个 token 是标识符、第二个是 `<`、
+  // 末尾是 `>`」识别，别等 pairs 命中——否则 `tags: Array<string>` 会静默变成 `{}`。
+  if (isIdent(tokens[from]) && isPunct(tokens[from + 1], '<') && isPunct(tokens[to - 1], '>')) {
     const name = String(tokens[from].value);
     const inner = splitTopLevel(tokens, pairs, from + 2, to - 1, ',');
     if (name === 'Array' && inner.length === 1) {
@@ -1206,6 +1207,53 @@ function typeRangeToSchema(tokens, pairs, from, to, declarations, typeDecls, vis
 }
 
 /**
+ * 对象类型体的成员切分：`;`、`,` 以及「换行后紧跟 `name:` / `name?:`」都算成员边界。
+ * 只按前两种切会把多行写法（`{\n  a: string\n  b: number\n}`）并成一个成员，后续字段凭空消失。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} from
+ * @param {number} to
+ * @returns {{from: number, to: number}[]}
+ */
+function splitObjectMembers(tokens, pairs, from, to) {
+  /** @type {{from: number, to: number}[]} */
+  const parts = [];
+  let start = from;
+  let cursor = from;
+  while (cursor < to) {
+    const current = tokens[cursor];
+    if (isPunct(current, ';') || isPunct(current, ',')) {
+      parts.push({ from: start, to: cursor });
+      cursor += 1;
+      start = cursor;
+      continue;
+    }
+    const next = tokens[cursor + 1];
+    if (next !== undefined && next.line > current.line && startsObjectMember(tokens, cursor + 1)) {
+      parts.push({ from: start, to: cursor + 1 });
+      start = cursor + 1;
+    }
+    cursor += 1;
+  }
+  if (start < to) parts.push({ from: start, to });
+  return parts;
+}
+
+/**
+ * 该位置看起来是新成员：`name:`、`name?:` 或带引号的键。
+ * @param {object[]} tokens
+ * @param {number} index
+ * @returns {boolean}
+ */
+function startsObjectMember(tokens, index) {
+  const token = tokens[index];
+  if (token === undefined) return false;
+  if (token.kind !== 'ident' && token.kind !== 'string') return false;
+  const after = tokens[index + 1];
+  return isPunct(after, ':') || (isPunct(after, '?') && isPunct(tokens[index + 2], ':'));
+}
+
+/**
  * 对象类型体 → `{type:'object', properties, required}`。
  * @param {object[]} tokens
  * @param {Map<number, number>} pairs
@@ -1221,7 +1269,7 @@ function objectBodyToSchema(tokens, pairs, from, to, declarations, typeDecls, vi
   const properties = {};
   /** @type {string[]} */
   const required = [];
-  const members = splitTopLevel(tokens, pairs, from, to, ';').flatMap((part) => splitTopLevel(tokens, pairs, part.from, part.to, ','));
+  const members = splitObjectMembers(tokens, pairs, from, to);
   for (const member of members) {
     if (member.to <= member.from) continue;
     const nameToken = tokens[member.from];

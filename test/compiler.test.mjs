@@ -433,3 +433,25 @@ test('内联对象类型的零参方法签名不报 2304（: 与 as 两种写法
   const ternary = compileWorkflowScript({ code: 'const one = false ? nope() : 2;\nreturn one;' });
   assert.deepEqual(codes(ternary), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
 });
+
+test('多行对象类型与泛型别名的 schema 都完整（换行分隔成员 / Array<T>）', () => {
+  const multiline = compileWorkflowScript({
+    code: 'type Row = {\n  a: string\n  b: number\n}\nconst r = agent("x");\nreturn r.ask<Row>("q");',
+  });
+  assert.equal(multiline.ok, true, text(multiline));
+  const multiSpec = [...multiline.askSpecs.values()][0];
+  assert.deepEqual(Object.keys(multiSpec.schema.properties).sort(), ['a', 'b']);
+  assert.deepEqual(multiSpec.schema.required.sort(), ['a', 'b']);
+
+  const genericAlias = compileWorkflowScript({
+    code: 'type Rows = Array<string>;\nconst r = agent("x");\nreturn r.ask<Rows>("q");',
+  });
+  assert.equal(genericAlias.ok, true, text(genericAlias));
+  assert.deepEqual([...genericAlias.askSpecs.values()][0].schema, { type: 'array', items: { type: 'string' } });
+
+  const member = compileWorkflowScript({
+    code: 'type Row = { tags: Array<string> };\nconst r = agent("x");\nreturn r.ask<Row>("q");',
+  });
+  assert.equal(member.ok, true, text(member));
+  assert.deepEqual([...member.askSpecs.values()][0].schema.properties.tags, { type: 'array', items: { type: 'string' } });
+});
