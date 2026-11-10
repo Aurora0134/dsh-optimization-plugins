@@ -389,3 +389,14 @@ test('三元里的调用点仍然报 2304，不被方法签名规则吞掉', () 
   });
   assert.equal(signature.ok, true, text(signature));
 });
+
+test('类型声明体里的标识符不会被当成调用点或 __host 改写（run/agent 等与 facade 同名）', () => {
+  const members = ['run', 'agent', 'report', 'log', 'phase', 'hole'];
+  for (const member of members) {
+    const result = compileWorkflowScript({ code: 'interface P { ' + member + '(x: string): boolean }\nreturn 1;' });
+    assert.equal(result.ok, true, member + ': ' + text(result));
+  }
+  // 别名里的函数类型同样不该被改写。
+  const alias = compileWorkflowScript({ code: 'type Handler = (x: string) => boolean;\nreturn 1;' });
+  assert.equal(alias.ok, true, text(alias));
+});

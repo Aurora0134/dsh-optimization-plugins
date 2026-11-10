@@ -1608,6 +1608,11 @@ function analyze(code, tokens, pairs, mode) {
 
   const declared = collectDeclaredNames(tokens);
   const typeDecls = collectTypeDeclarations(tokens, pairs);
+  // 类型声明体（`interface X { … }` / `type X = …`）不是表达式：里面的标识符既不是调用点，
+  // 也不能被 lowering 改写成 `__host.*`——`interface P { run(): void }` 就是这么被改坏的
+  // （`run` 被换成 `__host.run`，整段类型变成语法错误）。
+  const typeBodyRanges = [...typeDecls.values()].map((declaration) => [declaration.bodyFrom, declaration.bodyTo]);
+  const inTypeBody = (index) => typeBodyRanges.some(([from, to]) => index >= from && index < to);
   // 回调/扇出按**实参区间**识别（内联单行回调没有函数体块，见 functionArgumentRanges 注释）。
   const functionArgs = functionArgumentRanges(tokens, pairs);
   const fanOutArgs = fanOutRanges(tokens, pairs);
@@ -1635,6 +1640,7 @@ function analyze(code, tokens, pairs, mode) {
 
   // —— 第一遍：模块语法 / 禁止 API / facade 取引用 ——
   for (let index = 0; index < tokens.length; index += 1) {
+    if (inTypeBody(index)) continue;
     const token = tokens[index];
     if (isKeyword(token, 'declare')) {
       report(CODE.MODULE_SYNTAX, token, DIAGNOSTIC_MESSAGES.declareModifier);
@@ -1712,6 +1718,7 @@ function analyze(code, tokens, pairs, mode) {
 
   // —— 第二遍：站点收集 + 各规则 ——
   for (let index = 0; index < tokens.length; index += 1) {
+    if (inTypeBody(index)) continue;
     const token = tokens[index];
     if (token.kind !== 'ident') continue;
     const name = String(token.value);
@@ -2104,7 +2111,7 @@ function analyze(code, tokens, pairs, mode) {
   // 空脚本：契约里没有对应诊断（空的 `return;` 也合法），这里不报；空脚本在运行期就是一个
   // 立即完成、返回 undefined 的 run。
 
-  return { diagnostics, sites, types: interfaces, phases, sitePhases };
+  return { diagnostics, sites, types: interfaces, phases, sitePhases, typeBodyRanges };
 }
 
 /** artifact 的六个成员。 */
@@ -2216,6 +2223,7 @@ function lowerScript(code, analysis) {
 
   // 自由标识符 args / run → __host.args / __host.run（在站点改写之后做，避免影响站点位置计算）
   for (let index = 0; index < analysis.tokens.length; index += 1) {
+    if (analysis.typeBodyRanges?.some(([from, to]) => index >= from && index < to) === true) continue;
     const token = analysis.tokens[index];
     if (token.kind !== 'ident') continue;
     if (token.value !== 'args' && token.value !== 'run') continue;
