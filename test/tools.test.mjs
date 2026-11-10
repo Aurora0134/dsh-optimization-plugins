@@ -174,6 +174,46 @@ function execFor(cwd = ROOT) {
   };
 }
 
+/**
+ * Diagnose one value against the JSON Schema subset the tool contracts use, plus the lossless-JSON
+ * rule the Host enforces on every tool output.
+ * @param {object} schema the tool's `output.schema`
+ * @param {unknown} value the value the tool returned
+ * @param {string} [path] where in the value this node sits, for the message
+ * @returns {string[]} violations; empty means the Host would accept the value
+ */
+function contractViolations(schema, value, path = 'value') {
+  if (value === undefined) return [`${path} is undefined`];
+  if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') return [`${path} is not lossless JSON`];
+  if (Array.isArray(value)) {
+    const violations = schema?.type !== undefined && schema.type !== 'array' ? [`${path} must be ${schema.type}`] : [];
+    value.forEach((entry, index) => violations.push(...contractViolations(schema?.items ?? {}, entry, `${path}[${index}]`)));
+    return violations;
+  }
+  if (value !== null && typeof value === 'object') {
+    const violations = schema?.type !== undefined && schema.type !== 'object' ? [`${path} must be ${schema.type}`] : [];
+    for (const key of schema?.required ?? []) {
+      if (!Object.hasOwn(value, key)) violations.push(`${path}.${key} is required`);
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      const declared = schema?.properties?.[key];
+      if (declared === undefined) {
+        if (schema?.additionalProperties === false) violations.push(`${path}.${key} is not declared`);
+        else violations.push(...contractViolations({}, entry, `${path}.${key}`));
+        continue;
+      }
+      violations.push(...contractViolations(declared, entry, `${path}.${key}`));
+    }
+    return violations;
+  }
+  if (Array.isArray(schema?.enum) && !schema.enum.includes(value)) return [`${path} is not one of ${schema.enum.join(', ')}`];
+  const type = schema?.type;
+  if (type === 'string' && typeof value !== 'string') return [`${path} must be a string`];
+  if ((type === 'number' || type === 'integer') && typeof value !== 'number') return [`${path} must be a number`];
+  if (type === 'boolean' && typeof value !== 'boolean') return [`${path} must be a boolean`];
+  return [];
+}
+
 /* ---------------------------------------------------------------------------------------- */
 /* Surface and descriptions                                                                  */
 /* ---------------------------------------------------------------------------------------- */
@@ -476,6 +516,54 @@ test('CreateWorkflow: the launch gate asks only after a clean compile, and denia
   assert.equal(refineResult.reason, 'Use fewer subagents.');
   assert.equal(refineResult.reasonSource, 'workflow_refine_feedback');
   assert.equal(refineResult.preserveReasonFormatting, true);
+});
+
+test('the launch gate tells the broker which call asked and how to stop waiting', async () => {
+  const seen = [];
+  const controller = new AbortController();
+  const h = harness({
+    approval: {
+      allowsSession: () => false,
+      request: async (input) => {
+        seen.push(input);
+        return { decision: 'allow' };
+      },
+    },
+  });
+  await h.byName.CreateWorkflow.execute(
+    { script: 'return 1;', name: 'demo' },
+    { ...execFor(), callId: 'call-42', signal: controller.signal },
+  );
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].toolCallId, 'call-42');
+  assert.equal(seen[0].signal, controller.signal);
+  assert.equal(seen[0].payload.script, 'return 1;');
+  assert.equal(seen[0].payload.name, 'demo');
+  assert.equal(seen[0].payload.kind, 'create_workflow');
+});
+
+test('a refused launch answers with a value its own contract accepts', async () => {
+  const h = harness({
+    approval: {
+      allowsSession: () => false,
+      // 用户点了拒绝、没填理由：`reasonSource` / `preserveReasonFormatting` 都不存在。
+      request: async () => ({ decision: 'deny', optionId: 'deny', reason: '' }),
+    },
+  });
+  const result = await h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'demo' }, execFor());
+  assert.deepEqual(contractViolations(h.byName.CreateWorkflow.output.schema, result), []);
+  assert.equal(result.rejected, true);
+  assert.equal(result.reason, TOOL_DENIED);
+  assert.equal(Object.hasOwn(result, 'reasonSource'), false, 'an absent reason source must not arrive as undefined');
+  assert.equal(Object.hasOwn(result, 'preserveReasonFormatting'), false);
+});
+
+test('every tool answers a refused call with a value its own contract accepts', async () => {
+  const h = harness();
+  for (const tool of h.tools) {
+    const value = await tool.execute({}, execFor());
+    assert.deepEqual(contractViolations(tool.output.schema, value), [], tool.name);
+  }
 });
 
 test('CreateWorkflow: a session grant skips the window and adjustments reach start', async () => {

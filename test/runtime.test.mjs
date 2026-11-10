@@ -15,7 +15,7 @@ import { createMemoryJournal } from '../host/journal-memory.js';
 
 /**
  * 假编译器：把给定的 lowering 语句体与站点事实原样返回。
- * @param {{lowered: string, askSpecs?: Map<string, object>, phases?: string[], sitePhases?: Map<string, string>, actors?: object[], holes?: object[]}} spec
+ * @param {{lowered: string, askSpecs?: Map<string, object>, phases?: string[], sitePhases?: Map<string, string>, actors?: object[], holes?: object[], sites?: object[]}} spec
  */
 function stubCompiler(spec) {
   return {
@@ -26,7 +26,7 @@ function stubCompiler(spec) {
         lowered: spec.lowered,
         js: `(async (__host) => {\n${spec.lowered}\n})`,
         scriptHash: 's-test',
-        sites: [],
+        sites: spec.sites ?? [],
         askSpecs: spec.askSpecs ?? new Map(),
         sitePhases: spec.sitePhases ?? new Map(),
         phases: spec.phases ?? [],
@@ -179,6 +179,46 @@ test('validateArtifactSpec 覆盖 chart/table/metrics/board 的关键分支', ()
   assert.match(validateArtifactSpec('metrics', { metrics: [{ field: 'n' }], title: 3 }), /spec title must be a string/);
   assert.match(validateArtifactSpec('board', { key: 'id', status: 'col', columns: ['a', ''] }), /columns\[1\] must be a non-empty string/);
   assert.equal(validateArtifactSpec('board', { key: 'id', status: 'col', columns: ['a'] }), undefined);
+});
+
+test('prepare 给出确认对话框的阶段图：阶段、站点与留白都按编译期事实归位', () => {
+  const compiler = stubCompiler({
+    lowered: 'return 1;',
+    phases: ['plan', 'ship'],
+    sitePhases: new Map([['actor#1', 'plan'], ['ask#1', 'plan'], ['ask#2', 'ship'], ['hole#1', 'ship']]),
+    askSpecs: new Map([['ask#1', { typed: true, typeName: 'Verdict' }], ['ask#2', { typed: false }]]),
+    actors: [{ siteId: 'actor#1', name: 'reader' }],
+    holes: [{ siteId: 'hole#1', name: 'target' }],
+    sites: [
+      { id: 'actor#1', kind: 'actor' },
+      { id: 'ask#1', kind: 'ask' },
+      { id: 'ask#2', kind: 'ask' },
+      { id: 'hole#1', kind: 'hole' },
+    ],
+  });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const prepared = runtime.prepare({ code: '// stub', scriptPath: '/tmp/ws/w.dwf.ts' });
+  assert.equal(prepared.ok, true);
+  assert.deepEqual(prepared.causalityGraph.phases, [{ id: 'plan', name: 'plan' }, { id: 'ship', name: 'ship' }]);
+  assert.deepEqual(prepared.causalityGraph.steps, [
+    { id: 'actor#1', phase: 'plan', kind: 'actor', label: 'reader' },
+    { id: 'ask#1', phase: 'plan', kind: 'ask', label: 'Verdict' },
+    { id: 'ask#2', phase: 'ship', kind: 'ask' },
+    { id: 'hole#1', phase: 'ship', kind: 'hole', label: 'target' },
+  ]);
+  assert.deepEqual(prepared.causalityGraph.holes, [{ siteId: 'hole#1', name: 'target', phase: 'ship' }]);
+});
+
+test('prepare 的阶段图不含没有归属阶段的站点', () => {
+  const compiler = stubCompiler({
+    lowered: 'return 1;',
+    phases: ['plan'],
+    sitePhases: new Map(),
+    sites: [{ id: 'ask#9', kind: 'ask' }],
+  });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const prepared = runtime.prepare({ code: '// stub' });
+  assert.deepEqual(prepared.causalityGraph, { phases: [{ id: 'plan', name: 'plan' }], steps: [], holes: [] });
 });
 
 test('一次 untyped run：actor → ask → log → report → 完成通知', async () => {

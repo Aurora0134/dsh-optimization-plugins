@@ -614,6 +614,13 @@ function WfStatusEntry(props) {
   }, [open]);
 
   const openRun = (run) => {
+    // A launch that has not been confirmed yet has no journal to open: its detail is the dialog.
+    if (wfStatusState(run) === 'pending'
+      && typeof WF_PERMISSION === 'object' && WF_PERMISSION !== null && typeof WF_PERMISSION.open === 'function'
+      && WF_PERMISSION.open({ sessionId, runId: wfStatusId(run), run }) === true) {
+      setOpen(false);
+      return;
+    }
     if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return;
     const runId = wfStatusId(run);
     if (runId === '') return;
@@ -629,8 +636,14 @@ function WfStatusEntry(props) {
     const runId = wfStatusId(run);
     if (runId === '' || stopping !== '') return;
     setStopping(runId);
-    WF_API.stopRun({ sessionId, runId })
-      .catch((error) => wfStatusWarn('stop run', error))
+    // Cancelling a launch that is still waiting for an answer is answering it: nothing was created,
+    // so there is nothing to stop.
+    const pending = wfStatusState(run) === 'pending';
+    const call = pending
+      ? WF_API.approveRun({ sessionId, runId, optionId: 'deny' })
+      : WF_API.stopRun({ sessionId, runId });
+    call
+      .catch((error) => wfStatusWarn(pending ? 'cancel launch' : 'stop run', error))
       .then(() => {
         setStopping('');
         reload();

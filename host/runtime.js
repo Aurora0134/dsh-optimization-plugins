@@ -2345,6 +2345,41 @@ export function createRuntime({
   };
 
   /**
+   * 确认对话框的阶段图：编译期就能算出来，运行期不参与。
+   *
+   * 每个 phase 一个站点，站点下挂它名下的站点（ask、actor、hole、artifact、world 操作），
+   * 这样用户在脚本跑起来之前先看到它要经过哪几步。
+   *
+   * @param {object} compileResult `compileSource` 的结果
+   * @returns {{ phases: object[], steps: object[], holes: object[] }}
+   */
+  const causalityGraphOf = (compileResult) => {
+    const names = Array.isArray(compileResult?.phases) ? compileResult.phases : [];
+    const phases = names.map((name) => ({ id: name, name }));
+    const sitePhases = compileResult?.sitePhases instanceof Map ? compileResult.sitePhases : new Map();
+    const askSpecs = compileResult?.askSpecs instanceof Map ? compileResult.askSpecs : new Map();
+    // 站点自己的名字比站点 id 好读：actor 用名字、hole 用名字、产物用 id、world 操作用 op。
+    const labels = new Map();
+    for (const actor of compileResult?.actors ?? []) labels.set(actor.siteId, actor.name);
+    for (const hole of compileResult?.holes ?? []) labels.set(hole.siteId, hole.name);
+    for (const artifact of compileResult?.artifacts ?? []) labels.set(artifact.siteId, artifact.id);
+    for (const read of compileResult?.worldReads ?? []) labels.set(read.siteId, read.op);
+    const steps = [];
+    for (const site of Array.isArray(compileResult?.sites) ? compileResult.sites : []) {
+      const phase = sitePhases.get(site.id);
+      if (phase === undefined) continue;
+      const label = labels.get(site.id) ?? askSpecs.get(site.id)?.typeName;
+      steps.push({ id: site.id, phase, kind: site.kind, ...(label === undefined ? {} : { label }) });
+    }
+    const holes = [];
+    for (const hole of compileResult?.holes ?? []) {
+      const phase = sitePhases.get(hole.siteId);
+      holes.push({ siteId: hole.siteId, name: hole.name, ...(phase === undefined ? {} : { phase }) });
+    }
+    return { phases, steps, holes };
+  };
+
+  /**
    * 编译 + 建 run 的前半段（prepare）：不创建 run，只返回给确认对话框需要的东西。
    * @param {object} request
    * @returns {object}
@@ -2370,6 +2405,7 @@ export function createRuntime({
       actors: result.actors ?? [],
       holes: result.holes ?? [],
       artifacts: result.artifacts ?? [],
+      causalityGraph: causalityGraphOf(result),
       worldCommands: (result.worldReads ?? []).filter((site) => site.op === 'run').map((site) => site.siteId),
       prepared: {
         code,

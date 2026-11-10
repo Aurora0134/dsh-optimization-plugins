@@ -9,7 +9,10 @@
  * (`allow_once` / `allow_session` / `deny` / `workflowRefine`).
  *
  * The broker holds no run state — it only hands one answer to one waiting call — so a run that is
- * never confirmed leaves nothing behind once the request settles or times out.
+ * never confirmed leaves nothing behind once the request settles or times out. What it does hold is
+ * the question itself (`payload`), because the run catalogue serves pending launches from here: a
+ * launch awaiting confirmation has no journal, and a surface that only reads the journal could not
+ * show it.
  */
 
 /** Answers the dialog can produce, mirroring ZCode's option ids. */
@@ -38,7 +41,7 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
   /**
    * One waiting question per run id: a run is confirmed at most once, and a second submit for the
    * same run (a double click, two open surfaces) must not queue a second answer.
-   * @type {Map<string, { promise: Promise<ApprovalDecision>, resolve: (decision: ApprovalDecision) => void, timer: ReturnType<typeof setTimeout>, sessionId: string, toolName: string, createdAt: number }>}
+   * @type {Map<string, { promise: Promise<ApprovalDecision>, resolve: (decision: ApprovalDecision) => void, timer: ReturnType<typeof setTimeout>, sessionId: string, toolName: string, toolCallId: string, payload: unknown, createdAt: number, detach: () => void }>}
    */
   const waiting = new Map();
 
@@ -116,10 +119,22 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
 
   /**
    * Ask the user to confirm one run launch.
-   * @param {{ runId: string, sessionId: string, toolName?: string }} request
+   *
+   * `signal` is the tool call's own cancellation: when the call stops waiting — the user aborts the
+   * turn, the program that dispatched it hits its deadline — the question stops waiting with it, so
+   * no surface keeps offering an answer the caller will never read. `payload` is the question as the
+   * dialog shows it; the broker never reads inside it.
+   *
+   * @param {object} request
+   * @param {string} request.runId
+   * @param {string} request.sessionId
+   * @param {string} [request.toolName]
+   * @param {string} [request.toolCallId] the tool call that asked, so a card can match its own run
+   * @param {unknown} [request.payload] the launch as the confirmation dialog renders it
+   * @param {AbortSignal} [request.signal]
    * @returns {Promise<ApprovalDecision>} settles exactly once
    */
-  function request({ runId, sessionId, toolName }) {
+  function request({ runId, sessionId, toolName, toolCallId, payload, signal }) {
     if (typeof runId !== 'string' || runId.length === 0) {
       return Promise.reject(new Error('zcode-workflow: an approval request needs a run id'));
     }
@@ -134,24 +149,38 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
       if (entry === undefined) return;
       waiting.delete(runId);
       clearTimeout(entry.timer);
+      entry.detach();
       resolveDecision(decision);
     };
     const timer = setTimeout(() => {
       const entry = waiting.get(runId);
       if (entry === undefined) return;
       waiting.delete(runId);
+      entry.detach();
       logger.warn?.(`zcode-workflow: run ${runId} was not confirmed in time and counts as rejected`);
       resolveDecision({ decision: 'deny', optionId: 'deny', reason: notConfirmed() });
     }, timeoutMs);
     if (typeof timer === 'object' && timer !== null && typeof timer.unref === 'function') timer.unref();
+
+    /** @type {() => void} */
+    let detach = () => {};
+    if (signal !== undefined && signal !== null && typeof signal.addEventListener === 'function') {
+      const onAbort = () => cancel(runId, cancelledByCaller());
+      signal.addEventListener('abort', onAbort, { once: true });
+      detach = () => signal.removeEventListener('abort', onAbort);
+    }
     waiting.set(runId, {
       promise,
       resolve: settle,
       timer,
+      detach,
       sessionId: typeof sessionId === 'string' ? sessionId : '',
       toolName: typeof toolName === 'string' ? toolName : '',
+      toolCallId: typeof toolCallId === 'string' ? toolCallId : '',
+      payload,
       createdAt: Date.now(),
     });
+    if (signal?.aborted === true) cancel(runId, cancelledByCaller());
     return promise;
   }
 
@@ -175,21 +204,31 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
   }
 
   /**
-   * Runs currently waiting for an answer, scoped to one Session when given.
+   * Launches currently waiting for an answer, scoped to one Session when given. The payload comes
+   * back untouched so the caller decides what a pending launch looks like on its own surface.
    * @param {string} [sessionId]
-   * @returns {{ runId: string, createdAt: number }[]}
+   * @returns {{ runId: string, sessionId: string, toolName: string, toolCallId: string, createdAt: number, payload: unknown }[]}
    */
   function list(sessionId) {
     const rows = [];
     for (const [runId, entry] of waiting) {
       if (sessionId !== undefined && entry.sessionId !== sessionId) continue;
-      rows.push({ runId, createdAt: entry.createdAt });
+      rows.push({
+        runId,
+        sessionId: entry.sessionId,
+        toolName: entry.toolName,
+        toolCallId: entry.toolCallId,
+        createdAt: entry.createdAt,
+        payload: entry.payload,
+      });
     }
+    rows.sort((left, right) => left.createdAt - right.createdAt);
     return rows;
   }
 
   /**
-   * Abandon one request (the run was stopped or superseded before the user answered).
+   * Abandon one request (the run was stopped, superseded or its tool call cancelled before the user
+   * answered).
    * @param {string} runId
    * @param {string} [reason]
    */
@@ -234,4 +273,9 @@ function notConfirmed() {
 /** Rejection text used when the user explicitly declines. */
 function deniedByUser() {
   return "The user doesn't want to run this workflow. Do not start it again unless they ask for it; wait for them to say how to proceed.";
+}
+
+/** Rejection text used when the answering surface went away before the user answered. */
+function cancelledByCaller() {
+  return 'The workflow was not confirmed in this turn, so it did not run. Ask the user whether to run it; a new confirmation follows the next launch.';
 }

@@ -10755,6 +10755,49 @@ WF_PERMISSION.close = function close() {
 /** The compact block a tool card renders while a run waits for its confirmation. */
 WF_PERMISSION.Block = WfPermissionBlock;
 
+/* ------------------------------ launch watcher ---------------------------- */
+
+/**
+ * Launches this browser already put in front of the user. A launch stays pending until its tool call
+ * settles, so without this the dialog would reopen on the next poll after the user closed it.
+ * @type {Set<string>}
+ */
+const WF_PERMISSION_SHOWN = new Set();
+
+/**
+ * Put a launch that is waiting for the user in front of them.
+ *
+ * A launch is confirmed before it exists, so the only catalogue that carries it is the pending run
+ * list; watching it means the dialog arrives even when the transcript is scrolled away from the tool
+ * call that asked — which is what a blocking confirmation has to do.
+ *
+ * @param {{ sessionId?: string }} props slot props
+ */
+function WfLaunchWatcher(props) {
+  const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+  const live = useWfCardRunById(sessionId, undefined);
+  const runs = Array.isArray(live?.runs) ? live.runs : [];
+  React.useEffect(() => {
+    if (sessionId === '') return;
+    const waiting = runs.filter((row) => wfRunStatus(row) === 'pending' && wfRunId(row) !== '');
+    const current = WF_PERMISSION_OVERLAY.read();
+    if (current !== undefined) {
+      if (!waiting.some((row) => wfRunId(row) === current.runId)) WF_PERMISSION_OVERLAY.close();
+      return;
+    }
+    for (const row of waiting) {
+      const runId = wfRunId(row);
+      if (WF_PERMISSION_SHOWN.has(runId)) continue;
+      WF_PERMISSION_SHOWN.add(runId);
+      WF_PERMISSION.open({ sessionId, runId, run: row });
+      return;
+    }
+  }, [sessionId, runs]);
+  return null;
+}
+
+/* ------------------------------ registration ------------------------------- */
+
 /**
  * Register the dialog seat and bind the workspace dictionary.
  * @param {object} ctx client plugin context
@@ -10779,6 +10822,14 @@ WF_PERMISSION.register = function register(ctx, effect) {
     id: 'zcode-workflow-permission',
     locale: UI_NS,
   }, WfPermissionOverlay));
+  // The watcher renders nothing; it rides the session header so it is mounted for every conversation
+  // and sees both the session id and the run catalogue the cards poll.
+  slots.inject('conversation.session.header.utilities', () => slots.register({
+    name: 'conversation.session.header.utilities',
+    id: 'zcode-workflow-launch-watch',
+    order: -5,
+    locale: UI_NS,
+  }, WfLaunchWatcher));
 };
 
 /* ---------------------------------- styles --------------------------------- */
@@ -14815,6 +14866,13 @@ function WfStatusEntry(props) {
   }, [open]);
 
   const openRun = (run) => {
+    // A launch that has not been confirmed yet has no journal to open: its detail is the dialog.
+    if (wfStatusState(run) === 'pending'
+      && typeof WF_PERMISSION === 'object' && WF_PERMISSION !== null && typeof WF_PERMISSION.open === 'function'
+      && WF_PERMISSION.open({ sessionId, runId: wfStatusId(run), run }) === true) {
+      setOpen(false);
+      return;
+    }
     if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return;
     const runId = wfStatusId(run);
     if (runId === '') return;
@@ -14830,8 +14888,14 @@ function WfStatusEntry(props) {
     const runId = wfStatusId(run);
     if (runId === '' || stopping !== '') return;
     setStopping(runId);
-    WF_API.stopRun({ sessionId, runId })
-      .catch((error) => wfStatusWarn('stop run', error))
+    // Cancelling a launch that is still waiting for an answer is answering it: nothing was created,
+    // so there is nothing to stop.
+    const pending = wfStatusState(run) === 'pending';
+    const call = pending
+      ? WF_API.approveRun({ sessionId, runId, optionId: 'deny' })
+      : WF_API.stopRun({ sessionId, runId });
+    call
+      .catch((error) => wfStatusWarn(pending ? 'cancel launch' : 'stop run', error))
       .then(() => {
         setStopping('');
         reload();

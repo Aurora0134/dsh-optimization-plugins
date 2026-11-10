@@ -1122,6 +1122,49 @@ WF_PERMISSION.close = function close() {
 /** The compact block a tool card renders while a run waits for its confirmation. */
 WF_PERMISSION.Block = WfPermissionBlock;
 
+/* ------------------------------ launch watcher ---------------------------- */
+
+/**
+ * Launches this browser already put in front of the user. A launch stays pending until its tool call
+ * settles, so without this the dialog would reopen on the next poll after the user closed it.
+ * @type {Set<string>}
+ */
+const WF_PERMISSION_SHOWN = new Set();
+
+/**
+ * Put a launch that is waiting for the user in front of them.
+ *
+ * A launch is confirmed before it exists, so the only catalogue that carries it is the pending run
+ * list; watching it means the dialog arrives even when the transcript is scrolled away from the tool
+ * call that asked — which is what a blocking confirmation has to do.
+ *
+ * @param {{ sessionId?: string }} props slot props
+ */
+function WfLaunchWatcher(props) {
+  const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+  const live = useWfCardRunById(sessionId, undefined);
+  const runs = Array.isArray(live?.runs) ? live.runs : [];
+  React.useEffect(() => {
+    if (sessionId === '') return;
+    const waiting = runs.filter((row) => wfRunStatus(row) === 'pending' && wfRunId(row) !== '');
+    const current = WF_PERMISSION_OVERLAY.read();
+    if (current !== undefined) {
+      if (!waiting.some((row) => wfRunId(row) === current.runId)) WF_PERMISSION_OVERLAY.close();
+      return;
+    }
+    for (const row of waiting) {
+      const runId = wfRunId(row);
+      if (WF_PERMISSION_SHOWN.has(runId)) continue;
+      WF_PERMISSION_SHOWN.add(runId);
+      WF_PERMISSION.open({ sessionId, runId, run: row });
+      return;
+    }
+  }, [sessionId, runs]);
+  return null;
+}
+
+/* ------------------------------ registration ------------------------------- */
+
 /**
  * Register the dialog seat and bind the workspace dictionary.
  * @param {object} ctx client plugin context
@@ -1146,6 +1189,14 @@ WF_PERMISSION.register = function register(ctx, effect) {
     id: 'zcode-workflow-permission',
     locale: UI_NS,
   }, WfPermissionOverlay));
+  // The watcher renders nothing; it rides the session header so it is mounted for every conversation
+  // and sees both the session id and the run catalogue the cards poll.
+  slots.inject('conversation.session.header.utilities', () => slots.register({
+    name: 'conversation.session.header.utilities',
+    id: 'zcode-workflow-launch-watch',
+    order: -5,
+    locale: UI_NS,
+  }, WfLaunchWatcher));
 };
 
 /* ---------------------------------- styles --------------------------------- */

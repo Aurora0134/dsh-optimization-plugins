@@ -774,6 +774,39 @@ export function registerWorkflowUiApi({
     return summary;
   };
 
+  /**
+   * Launches waiting for the user's answer, shaped as run rows.
+   *
+   * A launch is confirmed before it exists: there is no journal, no projection and nothing the store
+   * could list. ZCode models that as a run in `pending`, and every surface here already knows how to
+   * show one — the card matches it to its own tool call, the status panel counts it as live, the
+   * dialog reads the launch from `input`. The catalogue is the only place all three look.
+   *
+   * @param {string | undefined} sessionId
+   * @returns {Record<string, any>[]}
+   */
+  const pendingRunRows = (sessionId) => {
+    if (sessionId === undefined || typeof approval?.list !== 'function') return [];
+    const rows = [];
+    for (const entry of approval.list(sessionId)) {
+      const launch = entry.payload !== null && typeof entry.payload === 'object' ? entry.payload : {};
+      const label = typeof launch.name === 'string' && launch.name.trim() !== '' ? launch.name.trim() : entry.toolName;
+      rows.push({
+        runId: entry.runId,
+        sessionId: entry.sessionId,
+        label,
+        status: 'pending',
+        toolName: entry.toolName,
+        toolCallId: entry.toolCallId,
+        createdAt: entry.createdAt,
+        phases: [],
+        agentsWorking: 0,
+        input: launch,
+      });
+    }
+    return rows;
+  };
+
   /** @type {{ path: string, GET?: Function, POST?: Function }[]} */
   const routes = [
     /* ------------------------------ run data plane (§1.1) ---------------------------------- */
@@ -802,7 +835,8 @@ export function registerWorkflowUiApi({
         const summaries = [];
         for (const row of page) summaries.push(await enrichRunSummary(cwd, row));
         sendJson(res, 200, {
-          runs: summaries,
+          // 等待确认的启动排在最前：它是最新的活动，也是必须由用户处置的那一条。
+          runs: [...pendingRunRows(sessionId), ...summaries],
           ...(rows.length > limit ? { truncated: true } : {}),
         });
       },
@@ -1437,6 +1471,13 @@ export function registerWorkflowUiApi({
       path: `${BASE}/run`,
       async GET(req, res, query) {
         const runId = requiredString(query, 'runId');
+        // 等待确认的启动也是一个 run（pending），只是还没有 journal：详情要能读到它，
+        // 否则卡片一订阅就报 run-not-found。
+        const pending = pendingRunRows(stringField(query, 'sessionId')).find((row) => row.runId === runId);
+        if (pending !== undefined) {
+          sendJson(res, 200, { run: pending });
+          return;
+        }
         const cwd = await cwdFrom(query);
         const run = await runtimeFor(cwd).getRun(runId);
         if (run === undefined) throw new ApiError(404, 'run-not-found', `no workflow run "${runId}"`);

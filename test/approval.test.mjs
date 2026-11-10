@@ -125,3 +125,73 @@ test('a one-off allow grants nothing beyond its own run', async () => {
   await pending;
   assert.equal(created.allowsSession('sess-10', 'CreateWorkflow'), false);
 });
+
+test('the waiting list carries the tool call and the question the dialog shows', () => {
+  const { created } = broker();
+  const launch = { kind: 'create_workflow', name: 'nightly-report', script: 'return 1;' };
+  void created.request({
+    runId: 'run-12',
+    sessionId: 'sess-1',
+    toolName: 'CreateWorkflow',
+    toolCallId: 'call-7',
+    payload: launch,
+  });
+  assert.deepEqual(created.list('sess-1').map((row) => ({
+    runId: row.runId,
+    sessionId: row.sessionId,
+    toolName: row.toolName,
+    toolCallId: row.toolCallId,
+    payload: row.payload,
+  })), [{
+    runId: 'run-12',
+    sessionId: 'sess-1',
+    toolName: 'CreateWorkflow',
+    toolCallId: 'call-7',
+    payload: launch,
+  }]);
+  assert.deepEqual(created.list('sess-other'), []);
+  created.cancel('run-12');
+});
+
+test('the waiting list is in the order the launches were asked', async () => {
+  const { created } = broker();
+  void created.request({ runId: 'run-late', sessionId: 'sess-1' });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  void created.request({ runId: 'run-later', sessionId: 'sess-1' });
+  assert.deepEqual(created.list('sess-1').map((row) => row.runId), ['run-late', 'run-later']);
+  created.dispose();
+});
+
+test('a cancelled tool call stops waiting instead of holding the answer slot', async () => {
+  const { created } = broker();
+  const controller = new AbortController();
+  const pending = created.request({ runId: 'run-13', sessionId: 'sess-1', signal: controller.signal });
+  assert.equal(created.list('sess-1').length, 1);
+  controller.abort();
+  const decision = await pending;
+  assert.equal(decision.decision, 'deny');
+  assert.match(decision.reason ?? '', /was not confirmed in this turn/u);
+  assert.deepEqual(created.list('sess-1'), [], 'an aborted call leaves nothing waiting');
+  // 已经放弃的提问不能再被回答一次。
+  assert.equal(created.settle({ runId: 'run-13', optionId: 'allow_once' }), undefined);
+});
+
+test('a call that arrives already cancelled never waits', async () => {
+  const { created } = broker();
+  const controller = new AbortController();
+  controller.abort();
+  const decision = await created.request({ runId: 'run-14', sessionId: 'sess-1', signal: controller.signal });
+  assert.equal(decision.decision, 'deny');
+  assert.deepEqual(created.list('sess-1'), []);
+});
+
+test('answering detaches the abort listener so nothing keeps firing later', async () => {
+  const { created } = broker();
+  const controller = new AbortController();
+  const pending = created.request({ runId: 'run-15', sessionId: 'sess-1', signal: controller.signal });
+  created.settle({ runId: 'run-15', optionId: 'allow_once' });
+  assert.equal((await pending).decision, 'allow');
+  // 监听器已在结算时摘掉：再 abort 既不会抛错，也不会影响任何等待者。
+  controller.abort();
+  assert.deepEqual(created.list('sess-1'), []);
+});

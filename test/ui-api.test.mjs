@@ -331,6 +331,10 @@ function createFixture(options = {}) {
       cancel(runId) {
         calls.push(['approval.cancel', runId]);
       },
+      list(sessionId) {
+        calls.push(['approval.list', sessionId]);
+        return (options.pending ?? []).filter((row) => row.sessionId === sessionId);
+      },
     };
   const policy = {
     enabled: options.policyEnabled ?? true,
@@ -471,6 +475,62 @@ test('GET /runs lists session runs with derived phases and legacy aliases', asyn
   const sessionCall = fixture.calls.find((entry) => entry[0] === 'listRunsForSession');
   assert.equal(sessionCall[1].parentSessionId, 'session-1');
   assert.equal(sessionCall[1].limit, 3);
+});
+
+test('GET /runs puts a launch waiting for an answer first, shaped the way the dialog reads it', async () => {
+  const pending = [{
+    runId: 'run-pending',
+    sessionId: 'session-1',
+    toolName: 'CreateWorkflow',
+    toolCallId: 'tool-9',
+    createdAt: 7,
+    payload: {
+      name: 'nightly-report',
+      script: 'return 1;',
+      max_concurrency: 3,
+      adjustable_settings: { subagent_model: true, concurrency_ceiling: 8 },
+      causalityGraph: { phases: [{ id: 'Plan', name: 'Plan' }], steps: [{ id: 's1', phase: 'Plan', kind: 'ask' }], holes: [] },
+    },
+  }];
+  const fixture = createFixture({ pending });
+  const listed = await call(fixture, 'GET', `${BASE}/runs`, { query: { sessionId: 'session-1' } });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.runs.length, 4);
+  const [first] = listed.json.runs;
+  assert.equal(first.runId, 'run-pending');
+  assert.equal(first.status, 'pending');
+  assert.equal(first.label, 'nightly-report');
+  assert.equal(first.toolCallId, 'tool-9');
+  assert.equal(first.toolName, 'CreateWorkflow');
+  assert.equal(first.createdAt, 7);
+  assert.equal(first.input.script, 'return 1;');
+  assert.equal(first.input.max_concurrency, 3);
+  assert.equal(first.input.causalityGraph.phases[0].name, 'Plan');
+  assert.equal(first.input.adjustable_settings.concurrency_ceiling, 8);
+  assert.equal(listed.json.runs[1].runId, 'run-1', 'stored runs keep their order after the pending one');
+
+  const detail = await call(fixture, 'GET', `${BASE}/run`, { query: { sessionId: 'session-1', runId: 'run-pending' } });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.json.run.status, 'pending');
+  assert.equal(detail.json.run.input.name, 'nightly-report');
+});
+
+test('a launch counts as pending only in the Session that is waiting for the answer', async () => {
+  const pending = [{
+    runId: 'run-pending',
+    sessionId: 'session-1',
+    toolName: 'AmendWorkflow',
+    toolCallId: 'tool-9',
+    createdAt: 7,
+    payload: { script: 'return 1;' },
+  }];
+  const fixture = createFixture({ pending });
+  const scoped = await call(fixture, 'GET', `${BASE}/runs`, { query: { sessionId: 'session-1' } });
+  assert.equal(scoped.json.runs[0].runId, 'run-pending');
+  // 项目视角不属于任何会话，等待确认的启动不出现在那里。
+  const byProject = await call(fixture, 'GET', `${BASE}/runs`, { query: { projectRoot: WORKSPACE } });
+  assert.equal(byProject.json.runs.length, 3);
+  assert.equal(byProject.json.runs.some((row) => row.runId === 'run-pending'), false);
 });
 
 test('GET /runs maps a stale session to the §1 fault string and accepts projectRoot', async () => {

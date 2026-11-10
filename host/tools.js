@@ -69,21 +69,50 @@ const fail = (text, extra = {}) => ({ ok: false, text, response: text, diagnosti
 const succeed = (text, extra = {}) => ({ ok: true, text, response: text, ...extra });
 
 /**
+ * Drop `undefined` members, recursively, so a tool result is lossless JSON.
+ *
+ * The Harness refuses a tool output that carries an `undefined` anywhere in it: an extra field that
+ * happens to be absent (an optional reason, a setting nobody edited) would otherwise turn a normal
+ * result into `ToolOutputError: value is not lossless JSON` and lose the text the model needs.
+ *
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function compactJson(value) {
+  if (Array.isArray(value)) return value.map((entry) => (entry === undefined ? null : compactJson(entry)));
+  if (value === null || typeof value !== 'object') return value;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  const record = /** @type {Record<string, unknown>} */ (value);
+  const out = {};
+  for (const [key, entry] of Object.entries(record)) {
+    if (entry === undefined) continue;
+    out[key] = compactJson(entry);
+  }
+  return out;
+}
+
+/**
  * Output JSON Schema shared by every tool: the port keeps `text` for DSH's renderer, while
- * the contract fields named in `cli.md` §1.2–§1.11 stay camelCase and required.
+ * the contract fields named in `cli.md` §1.2–§1.11 stay camelCase.
+ *
+ * Only the three fields every result carries are required. A refusal is a result too, and it has no
+ * success fields, so requiring them would make the Host reject the refusal itself.
  *
  * @param {Record<string, object>} properties
- * @param {string[]} [required] tool-specific required fields
  */
-function outputSchema(properties, required = []) {
+function outputSchema(properties) {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['ok', 'response', 'text', ...required],
+    required: ['ok', 'response', 'text'],
     properties: {
       ok: { type: 'boolean' },
       response: { type: 'string' },
       text: { type: 'string' },
+      // Optional everywhere: a refused call carries no diagnostics, and the schema has to admit the
+      // empty list `fail()` writes on every tool, not just on the authoring ones.
+      diagnostics: DIAGNOSTICS_PROPERTY,
       ...properties,
     },
   };
@@ -114,6 +143,19 @@ const FILL_OUTPUT_SCHEMA = {
     draftPath: { type: 'string' },
     line: { type: 'number' },
   },
+};
+
+/**
+ * What a launch result carries when the user answered the confirmation with anything but an allow.
+ * `reason` is the sentence the model reads, `reasonSource` marks a revision request so the model
+ * knows the text is feedback to work from rather than a refusal, and `preserveReasonFormatting` says
+ * the text is human-authored and must reach the model byte-for-byte.
+ */
+const REJECTION_OUTPUT_PROPERTIES = {
+  rejected: { type: 'boolean' },
+  reason: { type: 'string' },
+  reasonSource: { type: 'string', enum: ['workflow_refine_feedback'] },
+  preserveReasonFormatting: { type: 'boolean' },
 };
 
 /** One row of ListWorkflowRuns' `runs` (`cli.md` §1.6). */
@@ -870,7 +912,12 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
   /**
    * Ask the user to confirm one launch. Returns the decision, including the settings the
    * confirmation window adjusted; a rejection is a normal result, never a thrown error.
-   * @param {{ runId: string, sessionId: string, toolName: string, display: object }} request
+   *
+   * The request carries the tool call's identity and cancellation: the browser matches the pending
+   * run to this very call, and an aborted call stops waiting instead of holding the answer slot for
+   * a caller that is already gone.
+   *
+   * @param {{ runId: string, sessionId: string, toolName: string, display: object, toolCallId?: string, signal?: AbortSignal }} request
    */
   const confirmLaunch = async (request) => {
     if (approval === undefined) return { ok: true, unconfirmed: true };
@@ -878,7 +925,14 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       if (request.sessionId.length > 0 && typeof approval.allowsSession === 'function' && approval.allowsSession(request.sessionId, request.toolName)) {
         return { ok: true, sessionAllowed: true };
       }
-      const decision = await approval.request(request);
+      const decision = await approval.request({
+        runId: request.runId,
+        sessionId: request.sessionId,
+        toolName: request.toolName,
+        payload: request.display,
+        ...(typeof request.toolCallId === 'string' && request.toolCallId.length > 0 ? { toolCallId: request.toolCallId } : {}),
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
+      });
       if (decision?.decision === 'allow') return { ok: true, adjustments: decision.adjustments };
       const reason = typeof decision?.reason === 'string' ? decision.reason.trim() : '';
       if (decision?.reasonSource === 'workflow_refine_feedback' && reason.length > 0) {
@@ -1157,6 +1211,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           holes: prepared?.holes,
           artifacts: prepared?.artifacts,
           worldCommands: prepared?.worldCommands,
+          causalityGraph: prepared?.causalityGraph,
           max_concurrency: maxConcurrency,
           subagent_model: subagentModel,
           adjustable_settings: {
@@ -1166,7 +1221,14 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           ...(args?.path === undefined ? {} : { path: String(args.path) }),
           ...(args?.saved === undefined ? {} : { saved: args.saved }),
         };
-        const decision = await confirmLaunch({ runId: proposalId, sessionId, toolName: 'CreateWorkflow', display });
+        const decision = await confirmLaunch({
+          runId: proposalId,
+          sessionId,
+          toolName: 'CreateWorkflow',
+          display,
+          toolCallId: exec?.callId,
+          signal: exec?.signal,
+        });
         if (!decision.ok) return fail(decision.text, { rejected: true, reason: decision.reason ?? decision.text, reasonSource: decision.reasonSource, preserveReasonFormatting: decision.preserveReasonFormatting });
         if (decision.adjustments !== undefined) {
           if (decision.adjustments.maxConcurrency !== undefined) maxConcurrency = decision.adjustments.maxConcurrency;
@@ -1349,7 +1411,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
               ? scriptFileNote({ kind, described: describedDraft })
               : COMPILE_FAILED_NOTE,
             `Run ${runId} was not touched.`,
-          ].join('\n'), { diagnostics, script_path: draftPath });
+          ].join('\n'), { diagnostics, scriptPath: draftPath });
         }
       }
 
@@ -1377,12 +1439,20 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           },
           max_concurrency: args?.max_concurrency,
           subagent_model: args?.subagent_model,
+          causalityGraph: prepared?.causalityGraph,
           adjustable_settings: {
             subagent_model: true,
             ...(typeof runtime.defaultConcurrency === 'function' ? { concurrency_ceiling: runtime.defaultConcurrency() } : {}),
           },
         };
-        const decision = await confirmLaunch({ runId, sessionId, toolName: 'AmendWorkflow', display });
+        const decision = await confirmLaunch({
+          runId,
+          sessionId,
+          toolName: 'AmendWorkflow',
+          display,
+          toolCallId: exec?.callId,
+          signal: exec?.signal,
+        });
         if (!decision.ok) return fail(decision.text, { rejected: true, reason: decision.reason ?? decision.text, reasonSource: decision.reasonSource, preserveReasonFormatting: decision.preserveReasonFormatting });
       }
 
@@ -1415,7 +1485,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             '',
             describedDraft === undefined ? COMPILE_FAILED_NOTE : scriptFileNote({ kind: kind ?? DRAFT_KIND, described: describedDraft }),
             `Run ${runId} was not touched.`,
-          ].join('\n'), { diagnostics, script_path: draftPath });
+          ].join('\n'), { diagnostics, scriptPath: draftPath });
         }
         if (reason === 'not_found' || reason === 'RUN_NOT_FOUND') return fail(runNotFound(runId));
         if (reason === 'SCRIPT_UNCHANGED' || reason === 'script_unchanged') return fail(message.length > 0 ? message : `workflow_script_unchanged: run ${runId} would run exactly as before. Nothing was stopped or created.`);
@@ -2097,7 +2167,12 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
 
   /**
    * Each tool's output contract (`cli.md` §1.2–§1.11). `text` and `response` are always
-   * present; the contract fields are camelCase, and the per-tool required list stays strict.
+   * present; the contract fields are camelCase.
+   *
+   * Every field is declared and none of them is required. The Host validates each returned value
+   * against this one schema, and a refusal is a value too — `{ ok: false, text }` with none of the
+   * success fields — so requiring them would turn "run not found" into an invalid-output error and
+   * lose the sentence the model needs.
    */
   const OUTPUT_SCHEMAS = {
     CreateWorkflow: outputSchema({
@@ -2109,7 +2184,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       retuned: { type: 'object', additionalProperties: true },
       causalityGraph: { type: 'object', additionalProperties: true },
       fill: FILL_OUTPUT_SCHEMA,
-    }, ['diagnostics']),
+      ...REJECTION_OUTPUT_PROPERTIES,
+    }),
     AmendWorkflow: outputSchema({
       diagnostics: DIAGNOSTICS_PROPERTY,
       status: { type: 'string', enum: ['backgrounded'] },
@@ -2120,33 +2196,34 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       retuned: { type: 'object', additionalProperties: true },
       causalityGraph: { type: 'object', additionalProperties: true },
       fill: FILL_OUTPUT_SCHEMA,
-    }, ['diagnostics']),
+      ...REJECTION_OUTPUT_PROPERTIES,
+    }),
     ResumeWorkflowRun: outputSchema({
       runId: { type: 'string' },
       status: { type: 'string', enum: ['backgrounded'] },
       backgroundTaskId: { type: 'string' },
     }),
-    GetWorkflowRun: outputSchema(RUN_OUTPUT_SCHEMA.properties, RUN_OUTPUT_SCHEMA.required),
+    GetWorkflowRun: outputSchema(RUN_OUTPUT_SCHEMA.properties),
     ListWorkflowRuns: outputSchema({
       runs: { type: 'array', items: RUN_ROW_OUTPUT_SCHEMA },
       truncated: { type: 'boolean' },
-    }, ['runs']),
+    }),
     FillWorkflowHole: outputSchema({
       diagnostics: DIAGNOSTICS_PROPERTY,
       fill: FILL_OUTPUT_SCHEMA,
-    }, ['diagnostics']),
+    }),
     EvalWorkflowSnippet: outputSchema({
       diagnostics: DIAGNOSTICS_PROPERTY,
       logs: { type: 'array', items: { type: 'string' } },
       durationMs: { type: 'number' },
-    }, ['diagnostics', 'logs', 'durationMs']),
+    }),
     SaveWorkflow: outputSchema({
       diagnostics: DIAGNOSTICS_PROPERTY,
       name: { type: 'string' },
       scope: { type: 'string', enum: ['project', 'global'] },
       path: { type: 'string' },
       overwritten: { type: 'boolean' },
-    }, ['diagnostics']),
+    }),
     ListSavedWorkflows: outputSchema({
       workflows: {
         type: 'array',
@@ -2173,7 +2250,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           properties: { path: { type: 'string' }, reason: { type: 'string' } },
         },
       },
-    }, ['workflows']),
+    }),
     ResolveWorkflowQuestion: outputSchema({
       qid: { type: 'string' },
     }),
@@ -2187,7 +2264,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         required: TASK_OUTPUT_SCHEMA.required,
         properties: TASK_OUTPUT_SCHEMA.properties,
       },
-    }, ['retrieval_status']),
+    }),
     StopWorkflowRun: outputSchema({
       runId: { type: 'string' },
       status: { type: 'string' },
@@ -2199,6 +2276,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       schema: OUTPUT_SCHEMAS[tool.name] ?? outputSchema({}),
       render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
     };
+    // The Host validates each returned value against `output.schema` and refuses one that is not
+    // lossless JSON; compacting at this single boundary keeps every path — allow, rejection,
+    // compile failure — from depending on which optional field happened to be present.
+    const run = tool.execute;
+    tool.execute = async (args, exec) => compactJson(await run(args, exec));
   }
 
   return tools;
