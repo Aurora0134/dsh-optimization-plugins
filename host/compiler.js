@@ -748,41 +748,7 @@ function buildStructure(tokens) {
       }
     }
   }
-  const enclosing = (index) => {
-    const chain = [];
-    let cursor = index;
-    while (cursor >= 0) {
-      let found = -1;
-      for (const opener of stackOpenersBefore(tokens, cursor, pairs)) {
-        found = opener;
-        break;
-      }
-      if (found < 0) break;
-      chain.push(found);
-      cursor = found - 1;
-    }
-    return chain;
-  };
-  return { pairs, enclosing };
-}
-
-/**
- * 找出包住 `index` 的最内层开括号（借助已建好的 pairs）。
- * @param {object[]} tokens
- * @param {number} index
- * @param {Map<number, number>} pairs
- * @returns {number[]} 由内到外的开括号下标
- */
-function stackOpenersBefore(tokens, index, pairs) {
-  let best = -1;
-  for (const opener of pairs.keys()) {
-    if (!OPENERS.has(tokens[opener].value)) continue;
-    const closer = pairs.get(opener);
-    if (opener < index && index < closer) {
-      if (best < 0 || opener > best) best = opener;
-    }
-  }
-  return best < 0 ? [] : [best];
+  return { pairs };
 }
 
 /* ================================================================================================
@@ -891,16 +857,20 @@ function expressionStart(tokens, pairs, index) {
     if (isPunct(token, ')') || isPunct(token, ']')) {
       const open = pairs.get(cursor);
       if (open === undefined) return cursor;
-      cursor = open;
-      continue;
+      const beforeOpen = tokens[open - 1];
+      // 调用链/成员链继续向前：`getAgent()`、`xs[0]`
+      if (isIdent(beforeOpen) || isKeyword(beforeOpen, 'this') || isKeyword(beforeOpen, 'super')) {
+        cursor = open - 1;
+        continue;
+      }
+      return open;
     }
-    // 允许 `a.b.c` / `a!.b` / `a as T`：继续向前
+    // 允许 `a.b.c` / `a?.b`：继续向前
     const before = tokens[cursor - 1];
     if (isPunct(before, '.') || isPunct(before, '?.')) {
       cursor -= 2;
       continue;
     }
-    if (isKeyword(before, 'await') || isKeyword(before, 'new')) return cursor;
     return cursor;
   }
 }
@@ -1451,8 +1421,8 @@ function analyze(code, tokens, pairs, mode) {
     }
     if (token.kind !== 'ident') continue;
     const name = String(token.value);
-    // 禁止的全局
-    if (isFacadeFree(name) && (name === 'process' || name === 'require' || name === 'fetch' || name === 'fs')) {
+    // 禁止的全局（`fs` 不在其中：它常是脚本自己的变量名，Node 内置本就不可达）
+    if (isFacadeFree(name) && (name === 'process' || name === 'require' || name === 'fetch')) {
       if (isValueRead(tokens, index)) report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenGlobal(name));
       continue;
     }
@@ -1476,25 +1446,63 @@ function analyze(code, tokens, pairs, mode) {
     // facade 取引用（9001）
     if (FACADE_CALLABLES.has(name) && isFacadeFree(name)) {
       const next = tokens[index + 1];
-      const isCall = isPunct(next, '(');
+      // 泛型调用 `hole<…>(` 也算直接调用（站点身份仍按调用点记）。
+      const isCall = isPunct(next, '(') || isPunct(next, '<');
       if (!isCall && isValueRead(tokens, index)) report(CODE.FACADE_MISUSE, token, DIAGNOSTIC_MESSAGES.facadeReturned(name));
     }
     // 片段里不存在的 facade（9001）
-    if (mode === 'snippet' && SNIPPET_ABSENT.has(name) && isFacadeFree(name) && isPunct(tokens[index + 1], '(')) {
+    if (mode === 'snippet' && SNIPPET_ABSENT.has(name) && isFacadeFree(name)
+      && (isPunct(tokens[index + 1], '(') || isPunct(tokens[index + 1], '<'))) {
       report(CODE.FACADE_MISUSE, token, DIAGNOSTIC_MESSAGES.snippetAbsent(name));
     }
   }
+
+  // —— 先解析全部 interface / type alias，供 ask<T> 与后续站点引用 ——
+  for (const [typeName, declaration] of typeDecls.entries()) {
+    if (declaration.alias) {
+      const schema = typeRangeToSchema(tokens, pairs, declaration.bodyFrom, declaration.bodyTo, interfaces, typeDecls);
+      if (schema !== undefined) interfaces.set(typeName, schema);
+    } else {
+      interfaces.set(typeName, objectBodyToSchema(tokens, pairs, declaration.bodyFrom, declaration.bodyTo, interfaces, typeDecls, new Set()));
+    }
+  }
+
+  /** @type {{tag: string | undefined, token: object | undefined}[]} */
+  const pendingReportTags = [];
+  /** @type {{name: string, token: object}[]} */
+  const pendingHoleNames = [];
 
   // —— 第二遍：站点收集 + 各规则 ——
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     if (token.kind !== 'ident') continue;
     const name = String(token.value);
-    const open = index + 1;
-    if (!isPunct(tokens[open], '(')) continue;
-    const close = pairs.get(open);
-    if (close === undefined) continue;
-    const args = callArguments(tokens, pairs, open);
+    // 调用点：`name(` 或 `name<…>(`（泛型调用先跳过类型参数，hole/ask 都靠它）
+    let open = index + 1;
+    let typeArgFrom = -1;
+    let typeArgTo = -1;
+    if (!isPunct(tokens[open], '(') && isPunct(tokens[open], '<')) {
+      let depth = 0;
+      for (let cursor = open; cursor < tokens.length; cursor += 1) {
+        if (isPunct(tokens[cursor], '<')) depth += 1;
+        else if (isPunct(tokens[cursor], '>')) {
+          depth -= 1;
+          if (depth === 0) {
+            typeArgTo = cursor;
+            open = cursor + 1;
+            typeArgFrom = index + 2;
+            break;
+          }
+        }
+      }
+    }
+    // 直接调用（`name(...)`）与成员调用（`artifact.file(...)`）都要继续；其他形态跳过。
+    const isDirectCall = isPunct(tokens[open], '(');
+    const isMemberCall = isPunct(tokens[open], '.');
+    if (!isDirectCall && !isMemberCall) continue;
+    const close = isDirectCall ? pairs.get(open) : -1;
+    if (isDirectCall && close === undefined) continue;
+    const args = isDirectCall ? callArguments(tokens, pairs, open) : [];
     const shadowed = declared.has(name);
 
     // agent(name?, persona?)
@@ -1516,7 +1524,7 @@ function analyze(code, tokens, pairs, mode) {
       sites.push(site);
       if (literalName !== undefined) {
         if (literalName !== '') actorLiterals.push({ name: literalName, line: token.line });
-        if (literalName !== '' && isInsideFanOut()) report(CODE.FIXED_ACTOR_NAME, token, DIAGNOSTIC_MESSAGES.fixedActorName(literalName));
+        if (literalName !== '' && isInsideFanOutAt(index)) report(CODE.FIXED_ACTOR_NAME, token, DIAGNOSTIC_MESSAGES.fixedActorName(literalName));
       }
       // persona.model 必须是字面量或 ModelRef（9010）
       checkPersonaModel(site, token);
@@ -1524,15 +1532,16 @@ function analyze(code, tokens, pairs, mode) {
     }
 
     // a.ask(…) / a.ask<T>(…)
-    if (name === 'ask' && !shadowed && isPunct(tokens[index - 1], '.') || (name === 'ask' && isPunct(tokens[index - 1], '?.'))) {
+    if (name === 'ask' && !shadowed && (isPunct(tokens[index - 1], '.') || isPunct(tokens[index - 1], '?.'))) {
       const receiverEnd = index - 1;
       const receiverStart = expressionStart(tokens, pairs, receiverEnd - 1);
       const siteId = counters.next('ask');
-      const spec = askSpecAt(index, open);
+      const spec = askSpecAt(typeArgFrom, typeArgTo, token);
       sites.push({
         kind: 'ask',
         id: siteId,
         callee: index,
+        dot: index - 1,
         open,
         close,
         line: token.line,
@@ -1540,6 +1549,8 @@ function analyze(code, tokens, pairs, mode) {
         receiverStart,
         receiverEnd,
         optional: isPunct(tokens[index - 1], '?.'),
+        typeOpen: typeArgFrom >= 0 ? index + 1 : -1,
+        typeClose: typeArgTo,
         ...spec,
       });
       continue;
@@ -1547,32 +1558,9 @@ function analyze(code, tokens, pairs, mode) {
 
     // hole<T>(…)
     if (name === 'hole' && !shadowed) {
-      // 类型参数
-      let typeArgFrom = -1;
-      let typeArgTo = -1;
-      let callOpen = open;
-      if (isPunct(tokens[open], '<')) {
-        typeArgFrom = open + 1;
-        let depth = 0;
-        for (let cursor = open; cursor < tokens.length; cursor += 1) {
-          if (isPunct(tokens[cursor], '<')) depth += 1;
-          else if (isPunct(tokens[cursor], '>')) {
-            depth -= 1;
-            if (depth === 0) {
-              typeArgTo = cursor;
-              callOpen = cursor + 1;
-              break;
-            }
-          }
-        }
-      }
-      if (callOpen === open || !isPunct(tokens[callOpen], '(')) {
-        report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeTypeArgument);
-        continue;
-      }
-      const holeArgs = callArguments(tokens, pairs, callOpen);
-      const holeClose = pairs.get(callOpen);
       if (typeArgFrom < 0) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeTypeArgument);
+      const holeArgs = args;
+      const holeClose = close;
       const nameToken = holeArgs[0] === undefined ? undefined : tokens[holeArgs[0].from];
       const literalName = literalText(nameToken);
       if (literalName === undefined) report(CODE.HOLE, nameToken ?? token, DIAGNOSTIC_MESSAGES.holeNameLiteral);
@@ -1580,9 +1568,9 @@ function analyze(code, tokens, pairs, mode) {
       else if (literalName.length > 128) report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeNameLong(128));
       if (literalName !== undefined && literalName.trim() !== '') {
         const trimmed = literalName.trim();
-        if (phases.some((phase) => phase.name === trimmed)) report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holePhaseCollision(trimmed));
         if (holeNames.includes(trimmed)) report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeDuplicate(trimmed));
         holeNames.push(trimmed);
+        pendingHoleNames.push({ name: trimmed, token: nameToken });
         const siteId = `hole#${fnv1a(trimmed)}`;
         if (holeSiteIds.has(siteId) && holeSiteIds.get(siteId) !== trimmed) {
           report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeIdCollision(holeSiteIds.get(siteId), trimmed));
@@ -1591,7 +1579,7 @@ function analyze(code, tokens, pairs, mode) {
       }
       // await 与扇出位置
       if (!isKeyword(tokens[index - 1], 'await')) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeNotAwaited);
-      if (isInsideFanOut()) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeInFanOut);
+      if (isInsideFanOutAt(index)) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeInFanOut);
       // body 必须是内联箭头
       const bodyArg = holeArgs.length >= 3 ? holeArgs[2] : (holeArgs.length === 2 && isFunctionArgument(tokens, holeArgs[1]) ? holeArgs[1] : undefined);
       if (bodyArg !== undefined && !isArrowFunctionArgument(tokens, bodyArg)) {
@@ -1602,13 +1590,15 @@ function analyze(code, tokens, pairs, mode) {
         kind: 'hole',
         id: literalName !== undefined && literalName.trim() !== '' ? `hole#${fnv1a(literalName.trim())}` : counters.next('hole'),
         callee: index,
-        open: callOpen,
+        open,
         close: holeClose,
         line: token.line,
         args: holeArgs,
         name: literalName,
         typeText,
         hasTypeArg: typeArgFrom >= 0,
+        typeOpen: typeArgFrom >= 0 ? index + 1 : -1,
+        typeClose: typeArgTo,
       });
       continue;
     }
@@ -1647,15 +1637,8 @@ function analyze(code, tokens, pairs, mode) {
       const tagArg = args[1];
       const tag = tagArg === undefined ? undefined : literalText(tokens[tagArg.from]);
       if (tagArg !== undefined && tag === undefined) report(CODE.ARTIFACT, tokens[tagArg.from], DIAGNOSTIC_MESSAGES.reportTagLiteral);
-      if (tag !== undefined && tag !== '') {
-        const declaredKind = artifactIds.get(tag);
-        if (declaredKind !== undefined && (declaredKind.op === 'file' || declaredKind.op === 'markdown')) {
-          report(CODE.ARTIFACT, tokens[tagArg.from], DIAGNOSTIC_MESSAGES.reportTagContent(tag));
-        } else if (declaredKind === undefined) {
-          const presets = [...artifactIds.entries()].filter(([, info]) => info.op !== 'file' && info.op !== 'markdown').map(([id]) => id);
-          report(CODE.ARTIFACT, tokens[tagArg.from], DIAGNOSTIC_MESSAGES.reportTagUnknown(tag, presets.length === 0 ? DIAGNOSTIC_MESSAGES.noPresets : DIAGNOSTIC_MESSAGES.declaredPresets(presets)));
-        }
-      }
+      // tag 指向的 preset 可能声明在 report 之后，所以校验放到收集结束后统一做。
+      if (tag !== undefined && tag !== '') pendingReportTags.push({ tag, token: tokens[tagArg.from] });
       sites.push({ kind: 'report', id: counters.next('report'), callee: index, open, close, line: token.line, args });
       continue;
     }
@@ -1693,7 +1676,7 @@ function analyze(code, tokens, pairs, mode) {
       }
       // preset 必须在顶层（9008）
       if (op !== 'file' && op !== 'markdown') {
-        if (isInsideCallback()) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInCallback);
+        if (isInsideCallbackAt(index)) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInCallback);
         else if (insideLoop(tokens, pairs, index)) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInLoop);
         else if (insideBranch(tokens, pairs, index)) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInBranch);
       }
@@ -1757,87 +1740,83 @@ function analyze(code, tokens, pairs, mode) {
   // —— 阶段归属：每个站点属于哪个 phase（由内向外找最近的、位于站点之前的 marker） ——
   const sitePhases = new Map();
   for (const site of sites) {
-    const siteStart = tokens[site.callee]?.start ?? 0;
     const siteTokenIndex = site.callee;
-    // 找最内层包住该站点的块
-    const blocks = [];
+    const siteStart = tokens[siteTokenIndex]?.start ?? 0;
+    /** @type {{from: number, to: number}[]} */
+    const scopes = [];
     for (const [opener, closer] of pairs.entries()) {
       if (!isPunct(tokens[opener], '{')) continue;
-      if (opener < siteTokenIndex && siteTokenIndex < closer) {
-        blocks.push({ opener, closer, depth: closer - opener });
-      }
+      if (opener < siteTokenIndex && siteTokenIndex < closer) scopes.push({ from: opener, to: closer });
     }
-    blocks.sort((a, b) => a.depth - b.depth);
-    const chain = [...blocks.slice(0, 1).map((block) => ({ from: block.opener, to: block.closer })), { from: 0, to: tokens.length }];
-    let phaseName;
-    for (const scope of chain) {
+    // 内层块优先；最外层（整个脚本）兜底。
+    scopes.sort((a, b) => (a.to - a.from) - (b.to - b.from));
+    scopes.push({ from: 0, to: tokens.length });
+    for (const scope of scopes) {
       const marker = phaseMarkers
         .filter((candidate) => candidate.start < siteStart && candidate.close < scope.to && candidate.close > scope.from)
         .sort((a, b) => b.start - a.start)[0];
       if (marker !== undefined) {
-        phaseName = marker.name;
+        sitePhases.set(site.id, marker.name);
         break;
       }
     }
-    if (phaseName !== undefined) sitePhases.set(site.id, phaseName);
   }
 
   /* ------- 局部辅助 ------- */
-  function isInsideFanOut() {
-    for (const body of enclosingFunctionBodies(tokens, pairs, index)) {
+  function isInsideFanOutAt(callIndex) {
+    for (const body of enclosingFunctionBodies(tokens, pairs, callIndex)) {
       if (isFanOutCallbackBody(tokens, pairs, body)) return true;
     }
     return false;
   }
 
-  function isInsideCallback() {
-    const bodies = enclosingFunctionBodies(tokens, pairs, index);
-    // 脚本最外层本身也是函数体（`__workflowScript__`），token 化后并不会被识别为函数体，
-    // 所以这里任何被包住的函数体都是用户写的回调/辅助函数。
-    return bodies.length > 0;
+  function isInsideCallbackAt(callIndex) {
+    // 用户写的任何函数体都算回调：脚本顶层没有函数体包着（cell 的包壳发生在编译之后）。
+    return enclosingFunctionBodies(tokens, pairs, callIndex).length > 0;
   }
 
-  function askSpecAt(siteIndex, openParen) {
-    let typeFrom = -1;
-    let typeTo = -1;
-    let callOpen = openParen;
-    if (isPunct(tokens[openParen], '<')) {
-      typeFrom = openParen + 1;
-      let depth = 0;
-      for (let cursor = openParen; cursor < tokens.length; cursor += 1) {
-        if (isPunct(tokens[cursor], '<')) depth += 1;
-        else if (isPunct(tokens[cursor], '>')) {
-          depth -= 1;
-          if (depth === 0) {
-            typeTo = cursor;
-            callOpen = cursor + 1;
-            break;
-          }
-        }
-      }
-    }
-    const spec = { typed: false, typeText: undefined, schema: undefined, typeName: undefined, open: callOpen, typeOpen: typeFrom >= 0 ? openParen : -1, typeClose: typeTo };
+  function askSpecAt(typeFrom, typeTo, siteToken) {
+    const spec = { typed: false, typeText: undefined, schema: undefined, typeName: undefined };
     if (typeFrom < 0) return spec;
     const typeText = rangeText(code, tokens, typeFrom, typeTo);
-    // 只支持单一名（含 `[]`）的接口/别名
     const plain = /^([A-Za-z_$][\w$]*)(\[\])?$/u.exec(typeText.trim());
     if (plain === null) {
-      report(CODE.HOLE, tokens[siteIndex], DIAGNOSTIC_MESSAGES.askTypeUnsupported(typeText));
+      report(CODE.HOLE, siteToken, DIAGNOSTIC_MESSAGES.askTypeUnsupported(typeText));
       return spec;
     }
     const baseName = plain[1];
-    let schema;
     const built = interfaces.get(baseName);
+    let schema;
     if (built !== undefined) schema = built;
     else if (PRIMITIVE_SCHEMAS.has(baseName)) schema = PRIMITIVE_SCHEMAS.get(baseName);
-    else if (typeDecls.has(baseName) || [...typeDecls.keys()].includes(baseName)) {
-      schema = typeRangeToSchema(tokens, pairs, typeFrom, typeTo, interfaces, typeDecls);
-    } else {
-      report(CODE.HOLE, tokens[siteIndex], DIAGNOSTIC_MESSAGES.askTypeUndeclared(baseName));
+    else if (typeDecls.has(baseName)) schema = typeRangeToSchema(tokens, pairs, typeFrom, typeTo, interfaces, typeDecls);
+    else {
+      report(CODE.HOLE, siteToken, DIAGNOSTIC_MESSAGES.askTypeUndeclared(baseName));
       return spec;
     }
     const finalSchema = plain[2] === undefined ? schema : { type: 'array', items: schema ?? {} };
-    return { typed: true, typeText, typeName: baseName + (plain[2] ?? ''), schema: finalSchema, open: callOpen, typeOpen: typeFrom >= 0 ? openParen : -1, typeClose: typeTo };
+    return { typed: true, typeText, typeName: baseName + (plain[2] ?? ''), schema: finalSchema };
+  }
+
+  // —— 延迟校验：hole 名与 phase 重名、report tag 是否指向已声明的 preset ——
+  for (const hole of pendingHoleNames) {
+    if (phases.some((phase) => phase.name === hole.name)) {
+      report(CODE.HOLE, hole.token, DIAGNOSTIC_MESSAGES.holePhaseCollision(hole.name));
+    }
+  }
+  const presetIds = [...artifactIds.entries()]
+    .filter(([, info]) => info.op !== 'file' && info.op !== 'markdown')
+    .map(([id]) => id);
+  for (const tag of pendingReportTags) {
+    const declared = artifactIds.get(tag.tag);
+    if (declared !== undefined && (declared.op === 'file' || declared.op === 'markdown')) {
+      report(CODE.ARTIFACT, tag.token, DIAGNOSTIC_MESSAGES.reportTagContent(tag.tag));
+    } else if (declared === undefined) {
+      report(CODE.ARTIFACT, tag.token, DIAGNOSTIC_MESSAGES.reportTagUnknown(
+        tag.tag,
+        presetIds.length === 0 ? DIAGNOSTIC_MESSAGES.noPresets : DIAGNOSTIC_MESSAGES.declaredPresets(presetIds),
+      ));
+    }
   }
 
   function checkPersonaModel(site, token) {
@@ -1880,16 +1859,6 @@ function analyze(code, tokens, pairs, mode) {
     }
   }
 
-  // 接口 schema：预解析所有已声明 interface / type alias，供 ask<T> 引用
-  for (const [name, declaration] of typeDecls.entries()) {
-    if (declaration.alias) {
-      const schema = typeRangeToSchema(tokens, pairs, declaration.bodyFrom, declaration.bodyTo, interfaces, typeDecls);
-      if (schema !== undefined) interfaces.set(name, schema);
-    } else {
-      interfaces.set(name, objectBodyToSchema(tokens, pairs, declaration.bodyFrom, declaration.bodyTo, interfaces, typeDecls, new Set()));
-    }
-  }
-
   // 空脚本
   if (mode === 'workflow' && tokens.length === 0) {
     report(CODE.HOLE, { line: 1, column: 1 }, DIAGNOSTIC_MESSAGES.emptyScript);
@@ -1921,27 +1890,25 @@ function lowerScript(code, analysis) {
   const edits = [];
   const insert = (at, text) => edits.push({ start: at, end: at, text });
   const replace = (start, end, text) => edits.push({ start, end, text });
-  const source = analysis.tokens ?? [];
-  void source;
 
   for (const site of sites) {
     if (site.kind === 'actor') {
       // agent(…) → __host.createActor("actor#N", …)
-      replace(site.calleeStart ?? site.start, site.calleeEnd ?? site.end, '__host.createActor');
+      replace(site.calleeStart, site.calleeEnd, '__host.createActor');
       insert(site.afterOpen, `${jsString(site.id)}, `);
       continue;
     }
     if (site.kind === 'ask') {
-      // <recv>.ask<T>(args) → __host.ask("ask#N", <recv>, args)
+      // <recv>.ask<T>(args) → __host.ask("ask#N", <recv>, <args>)
       if (site.optional) {
         // x?.ask(…) → ((__a) => __a === null || __a === undefined ? undefined : __host.ask("s", __a, args))(x)
         const receiver = site.receiverText;
         const argsText = site.argsText;
-        replace(site.start, site.end, `((__a) => __a === null || __a === undefined ? undefined : __host.ask(${jsString(site.id)}, __a${argsText.length > 0 ? `, ${argsText}` : ''}))(${receiver})`);
+        replace(site.receiverStartOffset, site.end, `((__a) => __a === null || __a === undefined ? undefined : __host.ask(${jsString(site.id)}, __a${argsText.length > 0 ? `, ${argsText}` : ''}))(${receiver})`);
       } else {
-        insert(site.receiverStartOffset, `__host.ask(${jsString(site.id)}, `);
-        replace(site.memberStartOffset, site.memberEndOffset, ', ');
-        if (site.typeRange !== undefined) replace(site.typeRange.start, site.typeRange.end, '');
+        // 把 `<recv>.ask<T>(` 整段替换成 `__host.ask("ask#1", <recv>, `：原调用的右括号与实参
+        // 原样保留，因此括号配平不依赖任何“只删点号”的局部编辑（嵌套调用也不受影响）。
+        replace(site.receiverStartOffset, site.afterOpen, `__host.ask(${jsString(site.id)}, ${site.receiverText}, `);
       }
       continue;
     }
@@ -1981,18 +1948,19 @@ function lowerScript(code, analysis) {
       continue;
     }
     if (site.kind === 'report') {
+      replace(site.calleeStart, site.calleeEnd, '__host.report');
       insert(site.afterOpen, `${jsString(site.id)}, `);
       continue;
     }
     if (site.kind === 'artifact') {
       const host = site.op === 'file' || site.op === 'markdown' ? 'publishArtifact' : 'declareArtifact';
       replace(site.memberStartOffset, site.afterOpen, `__host.${host}(${jsString(site.id)}, ${jsString(site.op)}, [`);
-      insert(site.closeOffset, '])');
+      insert(site.closeOffset, ']');
       continue;
     }
     if (site.kind === 'worldRead') {
       replace(site.memberStartOffset, site.afterOpen, `__host.worldRead(${jsString(site.id)}, ${jsString(site.op)}, [`);
-      insert(site.closeOffset, '])');
+      insert(site.closeOffset, ']');
       continue;
     }
   }
@@ -2399,10 +2367,17 @@ export function compileWorkflowScript({ code, filename = 'workflow-script.ts', m
   let loweredBody;
   let loweredSource;
   try {
-    const lowered = lowerScript(source, { ...analysis, tokens, declared: collectDeclaredNames(tokens) });
+    const lowered = lowerScript(source, { ...analysis, sites, tokens, declared: collectDeclaredNames(tokens) });
     loweredSource = lowered.code;
-    // 类型擦除（Node 内建）。strip 之后 `interface` 声明消失、注解消失，`return` 保留。
-    loweredBody = stripTypeScriptTypes(loweredSource, { mode: 'transform', sourceMap: false });
+    // 类型擦除（Node 内建）。
+    // 为什么先包一层函数再擦：脚本的顶层 `return` 是合法的（工作流以返回值交付），但
+    // 顶层的 `return` 在 TS 里只允许出现在函数体里，所以先包成 `__workflowScript__` 再擦，
+    // 擦完把函数体切出来交给 cell（cell 会再包一层 `(async (__host) => …)`）。
+    const wrapped = `async function __workflowScript__() {\n${loweredSource}\n}`;
+    const stripped = stripTypeScriptTypes(wrapped, { mode: 'transform', sourceMap: false });
+    const bodyOpen = stripped.indexOf('{');
+    const bodyClose = stripped.lastIndexOf('}');
+    loweredBody = bodyOpen >= 0 && bodyClose > bodyOpen ? stripped.slice(bodyOpen + 1, bodyClose) : stripped;
   } catch (error) {
     return {
       ok: false,
@@ -2524,11 +2499,14 @@ function decorateSite(code, tokens, pairs, site) {
     if (suiteSecondIsFunction(enriched, tokens)) enriched.secondIsFunction = true;
   }
   if (site.kind === 'ask') {
-    enriched.memberStartOffset = callee !== undefined ? callee.start : 0;
+    const dot = tokens[site.dot];
+    enriched.dotStartOffset = dot !== undefined ? dot.start : (callee !== undefined ? callee.start : 0);
+    enriched.memberStartOffset = enriched.dotStartOffset;
     enriched.memberEndOffset = callee !== undefined ? callee.end : 0;
     enriched.receiverStartOffset = tokens[site.receiverStart]?.start ?? 0;
-    enriched.receiverText = site.receiverStart !== undefined
-      ? code.slice(tokens[site.receiverStart].start, tokens[site.receiverEnd]?.end ?? tokens[site.receiverEnd]?.start ?? 0)
+    // 接收者文本截止到 `.` 之前（不含点），可选链分支要把它整体传进去
+    enriched.receiverText = site.receiverStart !== undefined && dot !== undefined
+      ? code.slice(tokens[site.receiverStart].start, dot.start)
       : '';
     if (site.typeOpen !== undefined && site.typeOpen >= 0 && site.typeClose !== undefined && site.typeClose > 0) {
       enriched.typeRange = { start: tokens[site.typeOpen].start, end: tokens[site.typeClose].end };
