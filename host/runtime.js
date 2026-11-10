@@ -2323,7 +2323,9 @@ export function createRuntime({
       id: runId,
       ...(stored?.name === undefined ? {} : { name: stored.name }),
       status: stored?.status ?? 'running',
-      ...(stored?.stopReason === undefined ? {} : { stopReason: stored.stopReason }),
+      ...(stored?.stopReason === undefined && entry?.meta?.stopReason === undefined
+        ? {}
+        : { stopReason: stored?.stopReason ?? entry?.meta?.stopReason }),
       ...(stored?.supersededBy === undefined ? {} : { supersededBy: stored.supersededBy }),
       ...(stored?.resumedFrom === undefined ? {} : { resumedFrom: stored.resumedFrom }),
       ...(stored?.scriptPath === undefined ? {} : { scriptPath: stored.scriptPath }),
@@ -2372,7 +2374,11 @@ export function createRuntime({
         message: String(event.event.message ?? ''),
       })),
       ...(stored?.failure === undefined ? {} : { error: stored.failure }),
-      ...(stored?.result === undefined ? {} : { result: stored.result }),
+      // 有的 journal 实现只把 result 留在内存里的 run 记录上（store 的 updateRunStatus 不写 result），
+      // 所以两处都看一眼：存储优先，其次本进程的终态。
+      ...(stored?.result === undefined && entry?.meta?.result === undefined
+        ? {}
+        : { result: stored?.result ?? entry?.meta?.result }),
       events: events.slice(-1).map((row) => ({ sequence: row.sequence })),
       health: {
         consecutiveFailures: usage.nodesFailed,
@@ -2386,11 +2392,14 @@ export function createRuntime({
 
   /**
    * 运行列表（新→旧）。
+   *
+   * `store.listRuns` 在 dev-host 的 store 里是 async（要读磁盘目录），其余 journal 方法是同步的
+   * （引擎按同步接口设计），所以这里 await 一次、把两种形态都收下。
    * @param {{sessionId?: string, cwd?: string, limit?: number}} [options]
-   * @returns {object[]}
+   * @returns {Promise<object[]>}
    */
-  const listRuns = (options = {}) => {
-    const stored = store.listRuns({ limit: options.limit ?? 20 });
+  const listRuns = async (options = {}) => {
+    const stored = await store.listRuns({ limit: options.limit ?? 20 });
     return stored
       .filter((run) => options.cwd === undefined || run.cwd === options.cwd)
       .map((run) => ({
@@ -2420,7 +2429,13 @@ export function createRuntime({
     afterSequence,
     limit,
     reportItems: { limit: RUNTIME_CAPS.maxReports },
-  }).map((row) => ({ sequence: row.sequence, type: row.event.type, event: row.event, timeCreated: row.timeCreated }));
+  }).map((row) => ({
+    sequence: row.sequence,
+    // store 的 listEvents 同时给了 row.type（journal 行）与 row.event（事件体），两者取其一即可。
+    type: row.event?.type ?? row.type,
+    event: row.event ?? row,
+    timeCreated: row.timeCreated,
+  }));
 
   /**
    * 追加一条外部事件（UI/审批链路用；引擎自己走 engine.record）。

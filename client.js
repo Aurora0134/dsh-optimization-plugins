@@ -2040,6 +2040,11 @@ const WF_API = (() => {
     return get('/runs', { sessionId: scope.sessionId, limit: scope.limit });
   }
 
+  /** One run's full projected state, as the detail surface reads it. */
+  function run(scope) {
+    return get('/run', { sessionId: scope.sessionId, runId: scope.runId });
+  }
+
   /** Append-only run events after one sequence (`conversationWorkflowRunEvents`). */
   function runEvents(scope) {
     return get('/run/events', {
@@ -2179,6 +2184,7 @@ const WF_API = (() => {
     get,
     post,
     runs,
+    run,
     runEvents,
     runArtifacts,
     artifactData,
@@ -6426,6 +6432,7 @@ function WfDetailPane(props) {
           icon: WF_H(WF_UI.icons.more, { size: 13 }),
           onClick: () => setSettingsOpen((value) => !value),
           disabled: configurable !== true,
+          testId: 'workflow-run-configure',
           title: configurable === true ? say('run.configure') : say('run.settings.rejection.not_configurable'),
         }, say('run.configure')),
         resumable
@@ -9865,7 +9872,7 @@ function WfWorkspaceCard(props) {
       onToggle?.(node.key);
     },
   },
-  WF_H('div', { className: 'zwf-ws-head', 'data-testid': 'workflow-workspace-open' },
+  WF_H('div', { className: 'zwf-ws-head' },
     WF_H('span', { className: 'zwf-ws-verb' }, wfWorkspaceVerb(t, node)),
     WF_H('span', { className: 'zwf-ws-subject zwf-mono', title: subject }, subject),
     WF_H('span', { className: `zwf-chevron${open ? ' zwf-chevron-open' : ''}`, 'aria-hidden': 'true' }, WF_H(WF_UI.icons.chevronRight, { size: 12 }))),

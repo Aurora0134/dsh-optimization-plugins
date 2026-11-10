@@ -81,6 +81,11 @@ const WF_API = (() => {
     return get('/runs', { sessionId: scope.sessionId, limit: scope.limit });
   }
 
+  /** One run's full projected state, as the detail surface reads it. */
+  function run(scope) {
+    return get('/run', { sessionId: scope.sessionId, runId: scope.runId });
+  }
+
   /** Append-only run events after one sequence (`conversationWorkflowRunEvents`). */
   function runEvents(scope) {
     return get('/run/events', {
@@ -220,6 +225,7 @@ const WF_API = (() => {
     get,
     post,
     runs,
+    run,
     runEvents,
     runArtifacts,
     artifactData,
