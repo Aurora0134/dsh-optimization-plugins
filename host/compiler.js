@@ -494,6 +494,15 @@ const PUNCTUATORS = [
   '!', '~', '?', ':', '=', '.', '@', '#',
 ];
 
+/**
+ * 类型表达式跨行时的延续 token：换行后遇到它们，说明类型还没写完（`type X =\n  | 'a'`）。
+ * 反过来说，换行后的第一个 token 不在这里，就是 ASI 下的语句边界——`type X = { a: string }`
+ * 后面直接跟 `const` 时要靠这个收尾，否则后续整段代码都会被当成类型体。
+ */
+const TYPE_CONTINUATION = new Set([
+  '|', '&', '.', '?.', '=>', ',', ')', ']', '}', '>', ':', '?', '=',
+  '[', '(', '<', '+', '-', '*', '/', '%', 'extends', 'keyof', 'typeof', 'infer', 'is', 'as',
+]);
 const OPENERS = new Set(['(', '[', '{']);
 const CLOSER_TO_OPEN = new Map([[')', '('], [']', '['], ['}', '{']]);
 
@@ -1014,23 +1023,35 @@ function collectTypeDeclarations(tokens, pairs) {
       }
       const equals = findNextPunct(tokens, index + 2, '=');
       if (equals < 0) continue;
-      let end = equals + 1;
+      // 别名区间的终点：深度 0 的 `;`，或者 ASI 下的语句边界（换行后第一个非延续 token）。
+      // 旧写法只在「下一个 token 是 `;` / 已到文件末尾」时收尾，于是无分号的
+      // `type X = { a: string }` 会把后面整段代码都算进类型体。
+      let bodyTo = tokens.length;
+      let nextIndex = tokens.length;
+      let cursor = equals + 1;
       let depth = 0;
-      while (end < tokens.length) {
-        const current = tokens[end];
+      while (cursor < tokens.length) {
+        const current = tokens[cursor];
         if (current.kind === 'punct') {
           if (OPENERS.has(current.value)) depth += 1;
           else if (CLOSER_TO_OPEN.has(current.value)) depth -= 1;
-          else if (current.value === ';' && depth === 0) break;
+          else if (current.value === ';' && depth === 0) {
+            bodyTo = cursor;
+            nextIndex = cursor;
+            break;
+          }
         }
-        if (depth === 0 && current.line > tokens[equals].line && current.start > tokens[equals].end) {
-          // `type X = …` 到行尾即结束（无分号写法）
-          if (isPunct(tokens[end + 1], ';') || end === tokens.length - 1) break;
+        const next = tokens[cursor + 1];
+        if (depth === 0 && next !== undefined && next.line > current.line
+          && !TYPE_CONTINUATION.has(String(next.value))) {
+          bodyTo = cursor + 1;
+          nextIndex = cursor;
+          break;
         }
-        end += 1;
+        cursor += 1;
       }
-      declarations.set(String(nameToken.value), { bodyFrom: equals + 1, bodyTo: end, alias: true });
-      index = end;
+      declarations.set(String(nameToken.value), { bodyFrom: equals + 1, bodyTo, alias: true });
+      index = nextIndex;
     }
   }
   return declarations;
@@ -1073,16 +1094,15 @@ function paramsAreTyped(tokens, pairs, open, close) {
 }
 
 /**
- * 该 token 是否落在某个 `interface` / `type` 声明的体内。
- * @param {Map<string, {bodyFrom: number, bodyTo: number, alias: boolean}>} typeDecls
+ * 类型字面量的成员位置：`{ check(): boolean }` 里的 `check` 前面是 `{` / `,` / `;`。
+ * 三元的 `cond ? foo() : 2` 前面是 `?`，所以不会被误判成方法签名。
+ * @param {object[]} tokens
  * @param {number} index
  * @returns {boolean}
  */
-function isInsideTypeBody(typeDecls, index) {
-  for (const declaration of typeDecls.values()) {
-    if (index >= declaration.bodyFrom && index < declaration.bodyTo) return true;
-  }
-  return false;
+function isTypeMemberPosition(tokens, index) {
+  const before = tokens[index - 1];
+  return isPunct(before, '{') || isPunct(before, ',') || isPunct(before, ';');
 }
 
 /**
@@ -1696,7 +1716,7 @@ function analyze(code, tokens, pairs, mode) {
       // 跟的是返回类型标注，不是代码块。判据必须收紧到「形参全带类型标注」或「落在类型体内」，
       // 否则三元的 `cond ? foo(1) : 2` 会因为 `)` 后面那个 `:` 被当成签名而漏报 2304。
       const signature = callClose !== undefined && isPunct(tokens[callClose + 1], ':')
-        && (paramsAreTyped(tokens, pairs, index + 1, callClose) || isInsideTypeBody(typeDecls, index));
+        && (paramsAreTyped(tokens, pairs, index + 1, callClose) || isTypeMemberPosition(tokens, index));
       if (!methodDefinition && !signature) report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
     }
   }

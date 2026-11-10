@@ -400,3 +400,36 @@ test('类型声明体里的标识符不会被当成调用点或 __host 改写（
   const alias = compileWorkflowScript({ code: 'type Handler = (x: string) => boolean;\nreturn 1;' });
   assert.equal(alias.ok, true, text(alias));
 });
+
+test('type 别名不带分号也不会吞掉后续语句（ASI 收尾）', () => {
+  const asi = compileWorkflowScript({
+    code: 'type Finding = {\n  title: string\n}\nconst r = agent("reviewer");\nreturn await r.ask("review");',
+  });
+  assert.equal(asi.ok, true, text(asi));
+  assert.equal(asi.actors.length, 1);
+  assert.equal(asi.sites.length, 2);
+  assert.match(asi.lowered, /__host\.createActor/u);
+  assert.match(asi.lowered, /__host\.ask/u);
+
+  // 诊断也不能被类型区间吞掉。
+  const unknown = compileWorkflowScript({ code: 'type Row = { a: string }\nconst q = missing(1);\nreturn q;' });
+  assert.deepEqual(codes(unknown), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+
+  // 跨行类型（联合 / 泛型）仍然整段归类型体，后续语句照常 lowering。
+  const union = compileWorkflowScript({ code: "type Kind =\n  | 'a'\n  | 'b'\nconst r = agent('x');\nreturn r.ask('hi');" });
+  assert.equal(union.ok, true, text(union));
+  assert.equal(union.sites.length, 2);
+  const generic = compileWorkflowScript({ code: 'type Rows = Array<\n  string\n>\nconst r = agent("x");\nreturn r.ask("hi");' });
+  assert.equal(generic.ok, true, text(generic));
+  assert.equal(generic.sites.length, 2);
+});
+
+test('内联对象类型的零参方法签名不报 2304（: 与 as 两种写法）', () => {
+  const annotated = compileWorkflowScript({ code: 'const p: { check(): boolean } = { check: () => true };\nreturn p.check();' });
+  assert.equal(annotated.ok, true, text(annotated));
+  const cast = compileWorkflowScript({ code: 'const p = {} as { check(): boolean };\nreturn p.check();' });
+  assert.equal(cast.ok, true, text(cast));
+  // 三元里的零参调用仍然要报 2304。
+  const ternary = compileWorkflowScript({ code: 'const one = false ? nope() : 2;\nreturn one;' });
+  assert.deepEqual(codes(ternary), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+});

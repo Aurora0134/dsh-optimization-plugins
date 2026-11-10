@@ -2418,7 +2418,13 @@ export function createRuntime({
     const sourceCode = String(request.code ?? preparedInner.code ?? '');
     const scriptPath = request.scriptPath ?? preparedFull.scriptPath ?? preparedInner.scriptPath;
     const runId = request.runId ?? newRunId();
-    const runName = String(request.name ?? 'workflow').replace(/[^\w\u4e00-\u9fa5 .-]+/gu, '-').slice(0, 80) || 'workflow';
+    // run 的 name 是可选的：没给就不写进 journal，否则展示标签永远停在 "workflow"，
+    // store 也会把它当成显式命名（labelSource:"name"）。真正的标签回退顺序见 store.resolveRunLabel。
+    const explicitName = typeof request.name === 'string' && request.name.trim() !== ''
+      ? (String(request.name).replace(/[^\w\u4e00-\u9fa5 .-]+/gu, '-').slice(0, 80) || undefined)
+      : undefined;
+    /** 仅用于日志与 draft 文件名的展示名。 */
+    const runName = explicitName ?? 'workflow';
     const cwd = String(request.cwd ?? process.cwd());
     const phaseNames = compileResult.phases ?? [];
 
@@ -2459,7 +2465,7 @@ export function createRuntime({
       launch: {
         runId,
         inputId: runId,
-        name: runName,
+        ...(explicitName === undefined ? {} : { name: explicitName }),
         cwd,
         args: request.args ?? {},
         scriptText: sourceCode,
@@ -2478,7 +2484,7 @@ export function createRuntime({
     entry = {
       meta: {
         id: runId,
-        name: runName,
+        ...(explicitName === undefined ? {} : { name: explicitName }),
         cwd,
         status: 'running',
         createdAt: Date.now(),

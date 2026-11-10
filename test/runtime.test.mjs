@@ -815,3 +815,15 @@ test('runtime.listRuns 透出 store 的 labelSource（cli.md:205）', async () =
   const rows = await runtime.listRuns({ limit: 5 });
   assert.equal(rows.find((row) => row.runId === 'dwf-named').labelSource, 'name');
 });
+
+test('没给 name 的 run 不往 journal 写默认名（label 交给脚本首行回退）', async () => {
+  const journal = createMemoryJournal();
+  const runtime = createRuntime({ compiler: stubCompiler({ lowered: 'return 1;' }), journal, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const unnamed = await runtime.startRun({ code: 'const x = 1;\nreturn x;', cwd: '/tmp/ws', runner: async () => ({ text: '' }) });
+  assert.equal(journal.getRun(unnamed.runId)?.name, undefined);
+  await runtime.waitForRun(unnamed.runId, { timeoutMs: 3000 });
+
+  const named = await runtime.startRun({ code: 'return 1;', name: '部署收口', cwd: '/tmp/ws', runner: async () => ({ text: '' }) });
+  assert.equal(journal.getRun(named.runId)?.name, '部署收口');
+  await runtime.waitForRun(named.runId, { timeoutMs: 3000 });
+});
