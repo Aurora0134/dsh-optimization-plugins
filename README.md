@@ -100,9 +100,9 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 
 ## 验证
 
-- 单元测试：`node --test test/*.test.mjs` → **208 个测试全部通过**（编译器 64、运行时 22、数据面 94、工具 50、前端构建 2 等）。
-- 加载探针：用最小 ctx 驱动 `apply`，确认 12 个工具、2 个命令、1 个提示段、3 个技能与 26 条路由全部注册且不抛错。
-- 前端构建：`node scripts/build-client.mjs` → 24 个 part、`node --check client.js` 通过、`client.js` 与源码一致。
+- 单元测试：`node --test test/*.test.mjs` → **214 个测试全部通过**，按文件：编译器 15、运行时 18、facade 6、数据面（journal 9 / projection 19 / phase-state 12 / store 17 / ui-api 37）、工具 50、消息 4、审批 12、工作区 11、插件加载 2、前端构建 2。
+- 加载探针（`test/plugin-apply.test.mjs`）：用最小 ctx 驱动 `apply`，断言 12 个工具、2 个命令、1 个提示段、3 个技能与 26 条路由全部注册且不抛错；并覆盖 `onDemand` 下不注册模型面工具、只留数据通道。
+- 前端构建：`node scripts/build-client.mjs` → 25 个 part、`node --check client.js` 通过、`client.js` 与源码一致。
 - 前端渲染冒烟：用构建产物和 stub React 逐个渲染七个槽组件（工具卡、确认块、详情、脚本步骤、目录页、设置行、状态入口）无异常。
 - 未验证：真实浏览器里的像素级观感与交互手感；宿主半改动需重启 Harness 后才注册新路由。
 
