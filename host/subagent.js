@@ -104,16 +104,21 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     if (!subagents.list().includes(provider)) {
       throw new Error(`workflow subagents are unavailable: subagent provider "${provider}" is not registered (available: ${subagents.list().join(', ') || 'none'})`);
     }
-    const route = resolveModelRoute(request.actor?.model ?? config.subagentModel);
-    const label = typeof request.actor?.name === 'string' && request.actor.name.length > 0
-      ? request.actor.name
-      : 'Workflow subagent';
+    // 兼容两种调用方：runtime 的 `{actor:{name,persona,model}, system, prompt, parent}`，
+    // 以及工具层旧包装的 `{agentName, persona, model, prompt, agent}`（`agent` 即父会话）。
+    const actorName = request.actor?.name ?? request.agentName;
+    const persona = request.actor?.persona
+      ?? (typeof request.persona === 'string' ? request.persona : request.persona?.system);
+    const model = request.actor?.model ?? request.model;
+    const parent = request.parent ?? request.agent;
+    const route = resolveModelRoute(model ?? config.subagentModel);
+    const label = typeof actorName === 'string' && actorName.length > 0 ? actorName : 'Workflow subagent';
     const prompt = [{
       type: 'text',
       text: composeActorPrompt({
         system: request.system,
-        actorName: request.actor?.name,
-        persona: request.actor?.persona,
+        actorName,
+        persona,
         prompt: request.prompt,
       }),
     }];
@@ -125,7 +130,7 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
         label,
         request: {
           prompt,
-          parent: request.parent,
+          ...(parent === undefined ? {} : { parent }),
           ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
           ...(route === undefined ? {} : { agentOptions: { ...route } }),
           // typed ask：把编译期 schema 交给 provider，能返回结构化输出时优先用它。
