@@ -683,14 +683,13 @@ function toRunOutput(run) {
     siteId: String(actor.siteId ?? ''),
     ordinal: Number(actor.ordinal ?? 0),
     ...(typeof actor.name === 'string' ? { name: actor.name } : {}),
-    state: actor.status === 'completed' ? 'done' : (actor.status === 'running' ? 'executing' : 'idle'),
-    stepsSettled: 0,
-    stepsFailed: 0,
-    tokens: 0,
+    state: actor.status === 'completed' ? 'done' : (actor.status === 'running' ? 'executing' : 'waiting'),
   }));
-  // 契约 §1.5：subagents ≤ 64，超出时带 `subagentsTruncated`（cli.md:169-170）。
-  const subagents = allSubagents.slice(0, RUNTIME_CAPS.maxSnapshotSubagents);
-  const subagentsTruncated = allSubagents.length > subagents.length;
+  // 快照自带 subagents（按 actor 的 node 行派生状态与计数）时直接透出；旧数据没有这个字段
+  // 时才退回 actor 投影，且不伪造恒 0 的计数。
+  const snapshotSubagents = Array.isArray(run.subagents) ? run.subagents : allSubagents;
+  const subagents = snapshotSubagents.slice(0, RUNTIME_CAPS.maxSnapshotSubagents);
+  const subagentsTruncated = snapshotSubagents.length > subagents.length;
   const health = {
     consecutiveFailures: Number(run.health?.consecutiveFailures ?? usage.nodesFailed),
     cachedSteps: Number(run.health?.cachedSteps ?? 0),

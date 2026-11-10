@@ -2813,6 +2813,18 @@ export function createRuntime({
       nodesCompleted: nodes.filter((node) => node.status === 'completed').length,
       nodesFailed: nodes.filter((node) => node.status === 'failed').length,
     };
+    const runStatus = stored?.status ?? 'running';
+    // 契约 km 的 status 不是事件给的，是按引用该 actor 的 node 派生（engine.md:592-596）。
+    const activeRun = runStatus === 'pending' || runStatus === 'running';
+    const nodesOfActor = (actor) => nodes.filter((node) => node.actorSiteId === actor.siteId && node.actorOrdinal === actor.ordinal);
+    const derivedActors = actors.map((actor) => {
+      const mine = nodesOfActor(actor);
+      const working = mine.some((node) => node.phase === 'executing' || node.phase === 'repairing' || node.phase === 'nudged');
+      const pending = mine.length === 0
+        || mine.some((node) => node.phase === 'queued' || node.phase === 'dispatched' || node.phase === 'waiting');
+      const status = !activeRun ? 'completed' : (working ? 'running' : (pending ? 'waiting' : 'completed'));
+      return { actor, mine, status };
+    });
     const pendingQuestions = entry === undefined
       ? []
       : [...entry.driver.pendingQuestions.values()].map((parked) => parked.record);
@@ -2833,20 +2845,43 @@ export function createRuntime({
       ...(stored?.subagentModel === undefined ? {} : { subagentModel: stored.subagentModel }),
       usage,
       spentTokens: usage.spentTokens,
-      actors: actors.map((actor) => ({
+      actors: derivedActors.map(({ actor, status }) => ({
         siteId: actor.siteId,
         ordinal: actor.ordinal,
         ...(actor.name === undefined ? {} : { name: actor.name }),
         ...(actor.sessionId === undefined ? {} : { sessionId: actor.sessionId }),
-        status: actor.status ?? 'waiting',
+        status,
       })),
+      // 契约 Uoe 的 subagents（cli.md:167-169）：状态派生同上，计数来自该 actor 的 node 行。
+      subagents: derivedActors.map(({ actor, mine, status }) => {
+        const settled = mine.filter((node) => node.outcome === 'ok').length;
+        const failed = mine.filter((node) => node.outcome === 'failed').length;
+        const tokens = mine.reduce((sum, node) => sum + (Number(node.stats?.tokens) || 0), 0);
+        const state = failed > 0
+          ? 'failed'
+          : status === 'running' ? 'executing'
+            : status === 'waiting' ? 'waiting'
+              : 'done';
+        return {
+          siteId: actor.siteId,
+          ordinal: actor.ordinal,
+          ...(actor.name === undefined ? {} : { name: actor.name }),
+          state,
+          stepsSettled: settled,
+          stepsFailed: failed,
+          tokens,
+        };
+      }),
       nodes: nodes.map((node) => ({
         siteId: node.siteId,
         ordinal: node.ordinal,
         ...(node.kind === undefined ? {} : { kind: node.kind }),
         phase: node.phase ?? 'queued',
         ...(node.outcome === undefined ? {} : { outcome: node.outcome }),
-        ...(node.inputHash === undefined ? {} : {}),
+        ...(node.actorSiteId === undefined ? {} : { actorSiteId: node.actorSiteId }),
+        ...(node.actorOrdinal === undefined ? {} : { actorOrdinal: node.actorOrdinal }),
+        ...(node.turn === undefined ? {} : { turn: node.turn }),
+        ...(node.toolCalls === undefined ? {} : { toolCalls: node.toolCalls }),
       })),
       reports: reports.map((row) => ({
         siteId: row.siteId,

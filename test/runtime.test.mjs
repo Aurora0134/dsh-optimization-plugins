@@ -670,3 +670,73 @@ test('amend：前驱 meta 落 stop_reason=superseded 与 superseded_by=<后继 r
   release('late');
   await runtime.waitForRun(successor, { timeoutMs: 3000 });
 });
+
+test('subagents 与 actors 的 status 是派生的：计数来自该 actor 的 node 行（契约 cli.md:167-169）', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", void 0);',
+      'await __host.ask("ask#1", reader, "one");',
+      'return await __host.ask("ask#2", reader, "two");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }], ['ask#2', { typed: false }]]),
+    actors: [{ siteId: 'actor#1', name: 'reader' }],
+  });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'subagents',
+    cwd: '/tmp/ws',
+    runner: async () => 'ok',
+  });
+  const settled = await runtime.waitForRun(started.runId, { timeoutMs: 5000 });
+  assert.equal(settled.status, 'completed');
+  const run = await runtime.getRun(started.runId);
+  assert.equal(run.actors.length, 1);
+  // 运行已结束 → 契约的派生规则把每个 actor 记为 completed。
+  assert.equal(run.actors[0].status, 'completed');
+  assert.equal(run.subagents.length, 1);
+  const [subagent] = run.subagents;
+  assert.equal(subagent.name, 'reader');
+  assert.equal(subagent.state, 'done');
+  assert.equal(subagent.stepsSettled, 2);
+  assert.equal(subagent.stepsFailed, 0);
+  assert.equal(typeof subagent.tokens, 'number');
+  // node 行带 actor 归属：派生计数与步骤台账都读它。
+  assert.equal(run.nodes.length, 2);
+  for (const node of run.nodes) {
+    assert.equal(node.actorSiteId, 'actor#1');
+    assert.equal(node.actorOrdinal, run.actors[0].ordinal);
+  }
+});
+
+test('subagents 在飞行中显示 executing，排队时显示 waiting', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var slow = __host.createActor("actor#1", "slow", void 0);',
+      'return await __host.ask("ask#1", slow, "hold");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+    actors: [{ siteId: 'actor#1', name: 'slow' }],
+  });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'in-flight',
+    cwd: '/tmp/ws',
+    runner: () => gate,
+  });
+  const executing = await until(async () => {
+    const run = await runtime.getRun(started.runId);
+    return run?.subagents?.[0]?.state === 'executing' ? run : undefined;
+  });
+  assert.equal(Boolean(executing), true, 'ask 派发后 subagent 应为 executing');
+  assert.equal(executing.subagents[0].stepsSettled, 0);
+  release('done');
+  const settled = await runtime.waitForRun(started.runId, { timeoutMs: 5000 });
+  assert.equal(settled.status, 'completed');
+  const after = await runtime.getRun(started.runId);
+  assert.equal(after.subagents[0].state, 'done');
+  assert.equal(after.subagents[0].stepsSettled, 1);
+});
