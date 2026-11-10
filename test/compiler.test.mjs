@@ -375,3 +375,17 @@ test('冗余括号里的字面量名字仍算定名：9005 / 9006 照契约触�
   });
   assert.deepEqual(codes(fanOut), [COMPILER_DIAGNOSTIC_CODES.FIXED_ACTOR_NAME]);
 });
+
+test('三元里的调用点仍然报 2304，不被方法签名规则吞掉', () => {
+  const withArgs = compileWorkflowScript({ code: 'const one = 1 > 0 ? missing(1) : 2;\nreturn one;' });
+  assert.deepEqual(codes(withArgs), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+
+  const zeroArg = compileWorkflowScript({ code: 'const one = false ? nope() : 2;\nreturn one;' });
+  assert.deepEqual(codes(zeroArg), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+
+  // 类型体内的零参签名仍然不是调用点。
+  const signature = compileWorkflowScript({
+    code: 'interface Plan { check(): boolean }\nconst plan: Plan = { check: () => true };\nreturn plan.check();',
+  });
+  assert.equal(signature.ok, true, text(signature));
+});

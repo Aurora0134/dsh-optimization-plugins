@@ -249,7 +249,7 @@ function newRunId() {
 }
 
 /**
- * actor 会话 id（`mintActorSessionId`，cli.md:739755-739760）。
+ * actor 会话 id（`mintActorSessionId`，cli:739755-739760）。
  * @param {string} runId
  * @param {{siteId: string, ordinal: number}} ref
  * @returns {string}
@@ -2665,15 +2665,15 @@ export function createRuntime({
       }
       // 已经结束 → run_settled；进程里没有它（另一个进程在跑、或上次进程退出留下的行）→ run_not_retunable。
       if (entry === undefined && !TERMINAL.has(stored.status)) {
-        return { ok: false, code: 'RUN_NOT_RETUNABLE', message: `workflow_run_not_retunable: run ${runId} is ${stored.status}, but this agent is not executing it, so it cannot retune it.` };
+        return { ok: false, code: 'RUN_NOT_RETUNABLE', message: `workflow_run_not_retunable: run ${runId} is not being executed by this agent, so its parallelism cannot be changed in place.` };
       }
-      return { ok: false, code: 'RUN_NOT_ACTIVE', message: `workflow_run_not_active: run ${runId} is ${entry === undefined ? stored.status : 'finished'}; only a running run takes a new concurrency limit.` };
+      return { ok: false, code: 'RUN_NOT_ACTIVE', message: `workflow_run_settled: run ${runId} settled before the new parallelism limit could take hold, so there is nothing running to retune.` };
     }
     // 契约把并发上限封在 1024（engine.md:1104）：超过就按上限算，不把越界值写进 caps。
     const bounded = Math.min(value, RUNTIME_CAPS.maxConcurrencyCeiling);
     const changed = entry.engine?.setMaxConcurrency?.(bounded) === true;
     if (!changed) {
-      return { ok: false, code: 'CAPS_UNCHANGED', message: `workflow_run_settings_unchanged: run ${runId} already runs at that limit.` };
+      return { ok: false, code: 'CAPS_UNCHANGED', message: `workflow_retune_unchanged: run ${runId} already runs at that limit, so there is nothing to change.` };
     }
     return { ok: true, runId, caps: { maxConcurrency: Math.max(1, Math.floor(bounded)) } };
   };
@@ -2967,6 +2967,7 @@ export function createRuntime({
         // store 已按 name → 脚本首行 → runId 解析出 label（§1.1(1)），直接透出。
         label: run.label ?? run.name,
         ...(run.name === undefined ? {} : { name: run.name }),
+        ...(run.labelSource === undefined ? {} : { labelSource: run.labelSource }),
         status: run.status,
         ...(run.stopReason === undefined ? {} : { stopReason: run.stopReason }),
         ...(run.resumedFrom === undefined ? {} : { resumedFrom: run.resumedFrom }),
@@ -3334,10 +3335,12 @@ export { WorkflowEngine };
  * @param {object[]} rows
  * @returns {object[]}
  */
-function capHoleRows(rows) {
+export function capHoleRows(rows) {
   const limit = RUNTIME_CAPS.maxSnapshotHoles;
   if (rows.length <= limit) return rows;
+  // 等待中的行先占额度，剩下的才轮给已填完的历史；等待行本身超过上限时取最近的若干条。
   const waiting = rows.filter((row) => row.state === 'waiting').slice(-limit);
-  const filled = rows.filter((row) => row.state !== 'waiting').slice(-(limit - waiting.length));
-  return [...waiting, ...filled].slice(-limit);
+  const remaining = limit - waiting.length;
+  const filled = remaining <= 0 ? [] : rows.filter((row) => row.state !== 'waiting').slice(-remaining);
+  return [...waiting, ...filled];
 }

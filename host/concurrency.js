@@ -40,14 +40,14 @@ export const RUNTIME_CAPS = Object.freeze({
   maxLastToolTargetLength: 120,
 });
 
-/** `report()` 的三条上限（cli.md:427810-427814 `VZ`）。 */
+/** `report()` 的三条上限（`cli:427810-427814`，`VZ`）。 */
 export const REPORT_CAPS = Object.freeze({
   maxItemsPerRun: 65536,
   maxItemSerializedBytes: 1048576,
   maxBytesPerRun: 1073741824,
 });
 
-/** 产物上限（cli.md:427820-427830 `J_`）。 */
+/** 产物上限（`cli:427820-427830`，`J_`）。 */
 export const ARTIFACT_CAPS = Object.freeze({
   maxArtifactsPerRun: 32,
   maxVersionsPerArtifact: 16,
@@ -59,10 +59,10 @@ export const ARTIFACT_CAPS = Object.freeze({
   maxIdLength: 64,
 });
 
-/** facade 的 id 字符集（cli.md:427830 `r8e`）。 */
+/** facade 的 id 字符集（`cli:427830`，`r8e`）。 */
 export const ARTIFACT_ID_PATTERN = /^[A-Za-z0-9_.-]+$/u;
 
-/** files/git/world 的读取上限（cli.md:427795-427805 `qP`）。 */
+/** files/git/world 的读取上限（`cli:427795-427805`，`qP`）。 */
 export const WORKSPACE_CAPS = Object.freeze({
   globMaxFiles: 2000,
   grepMaxMatches: 2000,
@@ -75,19 +75,17 @@ export const WORKSPACE_CAPS = Object.freeze({
   runDefaultTimeoutMs: 300000,
 });
 
-/** 单个 ask 的预算（cli.md:649161 `Nkt/Kwe/Lkt`）。 */
+/** 单个 ask 的预算（`cli:649161`，`Nkt/Kwe/Lkt`）。 */
 export const ASK_BUDGET = Object.freeze({
   instructionsHead: 4096,
   repairs: 3,
   nudges: 1,
 });
 
-/** 模型请求瞬断退避（cli.md:739867-739871 `mmi/k_c/x_c`）。 */
+/** 模型请求瞬断退避（`cli:739814-739817`：`round(min(x_c, k_c * 2^(n-1)) * (0.5 + 0.5*random))`）。 */
 export const TRANSIENT_BACKOFF = Object.freeze({
   baseMs: 2000,
   maxMs: 60000,
-  /** 单条瞬断原因的抑制窗口，避免同一原因刷屏。 */
-  suppressMs: 2000,
 });
 
 /** 空闲复位窗口（`idleReset`）。 */
@@ -147,6 +145,8 @@ export class ConcurrencyController {
     this.lastGood = undefined;
     this.lastBad = undefined;
     this.lastThrottledAt = undefined;
+    /** 「有效并发被压低」的起点，供 `contractSnapshot().since` 使用；回到上限时清空。 */
+    this.throttleSince = undefined;
   }
 
   /** @returns {object} 供 `health.concurrency` / `concurrency-changed` 使用的快照。 */
@@ -171,19 +171,19 @@ export class ConcurrencyController {
   /**
    * 契约 `health.concurrency` 的形状（cli.md:171）：`{effective, cap, reason?, since?}`。
    * 内部的 key/epoch/streak 这些是实现细节，不往模型面透。
+   *
+   * `reason`/`since` 成对出现，且只在「有效并发被压低」时有内容：还在冷却，或 cap 尚未长回上限。
+   * 两者都省略就表示当前没有压制；不会出现只有 `since` 没有 `reason` 的半截状态。
    * @param {number} [now]
    * @returns {{effective: number, cap: number, reason?: string, since?: number}}
    */
   contractSnapshot(now = this.now()) {
-    const snapshot = this.snapshot();
-    const reason = snapshot.cooldownUntil !== undefined && snapshot.cooldownUntil > now
-      ? (snapshot.lastThrottledAt === undefined ? 'throttled' : 'throttled')
-      : (snapshot.lastBad !== undefined && snapshot.lastGood === undefined ? 'seed' : undefined);
+    const cooling = this.cooldownUntil !== undefined && this.cooldownUntil > now;
+    const withheld = this.throttleSince !== undefined && (cooling || this.cap < this.growthLimit);
     return {
-      effective: snapshot.cap,
-      cap: snapshot.growthLimit,
-      ...(reason === undefined ? {} : { reason }),
-      ...(snapshot.cooldownUntil === undefined ? {} : { since: snapshot.cooldownUntil }),
+      effective: this.cap,
+      cap: this.growthLimit,
+      ...(withheld ? { reason: 'throttled', since: this.throttleSince } : {}),
     };
   }
 
@@ -229,6 +229,7 @@ export class ConcurrencyController {
     const previous = this.cap;
     this.cap = Math.min(this.growthLimit, previous + 1);
     this.successStreak = 0;
+    if (this.cap >= this.growthLimit) this.throttleSince = undefined;
     changes.push(this.change(previous, 'recovered'));
     return changes;
   }
@@ -246,7 +247,10 @@ export class ConcurrencyController {
     this.successStreak = 0;
     this.lastThrottledAt = now;
     const cooldown = typeof cooldownMs === 'number' && cooldownMs > 0 ? cooldownMs : undefined;
-    if (cooldown !== undefined) this.cooldownUntil = Math.max(this.cooldownUntil ?? 0, now + cooldown);
+    if (cooldown !== undefined) {
+      this.cooldownUntil = Math.max(this.cooldownUntil ?? 0, now + cooldown);
+      if (this.throttleSince === undefined) this.throttleSince = now;
+    }
     if (epoch !== this.epoch) return changes;
     const previous = this.cap;
     if (this.lastGood !== undefined && this.cap > this.lastGood) {
@@ -258,6 +262,7 @@ export class ConcurrencyController {
       this.lastGood = undefined;
     }
     this.epoch += 1;
+    if (this.throttleSince === undefined) this.throttleSince = now;
     if (previous !== this.cap || cooldown !== undefined) changes.push(this.change(previous, reason, cooldown));
     return changes;
   }
@@ -306,9 +311,11 @@ export class ConcurrencyController {
   setGrowthLimit(now, limit) {
     const changes = this.idleReset(now);
     this.growthLimit = Math.max(1, Math.floor(limit));
+    if (this.cap >= this.growthLimit) this.throttleSince = undefined;
     if (this.cap <= this.growthLimit) return changes;
     const previous = this.cap;
     this.cap = this.growthLimit;
+    this.throttleSince = undefined;
     if (this.lastGood !== undefined && this.lastGood > this.cap) this.lastGood = this.cap;
     this.successStreak = 0;
     this.epoch += 1;
@@ -330,6 +337,7 @@ export class ConcurrencyController {
     this.cap = target;
     this.lastGood = undefined;
     this.lastBad = undefined;
+    this.throttleSince = undefined;
     this.successStreak = 0;
     this.epoch += 1;
     changes.push(this.change(previous, 'seeded'));
@@ -349,7 +357,8 @@ export class ConcurrencyController {
       && this.cooldownUntil === undefined
       && this.lastGood === undefined
       && this.lastBad === undefined
-      && this.lastThrottledAt === undefined;
+      && this.lastThrottledAt === undefined
+      && this.throttleSince === undefined;
     if (settled) return [];
     const previous = this.cap;
     this.cap = this.initial;
@@ -358,6 +367,7 @@ export class ConcurrencyController {
     this.lastGood = undefined;
     this.lastBad = undefined;
     this.lastThrottledAt = undefined;
+    this.throttleSince = undefined;
     this.epoch += 1;
     return previous === this.cap ? [] : [this.change(previous, 'idle_reset')];
   }

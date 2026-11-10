@@ -2,7 +2,7 @@
 
 本插件把 ZCode Desktop 的动态工作流移植到 DeepSeek Harness。**唯一权威依据是 ZCode Desktop 3.17.2 的安装产物**（`app.asar` 的 `out/host`、`out/renderer`、`out/main`、`out/preload` 与 `resources/glm/zcode.cjs`），不是任何旧版快照或历史文档。凡与本文冲突处，以真实产物为准并回头修本文。
 
-代码注释里的 `cli.md`、`engine.md`、`ui.md` 是解包 3.17.2 后整理的取证笔记；`cli.md:<n>` 里的 n 是**bundle 行号**（笔记逐条记下的产物坐标），不是笔记文件自身的行号。
+代码注释里的 `cli.md`、`engine.md`、`ui.md` 是解包 3.17.2 后整理的取证笔记。两种坐标写法：`cli.md:<n>` 是笔记文件自身的行号（如 `cli.md:171`），`cli:<n>` 是产物 bundle 的行号（如 `cli:427451`，与笔记正文的写法一致）。
 
 ## 分层
 

@@ -785,7 +785,11 @@ function publicRunMeta(meta) {
     parentSessionId: meta.parent_session_id ?? meta.parentSessionId,
     toolCallId: meta.tool_call_id ?? meta.toolCallId,
     spentTokens: meta.spent_tokens ?? meta.spentTokens ?? meta.usage?.spentTokens ?? 0,
-    labelSource: meta.labelSource ?? meta.origin,
+    // 契约里 labelSource 只有 "name" | "script"（cli.md:205）：label 取的是显式 name 就是
+    // "name"，取脚本首行或回退 runId 就是 "script"。旧 meta 里可能存着 origin 值，按此重算。
+    labelSource: meta.labelSource === 'name' || meta.labelSource === 'script'
+      ? meta.labelSource
+      : (typeof meta.name === 'string' && meta.name.trim() !== '' ? 'name' : 'script'),
     pid: meta.pid,
   };
 }

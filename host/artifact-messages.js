@@ -9,7 +9,7 @@
 
 import { ARTIFACT_CAPS, ARTIFACT_ID_PATTERN } from './concurrency.js';
 
-/** 扩展名 → MIME（cli.md:739012-739030`）。 */
+/** 扩展名 → MIME（`cli:739012-739030`）。 */
 export const EXTENSION_MIME = Object.freeze({
   csv: 'text/csv',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -30,7 +30,7 @@ export const EXTENSION_MIME = Object.freeze({
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 });
 
-/** 裸 MIME 的形态（cli.md:739031-739032`）：不允许参数（`; charset=…`）。 */
+/** 裸 MIME 的形态（`cli:739031-739032`）：不允许参数（`; charset=…`）。 */
 export const BARE_MIME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$/u;
 
 /**

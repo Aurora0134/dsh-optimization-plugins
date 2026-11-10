@@ -620,11 +620,9 @@ const STOP_REASONS = new Set(['user', 'model', 'provider', 'interrupted', 'super
  */
 function toRunRow(run) {
   const runId = run.id ?? run.runId ?? '';
-    // store.listRuns 的 `name` 恒有值（缺省回填 runId），不能拿它判断「有没有显式名字」；
-    // `label` 才是 store 按「显式 name → 脚本首行 → runId」算过的那一列（cli.md:205 的 V0e）。
-    const explicitName = run.labelSource === 'name' && typeof run.label === 'string' && run.label !== '' ? run.label : undefined;
-    const storedLabel = typeof run.label === 'string' && run.label !== '' ? run.label : undefined;
-    const label = storedLabel ?? explicitName;
+  // store 的 `label` 已按「显式 name → 脚本首行 → runId」解析好，`labelSource` 也由 store
+  // 按「meta.name 有没有值」定成 "name"/"script"（cli.md:205 的 V0e），这里只做投影。
+  const label = typeof run.label === 'string' && run.label !== '' ? run.label : runId;
   const rawStatus = run.status;
   const status = RUN_STATUSES.has(rawStatus) ? rawStatus : 'pending';
   const rawStopReason = run.stopReason ?? run.stop_reason;
@@ -635,7 +633,7 @@ function toRunRow(run) {
   return {
     runId,
     label: label ?? runId,
-    labelSource: explicitName === undefined ? 'script' : 'name',
+    labelSource: run.labelSource === 'name' ? 'name' : 'script',
     status,
     ...(stopReason === undefined ? {} : { stopReason }),
     ...(typeof run.resumedFrom === 'string' ? { resumedFrom: run.resumedFrom } : {}),

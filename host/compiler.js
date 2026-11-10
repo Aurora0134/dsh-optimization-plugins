@@ -42,7 +42,7 @@
 import { stripTypeScriptTypes } from 'node:module';
 
 /* ================================================================================================
- * 1. facade 声明（逐字，cli.md:427451-427790）
+ * 1. facade 声明（逐字，cli:427451-427790）
  * ============================================================================================== */
 
 const MODEL_DTS = `/** A model declared with model(). */
@@ -946,7 +946,7 @@ function jsString(text) {
 }
 
 /**
- * FNV-1a 32 位，用于 hole 站点 id（`hole#%08x`，cli.md:425807-425812）。
+ * FNV-1a 32 位，用于 hole 站点 id（`hole#%08x`，cli:425807-425812）。
  * @param {string} text
  * @returns {string}
  */
@@ -1034,6 +1034,55 @@ function collectTypeDeclarations(tokens, pairs) {
     }
   }
   return declarations;
+}
+
+/**
+ * `name(a: A, b?: B)` 的每个形参都是类型标注写法 → 这是类型里的方法签名，不是调用点。
+ * 零参签名（`check(): boolean`）靠 `isInsideTypeBody` 兜住：它只可能出现在类型体内。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} open `(` 的 token 下标
+ * @param {number} close 配对 `)` 的 token 下标
+ * @returns {boolean}
+ */
+function paramsAreTyped(tokens, pairs, open, close) {
+  // 零参不在这里判：`check(): boolean` 与三元里的 `cond ? foo() : 1` 长得一样，
+  // 只能靠「是否在类型体内」区分。
+  if (open + 1 >= close) return false;
+  let index = open + 1;
+  while (index < close) {
+    if (!isIdent(tokens[index])) return false;
+    let cursor = index + 1;
+    if (isPunct(tokens[cursor], '?')) cursor += 1;
+    if (!isPunct(tokens[cursor], ':')) return false;
+    const valueStart = cursor + 1;
+    let scan = valueStart;
+    while (scan < close) {
+      const matched = pairs.get(scan);
+      if (matched !== undefined && matched < close) {
+        scan = matched + 1;
+        continue;
+      }
+      if (isPunct(tokens[scan], ',')) break;
+      scan += 1;
+    }
+    if (scan === valueStart) return false;
+    index = scan + 1;
+  }
+  return true;
+}
+
+/**
+ * 该 token 是否落在某个 `interface` / `type` 声明的体内。
+ * @param {Map<string, {bodyFrom: number, bodyTo: number, alias: boolean}>} typeDecls
+ * @param {number} index
+ * @returns {boolean}
+ */
+function isInsideTypeBody(typeDecls, index) {
+  for (const declaration of typeDecls.values()) {
+    if (index >= declaration.bodyFrom && index < declaration.bodyTo) return true;
+  }
+  return false;
 }
 
 /**
@@ -1638,8 +1687,10 @@ function analyze(code, tokens, pairs, mode) {
         && (isPunct(tokens[index - 1], '{') || isPunct(tokens[index - 1], ';')
           || isPunct(tokens[index - 1], '}') || isPunct(tokens[index - 1], ','));
       // 方法签名不是调用点：`interface P { check(x: string): boolean }` 里的 `check(` 后面
-      // 跟的是返回类型标注，不是代码块。
-      const signature = callClose !== undefined && isPunct(tokens[callClose + 1], ':');
+      // 跟的是返回类型标注，不是代码块。判据必须收紧到「形参全带类型标注」或「落在类型体内」，
+      // 否则三元的 `cond ? foo(1) : 2` 会因为 `)` 后面那个 `:` 被当成签名而漏报 2304。
+      const signature = callClose !== undefined && isPunct(tokens[callClose + 1], ':')
+        && (paramsAreTyped(tokens, pairs, index + 1, callClose) || isInsideTypeBody(typeDecls, index));
       if (!methodDefinition && !signature) report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
     }
   }
@@ -2040,7 +2091,7 @@ function analyze(code, tokens, pairs, mode) {
     return false;
   }
 
-  // 一个 run 只能有一个交付物：第二条 primary 是契约的 9009（`cli.md:643252`），不是 9011
+  // 一个 run 只能有一个交付物：第二条 primary 是契约的 9009（`cli:643252`），不是 9011
   // （9011 是模型可用性）。逐个对照第一条报，文案带首条所在的 kind 与行号。
   const primaries = sites.filter((site) => site.kind === 'artifact' && site.primary === true && site.artifactId);
   if (primaries.length > 1) {

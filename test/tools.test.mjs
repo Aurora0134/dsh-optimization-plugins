@@ -1042,6 +1042,13 @@ test('ListWorkflowRuns：行按 V0e，超过 limit 时带 truncated', async () =
     'createdAt', 'label', 'labelSource', 'ownedByThisSession', 'runId', 'spentTokens', 'status', 'updatedAt',
   ]);
   assert.equal(page.runs[0].labelSource, 'script');
+  // store 判定为显式命名的 run，模型面必须是 "name"（cli.md:205）。
+  const named = harness({
+    runtime: { listRuns: async () => [{ ...rows(1)[0], label: '部署收口', name: '部署收口', labelSource: 'name' }] },
+  });
+  const namedPage = await named.byName.ListWorkflowRuns.execute({ limit: 1 }, execFor());
+  assert.equal(namedPage.runs[0].label, '部署收口');
+  assert.equal(namedPage.runs[0].labelSource, 'name');
   assert.equal(overflow.calls.find(([name]) => name === 'listRuns')[1].limit, 3);
 
   const exact = harness({ runtime: { listRuns: async () => rows(2) } });

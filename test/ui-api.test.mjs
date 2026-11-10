@@ -280,7 +280,7 @@ function createFixture(options = {}) {
     stopReason: undefined,
     possibleInterruption: false,
     spentTokens: 12,
-    labelSource: 'saved',
+    labelSource: 'name',
     args: { target: 'src' },
     maxConcurrency: 4,
     scriptPath: path.join(WORKSPACE, '.dsh', 'workflow-drafts', 'review-changes.dwf.ts'),

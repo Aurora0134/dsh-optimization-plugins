@@ -8,7 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  ASK_BUDGET, ConcurrencyController, createRuntime, formatCompletionNotification, normalizeSubmit,
+  ASK_BUDGET, ConcurrencyController, capHoleRows, createRuntime, formatCompletionNotification, normalizeSubmit,
   validateArtifactSpec, validateSchema,
 } from '../host/runtime.js';
 import { createMemoryJournal } from '../host/journal-memory.js';
@@ -150,6 +150,26 @@ test('ConcurrencyController：空闲 5 分钟复位到 initial', () => {
   const changes = controller.idleReset(300001);
   assert.equal(controller.cap, 4);
   assert.equal(changes.some((change) => change.reason === 'idle_reset'), true);
+});
+
+test('contractSnapshot：reason/since 成对，压制解除后一起消失', () => {
+  const controller = new ConcurrencyController('run', 4, 16, () => 0);
+  assert.deepEqual(controller.contractSnapshot(0), { effective: 4, cap: 16 });
+
+  const epoch = controller.admitted(0);
+  controller.throttled(1000, epoch, 'rate_limited', 5000);
+  // 冷却中：reason/since 一起出现，since 是限流发生的时刻，不是未来的 cooldownUntil。
+  assert.deepEqual(controller.contractSnapshot(1000), { effective: 3, cap: 16, reason: 'throttled', since: 1000 });
+  // 冷却到期但 cap 还没长回去：仍是同一轮压制，since 不漂移，也不会退化成 'seed'。
+  assert.deepEqual(controller.contractSnapshot(9000), { effective: 3, cap: 16, reason: 'throttled', since: 1000 });
+
+  // seed 把 cap 提回上限后压制解除，两个字段一起消失。
+  controller.seed(400001, 16);
+  assert.deepEqual(controller.contractSnapshot(400002), { effective: 16, cap: 16 });
+
+  // 从没被限流过的窗口不带 reason（内部 key/epoch/streak 不外泄）。
+  const fresh = new ConcurrencyController('fresh', 4, 16, () => 0);
+  assert.deepEqual(Object.keys(fresh.contractSnapshot(0)).sort(), ['cap', 'effective']);
 });
 
 test('validateArtifactSpec 覆盖 chart/table/metrics/board 的关键分支', () => {
@@ -774,4 +794,24 @@ test('health.concurrency 只透契约四字段（cli.md:171）', async () => {
   assert.equal(typeof running.health.concurrency.cap, 'number');
   release('done');
   await runtime.waitForRun(started.runId, { timeoutMs: 5000 });
+});
+
+test('capHoleRows：等待中的留白优先保留（32 条等待 + 5 条已填）', () => {
+  const waiting = Array.from({ length: 32 }, (unused, index) => ({ siteId: `hole#w${index}`, state: 'waiting' }));
+  const filled = Array.from({ length: 5 }, (unused, index) => ({ siteId: `hole#f${index}`, state: 'filled' }));
+  const capped = capHoleRows([...waiting, ...filled]);
+  assert.equal(capped.length, 32);
+  assert.equal(capped.filter((row) => row.state === 'waiting').length, 32);
+  assert.equal(capped.some((row) => row.state === 'filled'), false);
+});
+
+test('runtime.listRuns 透出 store 的 labelSource（cli.md:205）', async () => {
+  const journal = createMemoryJournal();
+  const runtime = createRuntime({ compiler: stubCompiler({ lowered: 'return 1;' }), journal, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  journal.createRun({
+    runId: 'dwf-named', name: '部署收口', label: '部署收口', labelSource: 'name',
+    status: 'completed', timeCreated: 1, timeUpdated: 2, spentTokens: 0, cwd: '/tmp/ws',
+  });
+  const rows = await runtime.listRuns({ limit: 5 });
+  assert.equal(rows.find((row) => row.runId === 'dwf-named').labelSource, 'name');
 });

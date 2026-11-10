@@ -239,6 +239,9 @@ test('listRuns merges scopes, sorts newest first, skips corrupt metadata', async
   const failed = (await f.store.listRuns({ cwd: f.project })).find((row) => row.id === 'r-failed');
   assert.equal(failed.failureCode, 'SCRIPT_ERROR');
   assert.equal(failed.failureMessage, 'boom');
+  // labelSource 只有 "name" | "script"（cli.md:205）：显式 name 才算 name，脚本行/runId 回退算 script。
+  assert.equal(failed.labelSource, 'name');
+  assert.equal(scriptLabeled.labelSource, 'script');
 });
 
 test('artifacts: file copy, markdown versions, spec/items, manifest', async (t) => {
