@@ -293,7 +293,7 @@ const TASK_OUTPUT_SCHEMA = {
     status: { type: 'string' },
     description: { type: 'string' },
     output: { type: 'string' },
-    exitCode: { type: ['number', 'null'] },
+    exitCode: { type: 'number' },
     error: { type: 'string' },
     prompt: { type: 'string' },
     result: { type: 'string' },
@@ -1248,12 +1248,13 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           description: "Display label for the new run; defaults to the predecessor's.",
         },
         max_concurrency: {
-          type: ['integer', 'null'],
+          // 契约允许 null（回到默认）；DSH 的 JSON Schema 只收单一 type，用 anyOf 表达可空。
+          anyOf: [{ type: 'integer' }, { type: 'null' }],
           minimum: 1,
           description: "Omit to keep the predecessor's limit, null to return to the default, a number to set one above or below it (only when the user asks).",
         },
         subagent_model: {
-          type: ['string', 'null'],
+          anyOf: [{ type: 'string' }, { type: 'null' }],
           minLength: 1,
           description: 'Omit to keep the predecessor\'s choice, null for the session model, a model id to set one (only when the user asks, never a model under another provider the user did not name — ask them first if one would help).',
         },
@@ -2180,7 +2181,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       run_id: { type: 'string' },
       status: { type: 'string' },
       task: {
-        type: ['object', 'null'],
+        type: 'object',
         additionalProperties: false,
         required: TASK_OUTPUT_SCHEMA.required,
         properties: TASK_OUTPUT_SCHEMA.properties,

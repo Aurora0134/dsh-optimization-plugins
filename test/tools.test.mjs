@@ -305,8 +305,9 @@ test('AmendWorkflow schema: nullable settings, exclusive script/path, run_id req
   const schema = harness().byName.AmendWorkflow.parameters;
   assert.equal(schema.additionalProperties, false);
   assert.deepEqual(schema.required, ['run_id']);
-  assert.deepEqual(schema.properties.max_concurrency.type, ['integer', 'null']);
-  assert.deepEqual(schema.properties.subagent_model.type, ['string', 'null']);
+  // 契约允许 null（回到默认）；DSH 的 JSON Schema 只收单一 type，所以用 anyOf 表达可空。
+  assert.deepEqual(schema.properties.max_concurrency.anyOf, [{ type: 'integer' }, { type: 'null' }]);
+  assert.deepEqual(schema.properties.subagent_model.anyOf, [{ type: 'string' }, { type: 'null' }]);
   assert.ok(schema.properties.script.description.includes('This OR `path`, never both; omit both to keep the predecessor\'s script.'));
   assert.ok(schema.properties.path.description.includes('usually the predecessor\'s own script file edited in place'));
   assert.ok(schema.properties.run_id.description.startsWith('ID of the run to amend'));
