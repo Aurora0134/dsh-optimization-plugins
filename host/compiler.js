@@ -1,81 +1,47 @@
 /**
- * ZCode "Dynamic workflow" — workflow-script compiler.
+ * 工作流脚本编译器（现行 G3 语义：TypeScript → lowering → JS）。
  *
- * One self-contained module: no DSH imports, plain Node 24 (ESM). It turns the TypeScript a model
- * submits into executable JavaScript, and into the structured facts the runtime and the UI need:
- * phase names, subagent names, artifact declarations, world commands and the JSON schemas that
- * typed `ask<T>()` answers are validated against.
+ * 与旧实现的区别（这是重写的理由）：
+ * - 旧版按 G1「Workflow 工具」的 facade 编译（`agent(prompt, opts)` + `parallel/pipeline`），
+ *   现行 facade 是 `agent(name?, persona?) → Agent{ask<T>()}`，脚本编译后并不调用 facade 本身，
+ *   而是调用宿主注入的 `__host.*`（`beauty/zcode-cli.js:648735-648860`）。
+ * - 旧版把 `ask<T>` 改写成 `__zcodeSchema("T")` 标记；现行 lowering 是「站点 id + `__host.ask`」，
+ *   journal/重放都按站点 id 做键，`<T>` 只用来生成 JSON Schema 供结果校验。
+ * - 诊断码与文案按 ZCode 0.21.1 的 9001-9012 逐字复刻（`notes/cli.md` §3.2）。
  *
- * There is no TypeScript compiler here. Type erasure comes from Node's built-in
- * `stripTypeScriptTypes`; every ZCode rule from SKILL.md §16.3 is enforced structurally by this
- * module's own tokenizer, so a check never fires inside a comment, a string or a template literal.
+ * 这里没有 TypeScript 编译器：结构分析用本模块自己的 tokenizer（所以检查永远不会命中注释、
+ * 字符串或模板字面量内部的文字），类型擦除交给 Node 内建的 `stripTypeScriptTypes`
+ * （标准库，不引依赖）。lowering 是**文本编辑**：每个站点改写只在原文字符串上插入/替换一段，
+ * 因此可以精确保持行号（诊断行号就是用户脚本行号）。
  *
- * ## Public API
- *
+ * ## 公共 API
  * ```js
- * compileWorkflowScript({ code, filename, mode })
- * // mode: 'workflow' (default) | 'snippet'
- * // -> { ok, js, diagnostics, phases, agents, artifacts, worldCommands, interfaces }
+ * compileWorkflowScript({ code, filename, mode }) // mode: 'workflow'(默认) | 'snippet'
+ * // -> { ok, diagnostics, lowered, js, sites, askSpecs, sitePhases, phases, actors, holes,
+ * //      artifacts, worldReads, models, interfaces, metadata, scriptHash, lineOffset }
  * ```
+ * `lowered` 是可以直接塞进 `(async (__host) => { … })` 的语句体（cell.js 负责包壳）；
+ * `js` 是包好壳的完整表达式，供不经过 cell 的调用方（测试、片段求值）。
  *
- * `js` is a complete runnable expression: the script wrapped as `(async () => { … })()` and then
- * transpiled, so a top-level `return` is legal and `await` works. The runtime evaluates it as
- * `new vm.Script(js).runInContext(context)` (or `new Function('return ' + js)()`); the value is a
- * promise for the script's `return` value. The wrapper adds exactly one line, so diagnostics are
- * reported at `wrappedLine - 1`.
+ * 诊断形状：`{ code, line, column, message }`。`ok` 为真当且仅当没有诊断。
  *
- * `interfaces` maps a marker name to a JSON-schema-ish object: `interfaces[__zcodeSchema(name)]`.
- * Because `stripTypeScriptTypes` erases type arguments, `agent("x").ask<Review>(...)` is rewritten
- * to `agent("x").ask(__zcodeSchema("Review"), ...)` before transpiling, and the schema of `Review`
- * is returned under `"Review"` (an array site `ask<Review[]>` also gets the exact marker key
- * `"Review[]"`, whose schema is `{ type: 'array', items: <Review> }`).
- *
- * `extractMetadataHeader(code)` parses the `/* zcode-workflow` YAML block of a saved `.dwf.ts`
- * file; `serializeMetadataHeader(meta, body)` writes one. Failures are returned, never thrown.
- *
- * ## Diagnostic codes (ZCode's own numbering, from `zcode.cjs`)
- *
- * | code | meaning |
- * | ---- | ------- |
- * | 9001 | a facade callable was stored, aliased or retyped — site identity would be lost |
- * | 9002 | a forbidden API (`process`/`fetch`/`fs`/`Date.now()`/`Math.random()`/`eval`), or a facade callable that does not exist in this mode |
- * | 9003 | a `world.run()` command that is not a compile-time string literal |
- * | 9004 | a `phase()` marker: non-literal name, empty name, not standalone — or phase coverage |
- * | 9005 | a duplicate literal `agent()` name |
- * | 9006 | a fixed `agent()` name inside a fan-out callback |
- * | 9007 | an artifact id (literal, empty, length, characters), an unknown kind, two kinds for one id, or two `primary` artifacts |
- * | 9008 | a preset artifact declared outside the top level (callback / branch / loop) |
- * | 9009 | a `report()` tag: not a literal, a file/markdown artifact, or (warning) unknown |
- * | 9010 | `import`, `export` or the `declare` modifier |
- * | 9011 | a syntax that cannot become a JSON schema (the type is named), or a `model()` model that is not a literal |
- * | 9012 | a `hole()` rule violation, a parse error, an empty script, or anything with no better code |
- *
- * Every diagnostic carries `{ path, line, column, code, message, severity }`. `ok` is false only
- * when at least one diagnostic has `severity: 'error'`; warnings ride along on a clean compile.
- *
- * ## Known deviations from ZCode's compiler
- *
- * - No type checker: only the rules above are enforced. `strict`-mode type errors (an unguarded
- *   `.find()` result, a wrong argument type) are not diagnosed statically; they surface at run time.
- * - Template literals are scanned as one opaque token, so a `.ask<T>` written inside a `${...}`
- *   substitution keeps its type argument (erased) instead of being rewritten with a schema marker.
- * - `phase()` coverage, "preset artifacts at the top level", and the fan-out-callback rules are
- *   structural best-effort scans, tuned to never fire on a correct script.
+ * ## 已知偏差（不是遗漏，是无 TS 类型检查器的边界）
+ * - 没有语义类型检查：`strict` 下的类型错误（未判空的 `.find()` 结果等）不在编译期报出。
+ * - 「facade 值被重定型」那条 9001 无法检测（需要类型系统）；「取引用」那条能检测。
+ * - `process`/`require`/`fetch`/`fs`/`eval`/`Function`/`Date.now()`/`Math.random()` 在真实实现里
+ *   由 TS 语义诊断或运行期禁令（cell 里 `Date`/`Math.random` 被改写）兜底；这里用自有的
+ *   **9002** 在编译期拦下（bundle 未占用 9002，故不复刻文案，见各条 message 注释）。
+ * - 模板字面量被当作一个不透明 token，`${…}` 里的 facade 调用不做站点改写（与旧实现同一边界）。
+ * - `import` 语句的文案由 TS 的语义诊断产生，这里没有原文，用 1184 + 自有措辞。
  */
 
 import { stripTypeScriptTypes } from 'node:module';
 
-/**
- * The ambient facade every workflow script is compiled against (SKILL.md §16.2, `facade-dts`
- * block, verbatim). Kept here because it is the compiler's contract: the runtime supplies exactly
- * these globals, and the tool description can quote it.
- *
- * @type {string}
- */
-export const FACADE_DTS = `/** The pending result of one ask. Await it, or pass it to Promise.all with others. */
-declare interface Node<T> extends PromiseLike<T> {}
+/* ================================================================================================
+ * 1. facade 声明（逐字，cli:427451-427790）
+ * ============================================================================================== */
 
-/** A model declared with model(). */
+const MODEL_DTS = `/** A model declared with model(). */
 declare class ModelRef { private constructor(); private readonly modelRef: never }
 
 /**
@@ -83,7 +49,13 @@ declare class ModelRef { private constructor(); private readonly modelRef: never
  * String literal only (checked at launch); choose among ModelRefs at run time.
  */
 declare function model(id: string): ModelRef;
+`;
 
+const AGENT_DTS = `
+/** The pending result of one ask. Await it, or pass it to Promise.all with others. */
+declare interface Node<T> extends PromiseLike<T> {}
+
+${MODEL_DTS}
 /** Persona of a subagent, fixed when agent() creates it. Every subagent has the same working tools. */
 declare interface AgentPersona {
   /** System prompt describing the actor's role. */
@@ -113,7 +85,9 @@ declare interface Agent {
  * work by. Unnamed subagents are allowed and never reuse cached work.
  */
 declare function agent(name?: string, persona?: string | AgentPersona): Agent;
+`;
 
+const ARGS_DTS = `
 /**
  * The run's arguments. For a saved workflow they are validated against its declared
  * arguments, with defaults filled in, before the run starts; an inline script or a snippet
@@ -121,16 +95,22 @@ declare function agent(name?: string, persona?: string | AgentPersona): Agent;
  * typeof guard).
  */
 declare const args: Readonly<Record<string, unknown>>;
+`;
 
+const RUN_DTS = `
 /**
  * This run's id, and the run it amends. ResumeWorkflowRun keeps both; AmendWorkflow mints a
  * new id. Keep them out of ask text, personas and world arguments: those are cache keys.
  */
 declare const run: { readonly id: string; readonly resumedFrom?: string };
+`;
 
+const LOG_DTS = `
 /** Emit a progress message to the user. */
 declare function log(message: string): void;
+`;
 
+const REPORT_DTS = `
 /**
  * Publish one intermediate result while the run is going; returns nothing. Items are
  * recorded: a resumed run never shows one twice, and they reach the completion notification
@@ -145,7 +125,9 @@ declare function log(message: string): void;
  * Results. A tag naming nothing, or a file/markdown artifact, fails the run.
  */
 declare function report(item: unknown, artifactId?: string): void;
+`;
 
+const ARTIFACT_DTS = `
 /** A published artifact version: the id it was published under, and which version this call minted. */
 declare interface ArtifactRef { id: string; version: number }
 /** Card metadata every artifact kind accepts. */
@@ -217,10 +199,12 @@ declare const artifact: {
   table(id: string, spec: TableSpec): void;
   /** Declare a metric tile row fed by report(item, id): each tile shows the newest value it has. */
   metrics(id: string, spec: MetricsSpec): void;
-  /** Declare a board fed by report(item, id): each tagged item is a card, placed by its status field. */
+  /** Declare a board fed by report(item, id): each tagged item is one card, placed by its status field. */
   board(id: string, spec: BoardSpec): void;
 };
+`;
 
+const PHASE_DTS = `
 /**
  * Mark the start of a phase: a named group of the steps that follow, drawn as one node on
  * the graph the user approves. Presentation only: it starts, waits for and returns nothing.
@@ -230,7 +214,9 @@ declare const artifact: {
  * phase. Every phase contains at least one ask or world.run.
  */
 declare function phase(name: string): void;
+`;
 
+const HOLE_DTS = `
 /**
  * A typed gap: code you write later, once an earlier step's findings are in. When the run
  * reaches an unfilled hole, that branch waits while you write the body (FillWorkflowHole);
@@ -241,7 +227,9 @@ declare function phase(name: string): void;
 declare function hole<T>(name: string, prompt?: string): Promise<T>;
 declare function hole<T>(name: string, body: () => Promise<T>): Promise<T>;
 declare function hole<T>(name: string, prompt: string, body: () => Promise<T>): Promise<T>;
+`;
 
+const FILES_GIT_DTS = `
 /** One matching line found by files.grep. */
 declare interface GrepMatch {
   /** Workspace-relative path of the file the match was found in. */
@@ -319,7 +307,9 @@ declare const git: {
   /** The most recent commits, newest first. Default 20, maximum 100. */
   log(count?: number): Promise<GitCommit[]>;
 };
+`;
 
+const WORLD_DTS = `
 /** The outcome of one world.run command, including nonzero exits. */
 declare interface WorldRunResult {
   /** The process exit code. Nonzero is a normal, returned outcome — branch on it. */
@@ -343,7 +333,9 @@ declare interface WorldRunResult {
 declare const world: {
   run(cmd: string, args?: string[], opts?: { timeoutMs?: number; output?: "full" | "discard" | { tail: number } }): Promise<WorldRunResult>;
 };
+`;
 
+const CHANNEL_DTS = `
 /**
  * A stream of typed items between two stages: one stage send()s, another drains it with
  * for await. Unbounded, first-in-first-out, each item to exactly one receiver.
@@ -358,7 +350,6 @@ declare interface Channel<T> extends AsyncIterable<T> {
    */
   close(): void;
 }
-
 /**
  * Create a channel. The name labels the deadlock message; it is not an identity. A receiver
  * on an empty, open channel waits until a send or the close.
@@ -369,75 +360,96 @@ declare function channel<T>(name?: string): Channel<T>;
  * Run an async block as a concurrent stage. It starts immediately, not when awaited, and
  * returns its promise.
  */
-declare function future<T>(body: () => Promise<T>): Promise<T>;`;
+declare function future<T>(body: () => Promise<T>): Promise<T>;
+`;
 
-/** Diagnostic codes, numbered like ZCode's own (SKILL.md §16.3). @type {Readonly<Record<string, number>>} */
+/** 完整 facade（`fRn = QMa + JMo + KMo + VMo + eNa + tNa + nNa + qMo + HMo + GMo + pRn`）。 */
+export const FACADE_DTS = `${AGENT_DTS}${ARGS_DTS}${RUN_DTS}${LOG_DTS}${REPORT_DTS}${ARTIFACT_DTS}${PHASE_DTS}${HOLE_DTS}${FILES_GIT_DTS}${WORLD_DTS}${CHANNEL_DTS}`;
+
+/** 片段（snippet）facade：只有 args/run/log/files/git/world/channel/future（`n8e`）。 */
+export const SNIPPET_FACADE_DTS = `${ARGS_DTS}${RUN_DTS}${LOG_DTS}${FILES_GIT_DTS}${WORLD_DTS}${CHANNEL_DTS}`;
+
+/* ================================================================================================
+ * 2. 诊断码与文案（cli.md §3.2 逐字）
+ * ============================================================================================== */
+
 export const COMPILER_DIAGNOSTIC_CODES = Object.freeze({
   FACADE_MISUSE: 9001,
+  /** bundle 未占用 9002；这里用它承载「禁止的全局/API」，见文件头偏差说明。 */
   FORBIDDEN_API: 9002,
   WORLD_COMMAND: 9003,
   PHASE: 9004,
-  DUPLICATE_AGENT: 9005,
+  DUPLICATE_ACTOR: 9005,
   FIXED_ACTOR_NAME: 9006,
   ARTIFACT: 9007,
   PRESET_PLACEMENT: 9008,
-  REPORT_TAG: 9009,
-  MODULE_SYNTAX: 9010,
-  UNSUPPORTED: 9011,
+  PRIMARY_CONFLICT: 9009,
+  MODEL: 9010,
+  MODEL_UNAVAILABLE: 9011,
   HOLE: 9012,
-  SYNTAX: 9012,
+  /** TS 1184：`declare` / `export` / `import` 这类在函数体里非法的语法修饰。 */
+  MODULE_SYNTAX: 1184,
 });
 
 const CODE = COMPILER_DIAGNOSTIC_CODES;
 
-/** The async wrapper every script is transpiled inside; the opening line is line 1, so user line = wrapped line - 1. */
-const WRAPPER_OPEN = '(async () => {';
-const WRAPPER_CLOSE = '})()';
-const WRAPPER_LINE_OFFSET = 1;
+/** 全部逐字文案。函数形态的那些带插值参数。 */
+export const DIAGNOSTIC_MESSAGES = Object.freeze({
+  facadeReturned: (name) => `facade function '${name}' may only be called directly; taking a reference to it defeats site identity (journal and replay key off call sites)`,
+  worldLiteral: 'world.run\'s first argument must be a compile-time string literal ("lean" or a no-substitution template): the script\'s command set is shown to the user at confirmation and only those commands are executable. Move the command name out of the variable/template, and put runtime values in the args array instead.',
+  phaseLiteral: 'phase()\'s argument must be a compile-time string literal ("gate" or a no-substitution template): the script\'s phase names are fixed when it is submitted, because they label the graph the user confirms before anything runs. Write the name inline — a name that only exists at run time cannot be drawn.',
+  phaseEmpty: 'phase("") has no name to show: the phase label is what the confirmation graph draws. Give the group a word ("preflight", "gate", "wrap-up"), or drop the marker — a script with no markers is perfectly legal and is drawn step by step.',
+  phaseStandalone: 'phase("…") must stand alone as its own statement. The marker claims the rest of the block it stands in, so one in expression position (a variable initializer, an argument, a ternary arm) has no rest-of-block to claim. Put the call on its own line at the head of the steps it names.',
+  duplicateActor: (name, firstLine) => `two actors are named "${name}" (the first is on line ${firstLine}): an actor name must be unique within a run. The name is the identity key an amended re-run matches its imported cache against, and any run can become the predecessor of one, so a repeated name makes that match ambiguous. Give this one its own name, or drop the name entirely — anonymous actors are legal (they just never reuse cached work).`,
+  fixedActorName: (name) => `this agent(...) runs once per element of a fan-out but its name "${name}" is a fixed string, so every element creates a different actor under the same name — the run fails with DuplicateActorName as soon as the collection holds more than one item. An actor name must be unique within a run: it is the identity key an amended re-run matches its imported cache against. Build a per-element name (\`${name}-\${item}\`), or drop the name — anonymous actors are legal (they just never reuse cached work).`,
+  holeTypeArgument: 'hole() needs an explicit type argument (hole<Plan>(...)): the type is the contract the fill is compiled against, and an inferred unknown is no contract. Write what the rest of the script needs from the hole.',
+  holeNameLiteral: 'hole()\'s name must be a compile-time string literal: it is the hole\'s phase name and the identity every surface shows (the station, the notification, the fill file). Write it inline.',
+  holeNameEmpty: 'hole("") has no name to show. Give the gap a word in the user\'s language ("决定分组", "choose the plan"); it labels the station and the notification.',
+  holeNameLong: (limit) => `hole()'s name is longer than ${limit} characters; a phase name is a label, not a paragraph.`,
+  holeNotAwaited: 'hole() must be awaited where it is called (await hole<T>(...) or return await hole<T>(...)): the script must not run past a gap that has no value yet.',
+  holeInFanOut: 'hole() cannot stand inside a fan-out callback (xs.map(...), Promise.all(xs.map(...)) and the other per-element array methods): the elements run concurrently, so its fill would have to be written while they are already running. Hoist the decision out of the callback, or use a loop (for, for...of, while), where one round waits and the fill runs in every later round.',
+  holeBodyNotArrow: 'hole()\'s body must be an inline async arrow (async () => { ... }): a fill is spliced into the script as text, so a function held in a variable has nothing to splice.',
+  holeDuplicate: (name) => `two holes are named "${name}"; a hole's name is its identity and must be unique among the script's holes and phase markers.`,
+  holePhaseCollision: (name) => `hole "${name}" shares its name with a phase("${name}") marker; a hole is a phase of its own, so the name must be unique among holes and markers.`,
+  holeIdCollision: (first, second) => `hole "${first}" and hole "${second}" hash to the same site id; rename one of them (any change to the name gives it a new id).`,
+  artifactIdLiteral: 'an artifact id must be a compile-time string literal ("report" or a no-substitution template): the set of artifacts a run can publish is fixed when the script is submitted, so it can be listed before anything runs. Write the id inline; put the runtime value in the title instead (artifact.file("report", path, { title: `Report for ${name}` })).',
+  artifactIdEmpty: 'an artifact id must not be empty: it is the identity the card, the version history and the report tag all key off. Give it a short stable name ("book", "perf", "coverage").',
+  artifactIdLong: (name, length, limit) => `artifact id "${name}" is ${length} characters; the limit is ${limit}. The id is a key, not a description — put the prose in the title.`,
+  artifactIdCharacters: (name) => `artifact id "${name}" contains characters outside [A-Za-z0-9_.-]. The id is carried verbatim through the journal, the artifact store and the side pane, so it is restricted to characters that need no escaping anywhere ("build-log", "perf.p95").`,
+  artifactKindConflict: (name, firstKind, firstLine, kind) => `artifact id "${name}" is used with two different kinds: artifact.${firstKind} on line ${firstLine} and artifact.${kind} here. Within one run an id belongs to exactly one kind — publishing it again is what mints the next VERSION, and a version cannot change what the thing is. Give this one its own id.`,
+  artifactUnknownKind: (kind) => `artifact has no member "${kind}": the kinds are file and markdown (content, published once per call) and chart, table, metrics and board (presets, fed by report(item, id)).`,
+  reportTagLiteral: 'report()\'s artifact tag must be a compile-time string literal naming a preset artifact declared in this script: the tag is how an item finds its dashboard, and a tag that only exists at run time cannot be checked against the declarations. Write the id inline.',
+  reportTagContent: (tag) => `report()'s tag "${tag}" names a file/markdown artifact, which holds content rather than a stream of items — there is nothing for this item to become. Tag the item with a preset artifact (chart / table / metrics / board), or drop the tag and let the item go to the run's Results.`,
+  reportTagUnknown: (tag, presets) => `report()'s tag "${tag}" names no preset artifact declared in this script${presets}. Declare it first — artifact.chart("${tag}", { x, y }) at the top of the script — or drop the tag.`,
+  noPresets: ' (this script declares no preset artifacts at all)',
+  declaredPresets: (ids) => ` (declared presets: ${ids.map((id) => JSON.stringify(id)).join(', ')})`,
+  presetInCallback: 'a preset artifact declared inside a callback: hoist it to the top level and declare it once. A preset is a declaration, not a step — it says how the items tagged with its id are drawn, and the tagged report() calls are what fill it in. Declaring it where the callback runs buries it: move artifact.<kind>("<id>", spec) to the head of the script and keep only report(item, "<id>") in the callback.',
+  presetInBranch: 'a preset artifact declared inside a conditional branch: hoist it to the top level and declare it once. The card should exist from the moment the run starts (it is legitimately empty until the first tagged report arrives), and a declaration that may or may not have run is a card that may or may not exist. Declare it unconditionally and let the branch decide what to report.',
+  presetInLoop: 'a preset artifact declared inside a loop: hoist it to the top level and declare it once. A preset is declared once and fed many times — the loop body is where report(item, "<id>") belongs, not the declaration. Re-declaring the same spec is a no-op, but re-declaring it with a different spec fails the whole run, so the loop is the wrong place for it either way.',
+  primaryConflict: (id, otherId, otherKind, otherLine) => `artifact "${id}" is marked primary, but "${otherId}" already is (artifact.${otherKind} on line ${otherLine}). A run has one deliverable — the card and the run pane lead with it. Drop primary from one of them, or publish this content as a new version of the other id.`,
+  modelLiteral: 'model() takes the model name as a non-empty string literal (a model id or "providerId/modelId", optionally with "$level"): every model a script can use is checked against the configured models before the run starts. Put runtime choices in which ModelRef you pass, not in the name.',
+  actorModelDynamic: (type) => `A subagent's \`model\` must be known before the run starts: a string literal, a union of string literals, or a ModelRef from model("…"). This value's type is ${type}, which could be any model name. Write the name inline, add \`as const\` where it is declared, or declare the candidates with model() and choose among those ModelRefs at run time.`,
+  declareModifier: 'The `declare` modifier is not allowed in a workflow script: the script is compiled inside a function body, where ambient declarations are illegal. Remove `declare` and write a plain declaration (e.g. `interface Foo { ... }`).',
+  exportStatement: '`export` is not allowed in a workflow script: the script is compiled inside a function body. Remove `export` — the workflow\'s output is its final `return` value.',
+  importStatement: '`import` is not allowed in a workflow script: the script is compiled inside a function body, so it has no module graph. The facade (agent, world, files, git, artifact) is its whole outside world; remove the import.',
+  forbiddenGlobal: (name) => `${name} is not available in a workflow script: Node and web APIs are not reachable from a script. Use world.run for a command, files/git for the workspace, and a subagent for anything else.`,
+  forbiddenClock: 'Date.now() is not available in a workflow script: a replayable run cannot read the clock. The run records wall-clock times for you; if a step needs the time, pass it in through args.',
+  forbiddenRandom: 'Math.random() is not available in a workflow script: a replayable run cannot be random. Derive a stable value from the inputs, or let a subagent choose and record its choice.',
+  forbiddenEval: 'eval() is not available in a workflow script: it would run code the compiler never checked. Write the logic in the script.',
+  forbiddenFunctionConstructor: 'the Function constructor is not available in a workflow script: it would run code the compiler never checked. Write the function in the script.',
+  snippetAbsent: (name) => `${name}() does not exist in a snippet: a snippet is the test bench for the fixed logic of a script, not for orchestration — agent(), phase(), report(), artifact.*, hole() and model() are absent. Run the orchestration through the workflow tool instead.`,
+  askTypeUndeclared: (name) => `ask<${name}> needs an interface declared in this script: the runtime validates the subagent's answer against a schema built from that declaration, and "${name}" is not declared here. Define \`interface ${name} { … }\` (a plain interface, no declare) or drop the type argument to take the answer as text.`,
+  askTypeUnsupported: (text) => `ask<${text}> needs an interface or type alias declared in this script: the runtime validates the subagent's answer against a schema built from that declaration, and this type argument is not one this compiler can build a schema from. Declare \`interface ${text.replace(/\[\]$/u, '')} { … }\` and pass its name (an array of it as \`Name[]\`).`,
+  emptyScript: 'the workflow script is empty: it needs at least a phase("…") marker and a step (an agent ask, a world.run, or a return value).',
+  syntax: (message) => `the script does not parse: ${message}`,
+});
 
-/**
- * Wrap a script (already rewritten with schema markers) so that a top-level `return` and
- * top-level `await` are both legal.
- * @param {string} code
- * @returns {string}
- */
-function wrapScript(code) {
-  return `${WRAPPER_OPEN}\n${code}\n${WRAPPER_CLOSE}`;
-}
+/* ================================================================================================
+ * 3. 源码归一化与 tokenizer
+ * ============================================================================================== */
 
-const SNIPPET_FORBIDDEN_GLOBALS = new Set(['agent', 'phase', 'report', 'artifact', 'hole', 'model']);
-
-const FORBIDDEN_GLOBAL_NAMES = new Set(['process', 'require', 'fetch', 'fs']);
-
-/** Member calls that are forbidden because a replayable run cannot contain them. */
-const FORBIDDEN_STATIC_MEMBERS = [
-  { object: 'Date', member: 'now', hint: 'a replayable run cannot read the clock' },
-  { object: 'Math', member: 'random', hint: 'a replayable run cannot be random' },
-];
-
-const ARTIFACT_KINDS = new Set(['file', 'markdown', 'chart', 'table', 'metrics', 'board']);
-const PRESET_ARTIFACT_KINDS = new Set(['chart', 'table', 'metrics', 'board']);
-
-/** Array methods whose callback runs once per element, concurrently: a hole may not stand there. */
-const FANOUT_METHODS = new Set([
-  'map', 'flatMap', 'forEach', 'filter', 'find', 'findIndex', 'findLast', 'findLastIndex',
-  'some', 'every', 'reduce', 'reduceRight', 'sort', 'toSorted', 'toReversed',
-]);
-
-const MAX_ARTIFACT_ID_LENGTH = 64;
-const MAX_HOLE_NAME_LENGTH = 128;
-const ARTIFACT_ID_PATTERN = /^[A-Za-z0-9_.-]+$/u;
-
-/** Names the script may use as an `ask<T>` type argument without declaring a schema. */
-const BUILTIN_SCHEMAS = new Map([
-  ['string', { type: 'string' }],
-  ['number', { type: 'number' }],
-  ['boolean', { type: 'boolean' }],
-  ['null', { type: 'null' }],
-  ['any', {}],
-  ['unknown', {}],
-  ['void', {}],
-]);
+const LINE_FEED = 10;
+const CARRIAGE_RETURN = 13;
 
 const KEYWORDS = new Set([
   'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default',
@@ -449,7 +461,6 @@ const KEYWORDS = new Set([
   'override', 'type', 'infer', 'keyof', 'is', 'asserts', 'unique',
 ]);
 
-/** Keywords after which a `/` starts a regular expression rather than a division. */
 const REGEX_PRECEDING_KEYWORDS = new Set([
   'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case',
   'do', 'else', 'yield', 'await', 'extends', 'default', 'satisfies', 'as',
@@ -458,2724 +469,1753 @@ const REGEX_PRECEDING_KEYWORDS = new Set([
 const PUNCTUATORS = [
   '>>>=', '===', '!==', '**=', '<<=', '>>=', '&&=', '||=', '??=', '...',
   '=>', '>=', '<=', '==', '!=', '**', '++', '--', '+=', '-=', '*=', '/=', '%=',
-  '&&', '||', '??', '?.', '<<',
+  '&&', '||', '??', '?.', '<<', '>>',
   '{', '}', '(', ')', '[', ']', ';', ',', '<', '>', '+', '-', '*', '/', '%', '&', '|', '^',
   '!', '~', '?', ':', '=', '.', '@', '#',
 ];
 
 const OPENERS = new Set(['(', '[', '{']);
-const CLOSER_TO_OPENER = new Map([[')', '('], [']', '['], ['}', '{']]);
-
-const LINE_FEED = 10;
-const CARRIAGE_RETURN = 13;
-
-/* ------------------------------------------------------------------------------------------------
- * Source text: BOM + line endings, and offset -> line/column
- * ---------------------------------------------------------------------------------------------- */
+const CLOSER_TO_OPEN = new Map([[')', '('], [']', '['], ['}', '{']]);
 
 /**
- * @param {string} input raw script text
- * @returns {{ code: string, hadBom: boolean }}
+ * 去 BOM、统一换行（行号必须与用户提交的脚本一致，所以只做等价替换）。
+ * @param {string} input
+ * @returns {string}
  */
 function normalizeSource(input) {
-  let text = typeof input === 'string' ? input : String(input ?? '');
-  let hadBom = false;
-  if (text.charCodeAt(0) === 0xfeff) {
-    text = text.slice(1);
-    hadBom = true;
-  }
-  if (text.includes('\r')) text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  return { code: text, hadBom };
+  return input.replace(/^\uFEFF/u, '').replace(/\r\n/gu, '\n').replace(/\r/gu, '\n');
 }
 
 /**
- * @param {string} code normalized source
- * @returns {number[]} offset of the first character of every line
- */
-function lineStartIndex(code) {
-  const starts = [0];
-  for (let i = 0; i < code.length; i += 1) {
-    if (code.charCodeAt(i) === LINE_FEED) starts.push(i + 1);
-  }
-  return starts;
-}
-
-/**
- * @param {number[]} starts line starts from {@link lineStartIndex}
- * @param {number} offset
- * @returns {{ line: number, column: number }} 1-based
- */
-function locate(starts, offset) {
-  let low = 0;
-  let high = starts.length - 1;
-  while (low < high) {
-    const mid = (low + high + 1) >> 1;
-    if (starts[mid] <= offset) low = mid;
-    else high = mid - 1;
-  }
-  return { line: low + 1, column: offset - starts[low] + 1 };
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Tokenizer
- * ---------------------------------------------------------------------------------------------- */
-
-/**
- * @typedef {object} Token
- * @property {'id'|'num'|'str'|'tpl'|'regex'|'punct'|'eof'} type
- * @property {string|number|undefined} value cooked value for `id` / `num` / `str` / `tpl` / `regex`, the raw text for `punct`
- * @property {number} start
- * @property {number} end exclusive
- * @property {boolean} [hasSubstitutions] template literals only
- * @property {string} [raw]
- */
-
-/**
- * @typedef {object} Comment
- * @property {'line'|'block'} kind
- * @property {number} start
- * @property {number} end exclusive
- * @property {string} text raw text including the delimiters
- */
-
-/**
- * Tokenize a whole TypeScript script. Comments are collected separately; template literals are
- * opaque single tokens (their `${...}` bodies are not analyzed — see the module deviations).
+ * token 化。返回的 token 带 1-based 的 `line`/`column` 与 0-based 的 `start`/`end`，
+ * 只保留有意义的 token（注释被丢弃，但换行信息留在 `line` 上）。
  *
- * @param {string} code normalized source
- * @returns {{ tokens: Token[], comments: Comment[], error: { message: string, offset: number } | null }}
+ * 为什么模板字面量整体成一个 token：`${…}` 里的表达式需要完整表达式解析才能安全改写，
+ * 而站点改写对模板内的调用本就不可见（文件头已列为偏差）。
+ *
+ * @param {string} code
+ * @returns {object[]}
  */
 function tokenize(code) {
-  /** @type {Token[]} */
+  /** @type {object[]} */
   const tokens = [];
-  /** @type {Comment[]} */
-  const comments = [];
-  let i = 0;
-  const length = code.length;
+  let index = 0;
+  let line = 1;
+  let column = 1;
 
-  /** @param {number} at @returns {Token | undefined} */
-  const previous = (at) => tokens[at - 1];
-
-  while (i < length) {
-    const char = code[i];
-    const codePoint = code.codePointAt(i) ?? 0;
-
-    // Whitespace, including the Unicode space separators a model may paste in.
-    if (char === ' ' || char === '\t' || char === '\n' || char === '\u000b' || char === '\u000c' || char === '\u00a0' || char === '\ufeff' || (codePoint > 0x2000 && /\s/u.test(char))) {
-      i += 1;
-      continue;
-    }
-
-    // Comments.
-    if (char === '/' && code[i + 1] === '/') {
-      const start = i;
-      i += 2;
-      while (i < length && code[i] !== '\n') i += 1;
-      comments.push({ kind: 'line', start, end: i, text: code.slice(start, i) });
-      continue;
-    }
-    if (char === '/' && code[i + 1] === '*') {
-      const start = i;
-      const close = code.indexOf('*/', i + 2);
-      if (close < 0) {
-        return { tokens, comments, error: { message: 'unterminated comment', offset: start } };
+  const advance = (count) => {
+    for (let step = 0; step < count; step += 1) {
+      if (code.charCodeAt(index) === LINE_FEED) {
+        line += 1;
+        column = 1;
+      } else {
+        column += 1;
       }
-      i = close + 2;
-      comments.push({ kind: 'block', start, end: i, text: code.slice(start, i) });
+      index += 1;
+    }
+  };
+  const push = (kind, value, start, startLine, startColumn) => {
+    tokens.push({ kind, value, start, end: index, line: startLine, column: startColumn, endLine: line });
+  };
+  const previousMeaningful = () => tokens[tokens.length - 1];
+
+  while (index < code.length) {
+    const char = code[index];
+    // whitespace
+    if (char === ' ' || char === '\t' || char === '\n' || char === '\r' || char === '\f' || char === '\v' || char === '\u00a0') {
+      advance(1);
       continue;
     }
-
-    // Strings.
-    if (char === '\'' || char === '"') {
-      const scanned = scanQuoted(code, i, char);
-      if (scanned === null) {
-        return { tokens, comments, error: { message: 'unterminated string constant', offset: i } };
+    // comments
+    if (char === '/' && code[index + 1] === '/') {
+      while (index < code.length && code[index] !== '\n') advance(1);
+      continue;
+    }
+    if (char === '/' && code[index + 1] === '*') {
+      advance(2);
+      while (index < code.length && !(code[index] === '*' && code[index + 1] === '/')) advance(1);
+      if (index < code.length) advance(2);
+      continue;
+    }
+    const start = index;
+    const startLine = line;
+    const startColumn = column;
+    // strings
+    if (char === '"' || char === '\'') {
+      const quote = char;
+      advance(1);
+      let text = '';
+      while (index < code.length && code[index] !== quote) {
+        if (code[index] === '\\') {
+          const escapeStart = index;
+          advance(1);
+          if (index < code.length) {
+            text += readEscape(code, escapeStart);
+            advance(1);
+          }
+          continue;
+        }
+        if (code[index] === '\n') break;
+        text += code[index];
+        advance(1);
       }
-      tokens.push({ type: 'str', value: scanned.value, start: i, end: scanned.end, raw: code.slice(i, scanned.end) });
-      i = scanned.end;
+      if (index < code.length && code[index] === quote) advance(1);
+      push('string', text, start, startLine, startColumn);
       continue;
     }
-
-    // Template literals: one opaque token.
+    // templates
     if (char === '`') {
-      const scanned = scanTemplate(code, i);
-      if (scanned === null) {
-        return { tokens, comments, error: { message: 'unterminated template literal', offset: i } };
+      advance(1);
+      let text = '';
+      let hasSubstitution = false;
+      while (index < code.length) {
+        if (code[index] === '\\') {
+          const escapeStart = index;
+          advance(1);
+          if (index < code.length) {
+            text += readEscape(code, escapeStart);
+            advance(1);
+          }
+          continue;
+        }
+        if (code[index] === '`') {
+          advance(1);
+          break;
+        }
+        if (code[index] === '$' && code[index + 1] === '{') {
+          hasSubstitution = true;
+          advance(2);
+          let depth = 1;
+          while (index < code.length && depth > 0) {
+            const inner = code[index];
+            if (inner === '{') depth += 1;
+            else if (inner === '}') depth -= 1;
+            else if (inner === '`') {
+              // 嵌套模板：跳过（简化处理，见文件头偏差）
+              advance(1);
+              while (index < code.length && code[index] !== '`') {
+                if (code[index] === '\\') advance(1);
+                advance(1);
+              }
+            } else if (inner === '"' || inner === '\'') {
+              const quote = inner;
+              advance(1);
+              while (index < code.length && code[index] !== quote) {
+                if (code[index] === '\\') advance(1);
+                advance(1);
+              }
+            }
+            advance(1);
+          }
+          continue;
+        }
+        text += code[index];
+        advance(1);
       }
-      tokens.push({
-        type: 'tpl',
-        value: scanned.hasSubstitutions ? undefined : scanned.value,
-        hasSubstitutions: scanned.hasSubstitutions,
-        start: i,
-        end: scanned.end,
-        raw: code.slice(i, scanned.end),
-      });
-      i = scanned.end;
+      const token = { kind: 'template', value: text, start, end: index, line: startLine, column: startColumn, endLine: line, hasSubstitution };
+      tokens.push(token);
       continue;
     }
-
-    // Regular expression literals, when the previous token can precede one.
-    if (char === '/' && regexAllowed(previous(tokens.length))) {
-      const scanned = scanRegex(code, i);
-      if (scanned !== null) {
-        tokens.push({ type: 'regex', value: undefined, start: i, end: scanned.end, raw: code.slice(i, scanned.end) });
-        i = scanned.end;
-        continue;
+    // regex
+    if (char === '/' && regexAllowed(previousMeaningful())) {
+      advance(1);
+      let inClass = false;
+      while (index < code.length) {
+        const inner = code[index];
+        if (inner === '\\') {
+          advance(2);
+          continue;
+        }
+        if (inner === '\n') break;
+        if (inner === '[') inClass = true;
+        else if (inner === ']') inClass = false;
+        else if (inner === '/' && !inClass) {
+          advance(1);
+          break;
+        }
+        advance(1);
       }
-    }
-
-    // Numbers.
-    if (isDigit(char) || (char === '.' && isDigit(code[i + 1] ?? ''))) {
-      const end = scanNumber(code, i);
-      tokens.push({ type: 'num', value: Number(code.slice(i, end).replace(/_/g, '')), start: i, end, raw: code.slice(i, end) });
-      i = end;
+      while (index < code.length && /[a-z]/iu.test(code[index])) advance(1);
+      push('regex', code.slice(start, index), start, startLine, startColumn);
       continue;
     }
-
-    // Identifiers, including non-ASCII ones (Chinese phase/agent names are expected).
-    if (isIdentifierStart(codePoint)) {
-      const start = i;
-      i += char.length;
-      while (i < length) {
-        const next = code.codePointAt(i) ?? 0;
-        if (!isIdentifierPart(next)) break;
-        i += String.fromCodePoint(next).length;
+    // numbers
+    if (/[0-9]/u.test(char) || (char === '.' && /[0-9]/u.test(code[index + 1] ?? ''))) {
+      advance(1);
+      while (index < code.length && /[0-9a-fA-FxXoObBeE._n]/u.test(code[index])) {
+        if ((code[index] === '+' || code[index] === '-') && /[eE]/u.test(code[index - 1] ?? '')) {
+          advance(1);
+          continue;
+        }
+        advance(1);
       }
-      tokens.push({ type: 'id', value: code.slice(start, i), start, end: i, raw: code.slice(start, i) });
+      push('number', code.slice(start, index), start, startLine, startColumn);
       continue;
     }
-
-    // Punctuators, longest match first.
+    // identifiers / keywords
+    if (/[A-Za-z_$]/u.test(char)) {
+      advance(1);
+      while (index < code.length && /[A-Za-z0-9_$]/u.test(code[index])) advance(1);
+      const text = code.slice(start, index);
+      push(KEYWORDS.has(text) ? 'keyword' : 'ident', text, start, startLine, startColumn);
+      continue;
+    }
+    // punctuators
     let matched = null;
     for (const punctuator of PUNCTUATORS) {
-      if (code.startsWith(punctuator, i)) {
-        // `?.` followed by a digit is a conditional `?` and a `.5` number, not optional chaining.
-        if (punctuator === '?.' && isDigit(code[i + 2] ?? '')) continue;
+      if (code.startsWith(punctuator, index)) {
         matched = punctuator;
         break;
       }
     }
-    if (matched !== null) {
-      tokens.push({ type: 'punct', value: matched, start: i, end: i + matched.length, raw: matched });
-      i += matched.length;
-      continue;
-    }
-
-    return { tokens, comments, error: { message: `unexpected character ${JSON.stringify(char)}`, offset: i } };
+    advance(matched === null ? 1 : matched.length);
+    push('punct', matched ?? char, start, startLine, startColumn);
   }
-
-  tokens.push({ type: 'eof', value: undefined, start: length, end: length, raw: '' });
-  return { tokens, comments, error: null };
-}
-
-/** @param {string} char @returns {boolean} */
-function isDigit(char) {
-  return char >= '0' && char <= '9';
-}
-
-/** @param {number} codePoint @returns {boolean} */
-function isIdentifierStart(codePoint) {
-  if (codePoint === 0x24 || codePoint === 0x5f) return true; // $ _
-  const char = String.fromCodePoint(codePoint);
-  return /[\p{ID_Start}]/u.test(char);
-}
-
-/** @param {number} codePoint @returns {boolean} */
-function isIdentifierPart(codePoint) {
-  if (codePoint === 0x24 || codePoint === 0x5f || codePoint === 0x200c || codePoint === 0x200d) return true;
-  const char = String.fromCodePoint(codePoint);
-  return /[\p{ID_Continue}]/u.test(char);
+  return tokens;
 }
 
 /**
- * Whether a `/` after this token starts a regular expression.
- * @param {Token | undefined} token
+ * 读取一个反斜杠转义（调用方已越过 `\`），返回其解码后的文本。
+ * @param {string} code
+ * @param {number} backslash
+ * @returns {string}
+ */
+function readEscape(code, backslash) {
+  const next = code[backslash + 1] ?? '';
+  switch (next) {
+    case 'n': return '\n';
+    case 't': return '\t';
+    case 'r': return '\r';
+    case 'b': return '\b';
+    case 'f': return '\f';
+    case 'v': return '\v';
+    case '0': return '\0';
+    case 'u': {
+      if (code[backslash + 2] === '{') {
+        const closing = code.indexOf('}', backslash + 3);
+        if (closing > 0) return String.fromCodePoint(Number.parseInt(code.slice(backslash + 3, closing), 16));
+        return '';
+      }
+      const hex = code.slice(backslash + 2, backslash + 6);
+      return /^[0-9a-fA-F]{4}$/u.test(hex) ? String.fromCharCode(Number.parseInt(hex, 16)) : next;
+    }
+    case 'x': {
+      const hex = code.slice(backslash + 2, backslash + 4);
+      return /^[0-9a-fA-F]{2}$/u.test(hex) ? String.fromCharCode(Number.parseInt(hex, 16)) : next;
+    }
+    default: return next;
+  }
+}
+
+/**
+ * `/` 之前能否开始一个正则字面量。
+ * @param {object | undefined} previous
  * @returns {boolean}
  */
-function regexAllowed(token) {
-  if (token === undefined) return true;
-  if (token.type === 'num' || token.type === 'str' || token.type === 'tpl' || token.type === 'regex') return false;
-  if (token.type === 'id') return REGEX_PRECEDING_KEYWORDS.has(String(token.value));
-  const value = String(token.value ?? '');
-  if (value === ')' || value === ']' || value === '++' || value === '--') return false;
-  return true;
+function regexAllowed(previous) {
+  if (previous === undefined) return true;
+  if (previous.kind === 'keyword') return REGEX_PRECEDING_KEYWORDS.has(String(previous.value));
+  if (previous.kind !== 'punct') return false;
+  return previous.value !== ')' && previous.value !== ']' && previous.value !== '}';
 }
 
 /**
- * @param {string} code
- * @param {number} start index of the opening quote
- * @param {string} quote
- * @returns {{ value: string, end: number } | null}
- */
-function scanQuoted(code, start, quote) {
-  let value = '';
-  let i = start + 1;
-  while (i < code.length) {
-    const char = code[i];
-    if (char === '\\') {
-      const escaped = readEscape(code, i);
-      if (escaped === null) return null;
-      value += escaped.value;
-      i = escaped.end;
-      continue;
-    }
-    if (char === quote) return { value, end: i + 1 };
-    if (char === '\n') return null;
-    value += char;
-    i += 1;
-  }
-  return null;
-}
-
-/**
- * @param {string} code
- * @param {number} start index of the backslash
- * @returns {{ value: string, end: number } | null}
- */
-function readEscape(code, start) {
-  const char = code[start + 1];
-  if (char === undefined) return null;
-  switch (char) {
-    case 'n': return { value: '\n', end: start + 2 };
-    case 't': return { value: '\t', end: start + 2 };
-    case 'r': return { value: '\r', end: start + 2 };
-    case 'b': return { value: '\b', end: start + 2 };
-    case 'f': return { value: '\f', end: start + 2 };
-    case 'v': return { value: '\v', end: start + 2 };
-    case '0': return { value: '\0', end: start + 2 };
-    case '\n': return { value: '', end: start + 2 };
-    case '\r': return { value: '', end: code[start + 2] === '\n' ? start + 3 : start + 2 };
-    case 'x': {
-      const hex = code.slice(start + 2, start + 4);
-      if (!/^[0-9a-fA-F]{2}$/u.test(hex)) return { value: 'x', end: start + 2 };
-      return { value: String.fromCharCode(Number.parseInt(hex, 16)), end: start + 4 };
-    }
-    case 'u': {
-      if (code[start + 2] === '{') {
-        const close = code.indexOf('}', start + 3);
-        if (close < 0) return { value: 'u', end: start + 2 };
-        const hex = code.slice(start + 3, close);
-        if (!/^[0-9a-fA-F]+$/u.test(hex)) return { value: 'u', end: start + 2 };
-        return { value: String.fromCodePoint(Number.parseInt(hex, 16)), end: close + 1 };
-      }
-      const hex = code.slice(start + 2, start + 6);
-      if (!/^[0-9a-fA-F]{4}$/u.test(hex)) return { value: 'u', end: start + 2 };
-      return { value: String.fromCharCode(Number.parseInt(hex, 16)), end: start + 6 };
-    }
-    default:
-      return { value: char, end: start + 2 };
-  }
-}
-
-/**
- * Scan one template literal (opaque: `${...}` bodies are skipped with brace counting).
- * @param {string} code
- * @param {number} start index of the opening backtick
- * @returns {{ value: string, hasSubstitutions: boolean, end: number } | null}
- */
-function scanTemplate(code, start) {
-  let i = start + 1;
-  let value = '';
-  let hasSubstitutions = false;
-  while (i < code.length) {
-    const char = code[i];
-    if (char === '\\') {
-      const escaped = readEscape(code, i);
-      if (escaped === null) return null;
-      value += escaped.value;
-      i = escaped.end;
-      continue;
-    }
-    if (char === '`') return { value, hasSubstitutions, end: i + 1 };
-    if (char === '$' && code[i + 1] === '{') {
-      hasSubstitutions = true;
-      const skipped = skipTemplateExpression(code, i + 2);
-      if (skipped === null) return null;
-      i = skipped;
-      continue;
-    }
-    value += char;
-    i += 1;
-  }
-  return null;
-}
-
-/**
- * Skip one `${ ... }` body of a template literal, honouring nested strings/templates/comments.
- * @param {string} code index just after `${`
- * @param {number} start
- * @returns {number | null} index just after the closing `}`
- */
-function skipTemplateExpression(code, start) {
-  let depth = 1;
-  let i = start;
-  let previousSignificant = '';
-  while (i < code.length) {
-    const char = code[i];
-    if (char === '\n' || char === ' ' || char === '\t' || char === '\r') {
-      i += 1;
-      continue;
-    }
-    if (char === '\'' || char === '"') {
-      const scanned = scanQuoted(code, i, char);
-      if (scanned === null) return null;
-      i = scanned.end;
-      previousSignificant = 'value';
-      continue;
-    }
-    if (char === '`') {
-      const scanned = scanTemplate(code, i);
-      if (scanned === null) return null;
-      i = scanned.end;
-      previousSignificant = 'value';
-      continue;
-    }
-    if (char === '/' && code[i + 1] === '/') {
-      while (i < code.length && code[i] !== '\n') i += 1;
-      continue;
-    }
-    if (char === '/' && code[i + 1] === '*') {
-      const close = code.indexOf('*/', i + 2);
-      if (close < 0) return null;
-      i = close + 2;
-      continue;
-    }
-    if (char === '{') {
-      depth += 1;
-      previousSignificant = '{';
-      i += 1;
-      continue;
-    }
-    if (char === '}') {
-      depth -= 1;
-      i += 1;
-      if (depth === 0) return i;
-      previousSignificant = '}';
-      continue;
-    }
-    if (char === '/' && previousSignificant !== 'value' && previousSignificant !== ')' && previousSignificant !== ']') {
-      const scanned = scanRegex(code, i);
-      if (scanned !== null) {
-        i = scanned.end;
-        previousSignificant = 'value';
-        continue;
-      }
-    }
-    previousSignificant = /[\w$]/.test(char) ? 'value' : char;
-    i += 1;
-  }
-  return null;
-}
-
-/**
- * @param {string} code
- * @param {number} start index of the slash
- * @returns {{ end: number } | null}
- */
-function scanRegex(code, start) {
-  let i = start + 1;
-  let inClass = false;
-  while (i < code.length) {
-    const char = code[i];
-    if (char === '\\') {
-      i += 2;
-      continue;
-    }
-    if (char === '\n') return null;
-    if (char === '[') inClass = true;
-    else if (char === ']') inClass = false;
-    else if (char === '/' && !inClass) {
-      i += 1;
-      while (i < code.length && /[a-z]/u.test(code[i])) i += 1;
-      return { end: i };
-    }
-    i += 1;
-  }
-  return null;
-}
-
-/**
- * @param {string} code
- * @param {number} start
- * @returns {number} index just after the number
- */
-function scanNumber(code, start) {
-  let i = start;
-  const prefix = code.slice(start, start + 2).toLowerCase();
-  if (prefix === '0x' || prefix === '0b' || prefix === '0o') {
-    i += 2;
-    while (i < code.length && /[0-9a-fA-F_]/u.test(code[i])) i += 1;
-  } else {
-    while (i < code.length && /[0-9_]/u.test(code[i])) i += 1;
-    if (code[i] === '.') {
-      i += 1;
-      while (i < code.length && /[0-9_]/u.test(code[i])) i += 1;
-    }
-    if (code[i] === 'e' || code[i] === 'E') {
-      let probe = i + 1;
-      if (code[probe] === '+' || code[probe] === '-') probe += 1;
-      if (isDigit(code[probe] ?? '')) {
-        i = probe;
-        while (i < code.length && /[0-9_]/u.test(code[i])) i += 1;
-      }
-    }
-  }
-  if (code[i] === 'n') i += 1;
-  return i;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Structure: bracket pairs, frames, statement context
- * ---------------------------------------------------------------------------------------------- */
-
-const FRAME_KINDS = Object.freeze({
-  BLOCK: 'block',
-  OBJECT: 'object',
-  FUNCTION: 'function',
-  CLASS: 'class',
-  PARAMS: 'params',
-  ARGS: 'args',
-  ARRAY: 'array',
-  INDEX: 'index',
-  LOOP: 'loop',
-  BRANCH: 'branch',
-  CATCH: 'catch',
-  SWITCH: 'switch',
-});
-
-/**
- * @typedef {object} Structure
- * @property {Token[]} tokens
- * @property {number[]} pairs matching bracket token index (either direction)
- * @property {number[]} parent innermost enclosing opener index, -1 at script level
- * @property {string[]} kinds frame kind of every opener
- */
-
-/**
- * @param {Token[]} tokens
- * @returns {Structure}
+ * 括号配对（`(`↔`)`、`[`↔`]`、`{`↔`}`）。
+ * @param {object[]} tokens
+ * @returns {{ pairs: Map<number, number>, enclosing: (index: number) => number[] }}
  */
 function buildStructure(tokens) {
-  const count = tokens.length;
-  const pairs = new Array(count).fill(-1);
-  const parent = new Array(count).fill(-1);
-  const kinds = new Array(count).fill('');
+  /** @type {Map<number, number>} */
+  const pairs = new Map();
+  /** @type {number[]} */
   const stack = [];
-
-  for (let i = 0; i < count; i += 1) {
-    const token = tokens[i];
-    if (token.type === 'punct' && OPENERS.has(String(token.value))) {
-      parent[i] = stack.length > 0 ? stack[stack.length - 1] : -1;
-      kinds[i] = classifyOpener(tokens, i, pairs, kinds, stack);
-      stack.push(i);
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.kind !== 'punct') continue;
+    if (OPENERS.has(token.value)) {
+      stack.push(index);
       continue;
     }
-    if (token.type === 'punct' && CLOSER_TO_OPENER.has(String(token.value))) {
-      const want = CLOSER_TO_OPENER.get(String(token.value));
-      let index = stack.length - 1;
-      while (index >= 0 && tokens[stack[index]].value !== want) index -= 1;
-      if (index >= 0) {
-        pairs[stack[index]] = i;
-        pairs[i] = stack[index];
-        stack.length = index;
+    const opener = CLOSER_TO_OPEN.get(token.value);
+    if (opener === undefined) continue;
+    // 找到最近的同类开括号（容错：不匹配时向上冒泡）
+    for (let depth = stack.length - 1; depth >= 0; depth -= 1) {
+      if (tokens[stack[depth]].value === opener) {
+        pairs.set(stack[depth], index);
+        pairs.set(index, stack[depth]);
+        stack.length = depth;
+        break;
       }
-      parent[i] = stack.length > 0 ? stack[stack.length - 1] : -1;
-      continue;
     }
-    parent[i] = stack.length > 0 ? stack[stack.length - 1] : -1;
   }
-
-  return { tokens, pairs, parent, kinds };
+  const enclosing = (index) => {
+    const chain = [];
+    let cursor = index;
+    while (cursor >= 0) {
+      let found = -1;
+      for (const opener of stackOpenersBefore(tokens, cursor, pairs)) {
+        found = opener;
+        break;
+      }
+      if (found < 0) break;
+      chain.push(found);
+      cursor = found - 1;
+    }
+    return chain;
+  };
+  return { pairs, enclosing };
 }
 
 /**
- * @param {Token[]} tokens
- * @param {number} index opener token index
- * @param {number[]} pairs
- * @param {string[]} kinds
- * @param {number[]} stack
- * @returns {string} frame kind
+ * 找出包住 `index` 的最内层开括号（借助已建好的 pairs）。
+ * @param {object[]} tokens
+ * @param {number} index
+ * @param {Map<number, number>} pairs
+ * @returns {number[]} 由内到外的开括号下标
  */
-function classifyOpener(tokens, index, pairs, kinds, stack) {
-  const token = tokens[index];
-  const value = String(token.value);
-  const previousIndex = index - 1;
-  const previous = previousIndex >= 0 ? tokens[previousIndex] : undefined;
-  const enclosingKind = stack.length > 0 ? kinds[stack[stack.length - 1]] || FRAME_KINDS.BLOCK : 'script';
+function stackOpenersBefore(tokens, index, pairs) {
+  let best = -1;
+  for (const opener of pairs.keys()) {
+    if (!OPENERS.has(tokens[opener].value)) continue;
+    const closer = pairs.get(opener);
+    if (opener < index && index < closer) {
+      if (best < 0 || opener > best) best = opener;
+    }
+  }
+  return best < 0 ? [] : [best];
+}
 
-  if (value === '(') {
-    if (previous === undefined) return FRAME_KINDS.PARAMS;
-    if (previous.type === 'id') {
-      const previousValue = String(previous.value);
-      if (['if', 'for', 'while', 'switch', 'catch', 'with'].includes(previousValue)) return FRAME_KINDS.PARAMS;
-      if (['function', 'async'].includes(previousValue)) return FRAME_KINDS.PARAMS;
-      if (previousIndex >= 2 && tokens[previousIndex - 1].value === 'function') return FRAME_KINDS.PARAMS;
-      return FRAME_KINDS.ARGS;
-    }
-    if (previous.type === 'punct' && [')', ']', '?.'].includes(String(previous.value))) return FRAME_KINDS.ARGS;
-    return FRAME_KINDS.PARAMS;
-  }
+/* ================================================================================================
+ * 4. 小工具
+ * ============================================================================================== */
 
-  if (value === '[') {
-    if (previous === undefined) return FRAME_KINDS.ARRAY;
-    if (previous.type === 'id') {
-      const previousValue = String(previous.value);
-      if (KEYWORDS.has(previousValue) && !['this', 'super', 'true', 'false', 'null'].includes(previousValue)) {
-        return previousValue === 'return' || previousValue === 'typeof' || previousValue === 'yield' || previousValue === 'await'
-          ? FRAME_KINDS.ARRAY
-          : FRAME_KINDS.INDEX;
-      }
-      return FRAME_KINDS.INDEX;
-    }
-    if (previous.type === 'punct') {
-      const previousValue = String(previous.value);
-      if (previousValue === ')' || previousValue === ']') return FRAME_KINDS.INDEX;
-      return FRAME_KINDS.ARRAY;
-    }
-    return FRAME_KINDS.ARRAY;
-  }
+const isIdent = (token, value) => token !== undefined && token.kind === 'ident' && (value === undefined || token.value === value);
+const isKeyword = (token, value) => token !== undefined && token.kind === 'keyword' && (value === undefined || token.value === value);
+const isPunct = (token, value) => token !== undefined && token.kind === 'punct' && (value === undefined || token.value === value);
 
-  // `{`
-  if (previous === undefined) return FRAME_KINDS.BLOCK;
-  if (previous.type === 'punct') {
-    const previousValue = String(previous.value);
-    if (previousValue === '=>') return FRAME_KINDS.FUNCTION;
-    if (previousValue === ')') {
-      const openParen = pairs[previousIndex];
-      const before = openParen > 0 ? tokens[openParen - 1] : undefined;
-      if (before !== undefined) {
-        const beforeValue = String(before.value);
-        if (['if', 'while'].includes(beforeValue)) return FRAME_KINDS.BRANCH;
-        if (beforeValue === 'for') return FRAME_KINDS.LOOP;
-        if (beforeValue === 'switch') return FRAME_KINDS.SWITCH;
-        if (beforeValue === 'catch') return FRAME_KINDS.CATCH;
-        if (beforeValue === 'with') return FRAME_KINDS.BRANCH;
-        if (beforeValue === 'function' || beforeValue === 'async') return FRAME_KINDS.FUNCTION;
-      }
-      return FRAME_KINDS.FUNCTION;
-    }
-    if (['=', '(', ',', '[', '?', ':', '||', '&&', '??', '!', '~', '+', '-', '*', '/', '%',
-      '<', '>', '<=', '>=', '==', '===', '!=', '!==', '||=', '&&=', '??=', '+=', '-=', '*=', '/='].includes(previousValue)) {
-      return FRAME_KINDS.OBJECT;
-    }
-    return FRAME_KINDS.BLOCK;
-  }
-  if (previous.type === 'id') {
-    const previousValue = String(previous.value);
-    const before = previousIndex > 0 ? tokens[previousIndex - 1] : undefined;
-    if (previousValue === 'do') return FRAME_KINDS.LOOP;
-    if (previousValue === 'try' || previousValue === 'finally') return FRAME_KINDS.BLOCK;
-    if (previousValue === 'else') return FRAME_KINDS.BRANCH;
-    if (before !== undefined) {
-      const beforeValue = String(before.value);
-      if (before.type === 'id') {
-        if (beforeValue === 'class' || beforeValue === 'extends') return FRAME_KINDS.CLASS;
-        if (beforeValue === 'return' || beforeValue === 'yield' || beforeValue === 'await' ||
-          beforeValue === 'typeof' || beforeValue === 'in' || beforeValue === 'of' ||
-          beforeValue === 'case' || beforeValue === 'default' || beforeValue === 'throw' ||
-          beforeValue === 'void' || beforeValue === 'delete' || beforeValue === 'new' ||
-          beforeValue === 'instanceof') return FRAME_KINDS.OBJECT;
-      }
-      if (before.type === 'punct' && String(before.value) === ':') {
-        return enclosingKind === FRAME_KINDS.OBJECT || enclosingKind === FRAME_KINDS.ARGS || enclosingKind === FRAME_KINDS.ARRAY
-          ? FRAME_KINDS.OBJECT
-          : FRAME_KINDS.BLOCK;
-      }
-    }
-    // `name {` — a class heritage, a labelled block, or (rarely) something else.
-    return FRAME_KINDS.BLOCK;
-  }
-  return FRAME_KINDS.BLOCK;
+/**
+ * 一个字面量的文本值：`"a"` / `'a'` / `` `a` ``（无替换模板）。变量或带替换模板返回 undefined。
+ * @param {object | undefined} token
+ * @returns {string | undefined}
+ */
+function literalText(token) {
+  if (token === undefined) return undefined;
+  if (token.kind === 'string') return token.value;
+  if (token.kind === 'template' && token.hasSubstitution !== true) return token.value;
+  return undefined;
 }
 
 /**
- * Frame kinds that make a position "not at the top level" for a preset artifact declaration.
- * @param {string} kind
+ * 一段 token 区间的源码文本。
+ * @param {string} code
+ * @param {object[]} tokens
+ * @param {number} from
+ * @param {number} to 开区间
+ * @returns {string}
+ */
+function rangeText(code, tokens, from, to) {
+  const first = tokens[from];
+  const last = tokens[to - 1];
+  if (first === undefined) return '';
+  return code.slice(first.start, last.end);
+}
+
+/**
+ * 拆分调用实参：`open` 是 `(` 的下标，返回各实参的 token 区间。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} open
+ * @returns {{ from: number, to: number }[]}
+ */
+function callArguments(tokens, pairs, open) {
+  const close = pairs.get(open);
+  if (close === undefined) return [];
+  /** @type {{from: number, to: number}[]} */
+  const args = [];
+  let depth = 0;
+  let start = open + 1;
+  for (let index = open + 1; index < close; index += 1) {
+    const token = tokens[index];
+    if (token.kind === 'punct') {
+      if (OPENERS.has(token.value)) depth += 1;
+      else if (CLOSER_TO_OPEN.has(token.value)) depth -= 1;
+      else if (token.value === ',' && depth === 0) {
+        args.push({ from: start, to: index });
+        start = index + 1;
+      }
+    }
+  }
+  if (start < close) args.push({ from: start, to: close });
+  if (args.length === 0 && close === open + 1) return [];
+  return args.filter((arg) => arg.to > arg.from);
+}
+
+/**
+ * 实参是否是一个内联函数（`() => …` / `function () {}` / `async () => …`）。
+ * @param {object[]} tokens
+ * @param {{from: number, to: number}} range
  * @returns {boolean}
  */
-function disqualifiesTopLevel(kind) {
-  return kind === FRAME_KINDS.FUNCTION || kind === FRAME_KINDS.CLASS || kind === FRAME_KINDS.LOOP ||
-    kind === FRAME_KINDS.BRANCH || kind === FRAME_KINDS.CATCH || kind === FRAME_KINDS.SWITCH;
+function isFunctionArgument(tokens, range) {
+  const first = tokens[range.from];
+  if (isKeyword(first, 'async') || isKeyword(first, 'function')) return true;
+  return isPunct(first, '(') || (first !== undefined && isIdent(first) && isPunct(tokens[range.from + 1], '=>'));
 }
 
 /**
- * Whether a token sits at the script's top level: not inside a function, class, loop, branch or
- * callback body.
- * @param {Structure} structure
- * @param {number} index
+ * 实参是否是内联箭头函数（hole 的 body 要求）。
+ * @param {object[]} tokens
+ * @param {{from: number, to: number}} range
  * @returns {boolean}
  */
-function isTopLevel(structure, index) {
-  let frame = structure.parent[index];
-  while (frame >= 0) {
-    if (disqualifiesTopLevel(structure.kinds[frame])) return false;
-    frame = structure.parent[frame];
-  }
-  return true;
-}
-
-/**
- * The token index that closes the block containing `index` (the matching `}` of the innermost
- * `{}` frame), or the token count for the script body.
- * @param {Structure} structure
- * @param {number} index
- * @returns {number}
- */
-function enclosingBlockEnd(structure, index) {
-  let frame = structure.parent[index];
-  while (frame >= 0) {
-    if (structure.tokens[frame].value === '{') {
-      const close = structure.pairs[frame];
-      return close >= 0 ? close : structure.tokens.length;
-    }
-    frame = structure.parent[frame];
-  }
-  return structure.tokens.length;
-}
-
-/**
- * Whether a position sits inside an array-method fan-out callback (`xs.map(...)`, `Promise.all(xs.map(...))`).
- * @param {Structure} structure
- * @param {number} index
- * @returns {boolean}
- */
-function isInsideFanOutCallback(structure, index) {
-  const tokens = structure.tokens;
-  let frame = structure.parent[index];
-  while (frame >= 0) {
-    if (structure.kinds[frame] === FRAME_KINDS.ARGS && isFanOutCallArguments(structure, frame)) {
-      // An expression-bodied arrow (`xs.map((p) => p.ask(…))`) has no body frame; the call sits
-      // directly inside the fan-out's argument list, after its `=>`.
-      for (let i = frame + 1; i < index; i += 1) {
-        if (isPunct(tokens[i], '=>') && structure.parent[i] === frame) return true;
-      }
-    }
-    frame = structure.parent[frame];
+function isArrowFunctionArgument(tokens, range) {
+  for (let index = range.from; index < range.to; index += 1) {
+    if (isPunct(tokens[index], '=>')) return true;
+    if (isPunct(tokens[index], ';') || isPunct(tokens[index], ',')) return false;
   }
   return false;
 }
 
 /**
- * Whether the `(` at this index belongs to an array-method fan-out call (`xs.map(`).
- * @param {Structure} structure
- * @param {number} argsFrame
- * @returns {boolean}
+ * 表达式起点：从 `index` 向前找到完整的成员/调用链起点。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} index
+ * @returns {number}
  */
-function isFanOutCallArguments(structure, argsFrame) {
-  const callee = argsFrame - 1;
-  if (callee < 0) return false;
-  const calleeToken = structure.tokens[callee];
-  if (calleeToken.type !== 'id') return false;
-  if (!FANOUT_METHODS.has(String(calleeToken.value))) return false;
-  const dot = callee - 1;
-  return dot >= 0 && structure.tokens[dot].type === 'punct' &&
-    (structure.tokens[dot].value === '.' || structure.tokens[dot].value === '?.');
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Small token helpers
- * ---------------------------------------------------------------------------------------------- */
-
-/**
- * @param {Token | undefined} token
- * @returns {boolean}
- */
-function isIdentifier(token) {
-  return token !== undefined && token.type === 'id';
-}
-
-/**
- * @param {Token | undefined} token
- * @param {string} value
- * @returns {boolean}
- */
-function isPunct(token, value) {
-  return token !== undefined && token.type === 'punct' && token.value === value;
+function expressionStart(tokens, pairs, index) {
+  let cursor = index;
+  for (;;) {
+    const token = tokens[cursor];
+    if (token === undefined) return cursor;
+    if (isPunct(token, ')') || isPunct(token, ']')) {
+      const open = pairs.get(cursor);
+      if (open === undefined) return cursor;
+      cursor = open;
+      continue;
+    }
+    // 允许 `a.b.c` / `a!.b` / `a as T`：继续向前
+    const before = tokens[cursor - 1];
+    if (isPunct(before, '.') || isPunct(before, '?.')) {
+      cursor -= 2;
+      continue;
+    }
+    if (isKeyword(before, 'await') || isKeyword(before, 'new')) return cursor;
+    return cursor;
+  }
 }
 
 /**
- * Whether the token is the identifier `value`.
- * @param {Token | undefined} token
- * @param {string} value
- * @returns {boolean}
+ * 把一段文本包成 JS 字符串字面量（含引号）。
+ * @param {string} text
+ * @returns {string}
  */
-function isId(token, value) {
-  return token !== undefined && token.type === 'id' && token.value === value;
+function jsString(text) {
+  return JSON.stringify(text);
 }
 
 /**
- * The value of a compile-time string literal token: a plain string literal or a template with no
- * substitutions. Anything else is not a compile-time literal.
- * @param {Token | undefined} token
- * @returns {string | undefined}
+ * FNV-1a 32 位，用于 hole 站点 id（`hole#%08x`，cli:425807-425812）。
+ * @param {string} text
+ * @returns {string}
  */
-function literalText(token) {
-  if (token === undefined) return undefined;
-  if (token.type === 'str') return String(token.value);
-  if (token.type === 'tpl' && token.hasSubstitutions === false) return String(token.value ?? '');
-  return undefined;
+function fnv1a(text) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index) & 255;
+    hash ^= (text.charCodeAt(index) >> 8) & 255;
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
+/** 站点计数器（`Zwt`）：每个 kind 各自从 1 递增；进入函数体加前缀。 */
+class SiteCounters {
+  constructor(prefix = '') {
+    this.prefix = prefix;
+    this.counts = new Map();
+  }
+
+  next(kind) {
+    const count = (this.counts.get(kind) ?? 0) + 1;
+    this.counts.set(kind, count);
+    return `${this.prefix}${kind}#${count}`;
+  }
+}
+
+/* ================================================================================================
+ * 5. 类型声明 → JSON Schema（typed ask 的校验依据）
+ * ============================================================================================== */
+
+const PRIMITIVE_SCHEMAS = new Map([
+  ['string', { type: 'string' }],
+  ['number', { type: 'number' }],
+  ['boolean', { type: 'boolean' }],
+  ['null', { type: 'null' }],
+  ['any', {}],
+  ['unknown', {}],
+  ['void', {}],
+  ['never', {}],
+]);
+
 /**
- * Split the arguments of a call, given the index of its `(`.
- * @param {Structure} structure
- * @param {number} openParen
- * @returns {{ start: number, end: number }[]} token ranges, `end` exclusive; empty args excluded
+ * 收集 `interface X { … }` 与 `type X = …` 的 token 区间。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @returns {Map<string, { bodyFrom: number, bodyTo: number, alias: boolean }>}
  */
-function callArguments(structure, openParen) {
-  const close = structure.pairs[openParen];
-  const tokens = structure.tokens;
-  if (close < 0) return [];
-  /** @type {{ start: number, end: number }[]} */
-  const ranges = [];
-  let start = openParen + 1;
-  let index = start;
-  while (index < close) {
+function collectTypeDeclarations(tokens, pairs) {
+  /** @type {Map<string, { bodyFrom: number, bodyTo: number, alias: boolean }>} */
+  const declarations = new Map();
+  for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (token.type === 'punct' && OPENERS.has(String(token.value))) {
-      const inner = structure.pairs[index];
-      if (inner > index) {
-        index = inner + 1;
+    if (isKeyword(token, 'interface') || isKeyword(token, 'type')) {
+      const nameToken = tokens[index + 1];
+      if (!isIdent(nameToken)) continue;
+      if (isKeyword(token, 'interface')) {
+        const open = findNextPunct(tokens, index + 2, '{');
+        if (open < 0) continue;
+        const close = pairs.get(open);
+        if (close === undefined) continue;
+        declarations.set(String(nameToken.value), { bodyFrom: open + 1, bodyTo: close, alias: false });
+        index = close;
         continue;
       }
-    }
-    if (token.type === 'punct' && token.value === ',') {
-      if (index > start) ranges.push({ start, end: index });
-      index += 1;
-      start = index;
-      continue;
-    }
-    index += 1;
-  }
-  if (close > start) ranges.push({ start, end: close });
-  return ranges;
-}
-
-/**
- * The single token inside a range, or undefined when the range is empty or holds more than one token.
- * @param {Token[]} tokens
- * @param {{ start: number, end: number }} range
- * @returns {Token | undefined}
- */
-function singleToken(tokens, range) {
-  return range.end - range.start === 1 ? tokens[range.start] : undefined;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Diagnostic context
- * ---------------------------------------------------------------------------------------------- */
-
-/**
- * @typedef {object} Diagnostic
- * @property {string} path
- * @property {number} line 1-based, in the submitted script
- * @property {number} column 1-based
- * @property {number} code 90xx
- * @property {string} message
- * @property {'error'|'warning'} severity
- */
-
-/**
- * @param {string} code normalized source
- * @param {string} filename
- * @returns {{ code: string, filename: string, diagnostics: Diagnostic[], add: Function }}
- */
-function createContext(code, filename) {
-  const starts = lineStartIndex(code);
-  /** @type {Diagnostic[]} */
-  const diagnostics = [];
-
-  /**
-   * @param {number} codeNumber
-   * @param {string} message
-   * @param {number} offset
-   * @param {'error'|'warning'} [severity]
-   */
-  const add = (codeNumber, message, offset, severity = 'error') => {
-    const clamped = Math.max(0, Math.min(Math.trunc(offset), code.length));
-    const { line, column } = locate(starts, clamped);
-    diagnostics.push({ path: filename, line, column, code: codeNumber, message, severity });
-  };
-
-  /** @param {number} offset @returns {number} 1-based line */
-  const lineAt = (offset) => locate(starts, Math.max(0, Math.min(Math.trunc(offset), code.length))).line;
-
-  return { code, filename, starts, diagnostics, add, lineAt };
-}
-
-/**
- * Render one diagnostic the way ZCode does: `{path}:L{line}:C{column} {message}`.
- * @param {Diagnostic} diagnostic
- * @returns {string}
- */
-export function formatDiagnostic(diagnostic) {
-  return `${diagnostic.path}:L${diagnostic.line}:C${diagnostic.column} ${diagnostic.message}`;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Type declarations -> JSON schemas
- *
- * ZCode binds an `ask<T>` answer to a schema built from T's TypeScript declaration. Without a type
- * checker this module parses the small, documented subset a workflow script is expected to use:
- * primitives, string/number/boolean literal unions, arrays, object literals, nested interfaces,
- * optional properties, index signatures and JSDoc descriptions. Anything else is reported (9011)
- * with the type's name instead of silently producing a schema that would accept anything.
- * ---------------------------------------------------------------------------------------------- */
-
-/**
- * @typedef {object} TypeDeclaration
- * @property {'interface'|'alias'} kind
- * @property {string} name
- * @property {number} keywordIndex token index of `interface` / `type`
- * @property {number} nameIndex
- * @property {number} [openBrace] interface body opener
- * @property {number} [typeStart] alias right-hand side start
- * @property {string} [unsupported] reason the declaration cannot become a schema
- * @property {string} [description]
- */
-
-/**
- * Collect every `interface X { … }` and `type X = …` declaration in the script.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @returns {{ declarations: Map<string, TypeDeclaration>, schemaOf: (name: string) => { ok: boolean, schema?: object, reason?: string } }}
- */
-function collectTypeDeclarations(ctx, structure, comments) {
-  const tokens = structure.tokens;
-  /** @type {Map<string, TypeDeclaration>} */
-  const declarations = new Map();
-
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    if (!isIdentifier(token)) continue;
-    const keyword = String(token.value);
-
-    if (keyword === 'interface') {
-      const nameToken = tokens[i + 1];
-      if (!isIdentifier(nameToken)) continue;
-      const name = String(nameToken.value);
-      if (declarations.has(name)) continue;
-      let cursor = i + 2;
-      let unsupported;
-      if (isPunct(tokens[cursor], '<')) unsupported = 'generic interface parameters are not supported';
-      // Skip `extends Base` clauses; bases are merged when the body is parsed.
-      const bases = [];
-      while (cursor < tokens.length) {
-        if (isPunct(tokens[cursor], '{')) break;
-        if (isId(tokens[cursor], 'extends')) {
-          cursor += 1;
-          while (cursor < tokens.length && isIdentifier(tokens[cursor])) {
-            bases.push(String(tokens[cursor].value));
-            cursor += 1;
-            if (isPunct(tokens[cursor], ',')) cursor += 1;
-            else break;
-          }
-          continue;
+      const equals = findNextPunct(tokens, index + 2, '=');
+      if (equals < 0) continue;
+      let end = equals + 1;
+      let depth = 0;
+      while (end < tokens.length) {
+        const current = tokens[end];
+        if (current.kind === 'punct') {
+          if (OPENERS.has(current.value)) depth += 1;
+          else if (CLOSER_TO_OPEN.has(current.value)) depth -= 1;
+          else if (current.value === ';' && depth === 0) break;
         }
-        cursor += 1;
+        if (depth === 0 && current.line > tokens[equals].line && current.start > tokens[equals].end) {
+          // `type X = …` 到行尾即结束（无分号写法）
+          if (isPunct(tokens[end + 1], ';') || end === tokens.length - 1) break;
+        }
+        end += 1;
       }
-      const openBrace = isPunct(tokens[cursor], '{') ? cursor : -1;
-      if (openBrace < 0) unsupported = 'its body could not be found';
-      declarations.set(name, {
-        kind: 'interface',
-        name,
-        keywordIndex: i,
-        nameIndex: i + 1,
-        openBrace,
-        bases,
-        unsupported,
-        description: jsDocDescription(comments, ctx.code, token.start),
-      });
-      i = cursor;
-      continue;
-    }
-
-    if (keyword === 'type') {
-      const nameToken = tokens[i + 1];
-      const equals = tokens[i + 2];
-      if (!isIdentifier(nameToken) || !isPunct(equals, '=')) continue;
-      const name = String(nameToken.value);
-      if (declarations.has(name)) continue;
-      declarations.set(name, {
-        kind: 'alias',
-        name,
-        keywordIndex: i,
-        nameIndex: i + 1,
-        typeStart: i + 3,
-        unsupported: undefined,
-        description: jsDocDescription(comments, ctx.code, token.start),
-      });
-      i += 2;
-      continue;
+      declarations.set(String(nameToken.value), { bodyFrom: equals + 1, bodyTo: end, alias: true });
+      index = end;
     }
   }
-
-  /** @type {Map<string, object>} */
-  const cache = new Map();
-  const resolving = new Set();
-
-  /**
-   * @param {string} name
-   * @returns {{ ok: boolean, schema?: object, reason?: string }}
-   */
-  const schemaOf = (name) => {
-    const builtin = BUILTIN_SCHEMAS.get(name);
-    if (builtin !== undefined) return { ok: true, schema: { ...builtin } };
-    const declaration = declarations.get(name);
-    if (declaration === undefined) {
-      return { ok: false, reason: `"${name}" is not declared in this script` };
-    }
-    if (cache.has(name)) return { ok: true, schema: cache.get(name) };
-    if (declaration.unsupported !== undefined) return { ok: false, reason: declaration.unsupported };
-    if (resolving.has(name)) {
-      return { ok: false, reason: `"${name}" is recursive, and a recursive type has no finite schema` };
-    }
-    resolving.add(name);
-    const parsed = declaration.kind === 'interface'
-      ? parseInterfaceDeclaration(ctx, structure, comments, declaration, schemaOf)
-      : parseTypeAliasDeclaration(ctx, structure, comments, declaration, schemaOf);
-    resolving.delete(name);
-    if (!parsed.ok) return parsed;
-    const schema = parsed.schema ?? {};
-    if (declaration.description !== undefined && declaration.description.length > 0 && schema.description === undefined) {
-      schema.description = declaration.description;
-    }
-    cache.set(name, schema);
-    return { ok: true, schema };
-  };
-
-  return { declarations, schemaOf };
+  return declarations;
 }
 
 /**
- * The JSDoc comment immediately above a token, if there is one: only whitespace may separate the
- * comment from the declaration it documents.
- * @param {Comment[]} comments
- * @param {string} code
- * @param {number} tokenStart
- * @returns {string|undefined}
+ * 在 `from` 之后找第一个指定 punct。
+ * @param {object[]} tokens
+ * @param {number} from
+ * @param {string} value
+ * @returns {number}
  */
-function jsDocDescription(comments, code, tokenStart) {
-  /** @type {Comment|undefined} */
-  let found;
-  for (const comment of comments) {
-    if (comment.kind !== 'block') continue;
-    if (comment.end > tokenStart) break;
-    if (!comment.text.startsWith('/**')) continue;
-    if (code.slice(comment.end, tokenStart).trim() !== '') continue;
-    found = comment;
+function findNextPunct(tokens, from, value) {
+  for (let index = from; index < tokens.length; index += 1) {
+    if (isPunct(tokens[index], value)) return index;
   }
-  if (found === undefined) return undefined;
-  return cleanJsDoc(found.text);
+  return -1;
 }
 
 /**
- * @param {string} text raw `/** … *\/` comment
- * @returns {string}
+ * 把一段类型 token 转成 JSON Schema。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} from
+ * @param {number} to
+ * @param {Map<string, object>} declarations
+ * @param {Map<string, {bodyFrom: number, bodyTo: number, alias: boolean}>} typeDecls
+ * @param {Set<string>} [visiting]
+ * @returns {object | undefined}
  */
-function cleanJsDoc(text) {
-  const body = text.replace(/^\/\*\*?/u, '').replace(/\*\/$/u, '');
-  const lines = body.split('\n').map((line) => line.replace(/^\s*\*?\s?/u, '').replace(/\s+$/u, ''));
-  while (lines.length > 0 && lines[0] === '') lines.shift();
-  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
-  return lines.join('\n').trim();
-}
-
-/**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {TypeDeclaration} declaration
- * @param {(name: string) => { ok: boolean, schema?: object, reason?: string }} schemaOf
- * @returns {{ ok: boolean, schema?: object, reason?: string }}
- */
-function parseInterfaceDeclaration(ctx, structure, comments, declaration, schemaOf) {
-  if (declaration.openBrace === undefined || declaration.openBrace < 0) {
-    return { ok: false, reason: `the body of "${declaration.name}" could not be found` };
+function typeRangeToSchema(tokens, pairs, from, to, declarations, typeDecls, visiting = new Set()) {
+  if (to <= from) return undefined;
+  // 联合类型
+  const union = splitTopLevel(tokens, pairs, from, to, '|');
+  if (union.length > 1) {
+    const literalValues = [];
+    let allLiteral = true;
+    for (const part of union) {
+      const text = literalText(tokens[part.from]);
+      if (text !== undefined && part.to - part.from === 1) literalValues.push(text);
+      else allLiteral = false;
+    }
+    if (allLiteral && literalValues.length > 0) return { enum: literalValues };
+    const schemas = union.map((part) => typeRangeToSchema(tokens, pairs, part.from, part.to, declarations, typeDecls, visiting));
+    const nonNull = schemas.filter((schema) => schema !== undefined && schema.type !== 'null');
+    const nullable = schemas.some((schema) => schema !== undefined && schema.type === 'null');
+    if (nonNull.length === 1 && nullable) return { ...nonNull[0], nullable: true };
+    // 多个对象/对象或基础类型：退化成 any（无法表达 union 时宁可不误报）
+    return {};
   }
-  const body = parseObjectMembers(ctx, structure, comments, declaration.openBrace, declaration.name, schemaOf);
-  if (!body.ok) return body;
-  /** @type {Record<string, object>} */
-  const properties = { ...body.properties };
-  /** @type {string[]} */
-  const required = [...body.required];
-  for (const base of declaration.bases ?? []) {
-    const resolved = schemaOf(base);
-    if (!resolved.ok) return { ok: false, reason: `"${declaration.name}" extends "${base}", which ${resolved.reason ?? 'cannot be turned into a schema'}` };
-    const baseSchema = resolved.schema ?? {};
-    if (baseSchema.properties !== undefined && typeof baseSchema.properties === 'object') {
-      for (const [key, value] of Object.entries(baseSchema.properties)) {
-        if (properties[key] === undefined) properties[key] = value;
+  // 括号
+  if (isPunct(tokens[from], '(') && pairs.get(from) === to - 1) {
+    return typeRangeToSchema(tokens, pairs, from + 1, to - 1, declarations, typeDecls, visiting);
+  }
+  // 数组后缀 `T[]`
+  if (isPunct(tokens[to - 1], ']') && isPunct(tokens[to - 2], '[')) {
+    const item = typeRangeToSchema(tokens, pairs, from, to - 2, declarations, typeDecls, visiting);
+    return { type: 'array', items: item ?? {} };
+  }
+  // Array<T> / Record<string, T>
+  if (isIdent(tokens[from]) && isPunct(tokens[from + 1], '<') && pairs.get(from + 1) === to - 1) {
+    const name = String(tokens[from].value);
+    const inner = splitTopLevel(tokens, pairs, from + 2, to - 1, ',');
+    if (name === 'Array' && inner.length === 1) {
+      return { type: 'array', items: typeRangeToSchema(tokens, pairs, inner[0].from, inner[0].to, declarations, typeDecls, visiting) ?? {} };
+    }
+    if (name === 'Record' && inner.length === 2) {
+      return { type: 'object', additionalProperties: typeRangeToSchema(tokens, pairs, inner[1].from, inner[1].to, declarations, typeDecls, visiting) ?? {} };
+    }
+    return {};
+  }
+  // 字面量
+  const literal = literalText(tokens[from]);
+  if (literal !== undefined && to - from === 1) return { const: literal };
+  if (tokens[from].kind === 'number' && to - from === 1) return { const: Number(tokens[from].value) };
+  if (isKeyword(tokens[from], 'true') && to - from === 1) return { const: true };
+  if (isKeyword(tokens[from], 'false') && to - from === 1) return { const: false };
+  if (isKeyword(tokens[from], 'null') && to - from === 1) return { type: 'null' };
+  // 内联对象类型 `{ a: string }`
+  if (isPunct(tokens[from], '{') && pairs.get(from) === to - 1) {
+    return objectBodyToSchema(tokens, pairs, from + 1, to - 1, declarations, typeDecls, visiting);
+  }
+  // 已声明的 interface / type alias
+  if (isIdent(tokens[from]) && to - from === 1) {
+    const name = String(tokens[from].value);
+    if (PRIMITIVE_SCHEMAS.has(name)) return PRIMITIVE_SCHEMAS.get(name);
+    const built = declarations.get(name);
+    if (built !== undefined) return built;
+    const alias = typeDecls.get(name);
+    if (alias !== undefined) {
+      if (visiting.has(name)) return {};
+      visiting.add(name);
+      try {
+        const schema = typeRangeToSchema(tokens, pairs, alias.bodyFrom, alias.bodyTo, declarations, typeDecls, visiting);
+        const value = schema ?? {};
+        declarations.set(name, value);
+        return value;
+      } finally {
+        visiting.delete(name);
       }
     }
-    for (const key of baseSchema.required ?? []) {
-      if (!required.includes(key)) required.push(key);
-    }
   }
-  return { ok: true, schema: objectSchema(properties, required, body.additionalProperties === undefined ? {} : { additionalProperties: body.additionalProperties }) };
+  return {};
 }
 
 /**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {TypeDeclaration} declaration
- * @param {(name: string) => { ok: boolean, schema?: object, reason?: string }} schemaOf
- * @returns {{ ok: boolean, schema?: object, reason?: string }}
- */
-function parseTypeAliasDeclaration(ctx, structure, comments, declaration, schemaOf) {
-  const start = declaration.typeStart ?? -1;
-  if (start < 0) return { ok: false, reason: `the right-hand side of "${declaration.name}" could not be found` };
-  const parsed = parseTypeNode(ctx, structure, comments, start, schemaOf);
-  if (!parsed.ok) {
-    return { ok: false, reason: `"${declaration.name}" uses ${parsed.reason}` };
-  }
-  return { ok: true, schema: parsed.schema };
-}
-
-/**
- * @param {Record<string, object>} properties
- * @param {string[]} required
- * @param {object} [extra]
+ * 对象类型体 → `{type:'object', properties, required}`。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} from
+ * @param {number} to
+ * @param {Map<string, object>} declarations
+ * @param {Map<string, {bodyFrom: number, bodyTo: number, alias: boolean}>} typeDecls
+ * @param {Set<string>} visiting
  * @returns {object}
  */
-function objectSchema(properties, required, extra) {
-  /** @type {Record<string, object>} */
-  const sorted = {};
-  for (const key of Object.keys(properties).sort()) sorted[key] = properties[key];
-  return {
-    type: 'object',
-    properties: sorted,
-    required: [...required].sort(),
-    additionalProperties: false,
-    ...(extra ?? {}),
-  };
-}
-
-/**
- * Parse the members of an interface body or object type literal.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {number} openBrace token index of `{`
- * @param {string} owner name used in diagnostics
- * @returns {{ ok: boolean, properties?: Record<string, object>, required?: string[], reason?: string }}
- */
-function parseObjectMembers(ctx, structure, comments, openBrace, owner, schemaOf) {
-  const tokens = structure.tokens;
-  const close = structure.pairs[openBrace];
-  if (close < 0) return { ok: false, reason: `the body of "${owner}" is not closed` };
+function objectBodyToSchema(tokens, pairs, from, to, declarations, typeDecls, visiting) {
   /** @type {Record<string, object>} */
   const properties = {};
   /** @type {string[]} */
   const required = [];
-  /** @type {object|undefined} */
-  let additionalProperties;
-  let after = openBrace + 1;
-
-  while (after < close) {
-    const token = tokens[after];
-    if (isPunct(token, ';') || isPunct(token, ',')) {
-      after += 1;
-      continue;
-    }
-    const memberStartToken = token;
-    let cursor = after;
-    if (isId(tokens[cursor], 'readonly')) cursor += 1;
-
-    // Index signature: `[key: string]: T`.
-    if (isPunct(tokens[cursor], '[')) {
-      const bracketClose = structure.pairs[cursor];
-      if (bracketClose < 0 || bracketClose >= close) return { ok: false, reason: `an index signature in "${owner}" is not closed` };
-      const colon = tokens[bracketClose + 1];
-      if (!isPunct(colon, ':')) return { ok: false, reason: `an index signature in "${owner}" has no value type` };
-      const parsed = parseTypeNode(ctx, structure, comments, bracketClose + 2, schemaOf);
-      if (!parsed.ok) return { ok: false, reason: `an index signature in "${owner}" uses ${parsed.reason}` };
-      additionalProperties = parsed.schema;
-      after = parsed.end;
-      if (isPunct(tokens[after], ';') || isPunct(tokens[after], ',')) after += 1;
-      continue;
-    }
-
-    if (!isIdentifier(tokens[cursor]) && tokens[cursor].type !== 'str' && tokens[cursor].type !== 'num') {
-      return { ok: false, reason: `a member of "${owner}" could not be read at ${describeToken(tokens[cursor])}` };
-    }
-    const name = String(tokens[cursor].value);
-    cursor += 1;
+  const members = splitTopLevel(tokens, pairs, from, to, ';').flatMap((part) => splitTopLevel(tokens, pairs, part.from, part.to, ','));
+  for (const member of members) {
+    if (member.to <= member.from) continue;
+    const nameToken = tokens[member.from];
+    const name = nameToken.kind === 'string' ? nameToken.value : String(nameToken.value);
+    let cursor = member.from + 1;
     let optional = false;
     if (isPunct(tokens[cursor], '?')) {
       optional = true;
       cursor += 1;
     }
-    if (isPunct(tokens[cursor], '(')) {
-      return { ok: false, reason: `"${owner}" declares the method ${name}(); a schema can only describe data` };
-    }
-    if (!isPunct(tokens[cursor], ':')) {
-      return { ok: false, reason: `the member "${name}" of "${owner}" has no type annotation` };
-    }
-    const parsed = parseTypeNode(ctx, structure, comments, cursor + 1, schemaOf);
-    if (!parsed.ok) return { ok: false, reason: `"${name}" of "${owner}" uses ${parsed.reason}` };
-    const description = jsDocDescription(comments, ctx.code, memberStartToken.start);
-    const schema = { ...parsed.schema };
-    if (description !== undefined && description.length > 0 && schema.description === undefined) {
-      schema.description = description;
-    }
+    if (!isPunct(tokens[cursor], ':')) continue;
+    cursor += 1;
+    const schema = typeRangeToSchema(tokens, pairs, cursor, member.to, declarations, typeDecls, visiting) ?? {};
     properties[name] = schema;
     if (!optional) required.push(name);
-    after = parsed.end;
-    if (isPunct(tokens[after], ';') || isPunct(tokens[after], ',')) after += 1;
   }
-
-  return {
-    ok: true,
-    properties,
-    required,
-    ...(additionalProperties === undefined ? {} : { additionalProperties }),
-  };
+  return { type: 'object', properties, required, additionalProperties: false };
 }
 
 /**
- * @param {Token} token
- * @returns {string}
- */
-function describeToken(token) {
-  if (token === undefined) return 'the end of the script';
-  if (token.type === 'id' || token.type === 'punct') return `\`${String(token.value)}\``;
-  if (token.type === 'eof') return 'the end of the script';
-  return 'an unexpected token';
-}
-
-/**
- * Parse one type expression into a JSON schema.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {number} start token index
- * @param {(name: string) => { ok: boolean, schema?: object, reason?: string }} schemaOf
- * @returns {{ ok: boolean, schema?: object, end: number, reason?: string }}
- */
-function parseTypeNode(ctx, structure, comments, start, schemaOf) {
-  const parsed = parseUnionType(ctx, structure, comments, start, schemaOf);
-  if (!parsed.ok) return parsed;
-  return parsed;
-}
-
-/**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {number} start
- * @param {Function} schemaOf
- * @returns {{ ok: boolean, schema?: object, end: number, reason?: string }}
- */
-function parseUnionType(ctx, structure, comments, start, schemaOf) {
-  const first = parsePostfixType(ctx, structure, comments, start, schemaOf);
-  if (!first.ok) return first;
-  const members = [first];
-  let cursor = first.end;
-  while (isPunct(structure.tokens[cursor], '|')) {
-    const next = parsePostfixType(ctx, structure, comments, cursor + 1, schemaOf);
-    if (!next.ok) return next;
-    members.push(next);
-    cursor = next.end;
-  }
-  if (members.length === 1) return first;
-
-  const enumValues = [];
-  let allLiteral = true;
-  const survivors = [];
-  for (const member of members) {
-    const schema = member.schema ?? {};
-    const keys = Object.keys(schema);
-    const isLiteral = keys.length === 1 && schema.enum !== undefined;
-    if (isLiteral) {
-      enumValues.push(...schema.enum);
-      survivors.push(member);
-      continue;
-    }
-    if (schema.type === 'null' || schema.type === 'undefined') continue;
-    allLiteral = false;
-    survivors.push(member);
-  }
-  if (allLiteral) return { ok: true, schema: { enum: enumValues }, end: cursor };
-  if (survivors.length === 1) return { ok: true, schema: survivors[0].schema, end: cursor };
-  return { ok: false, reason: 'a union of object types, which a schema cannot describe', end: cursor };
-}
-
-/**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {number} start
- * @param {Function} schemaOf
- * @returns {{ ok: boolean, schema?: object, end: number, reason?: string }}
- */
-function parsePostfixType(ctx, structure, comments, start, schemaOf) {
-  let parsed = parsePrimaryType(ctx, structure, comments, start, schemaOf);
-  if (!parsed.ok) return parsed;
-  const tokens = structure.tokens;
-  let cursor = parsed.end;
-  let schema = parsed.schema ?? {};
-  while (isPunct(tokens[cursor], '[') && isPunct(tokens[cursor + 1], ']')) {
-    schema = { type: 'array', items: schema };
-    cursor += 2;
-  }
-  return { ...parsed, schema, end: cursor };
-}
-
-/**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Comment[]} comments
- * @param {number} start
- * @param {Function} schemaOf
- * @returns {{ ok: boolean, schema?: object, end: number, reason?: string }}
- */
-function parsePrimaryType(ctx, structure, comments, start, schemaOf) {
-  const tokens = structure.tokens;
-  let index = start;
-  while (isId(tokens[index], 'readonly')) index += 1;
-  const token = tokens[index];
-  if (token === undefined) return { ok: false, reason: 'a missing type', end: index };
-
-  if (isPunct(token, '(')) {
-    const parsed = parseTypeNode(ctx, structure, comments, index + 1, schemaOf);
-    if (!parsed.ok) return parsed;
-    let end = parsed.end;
-    if (isPunct(tokens[end], ')')) end += 1;
-    else return { ok: false, reason: 'an unbalanced parenthesized type', end };
-    return { ...parsed, end };
-  }
-
-  if (isPunct(token, '{')) {
-    const body = parseObjectMembers(ctx, structure, comments, index, 'an inline object type', schemaOf);
-    if (!body.ok) return { ok: false, reason: body.reason, end: index };
-    const close = structure.pairs[index];
-    return {
-      ok: true,
-      schema: objectSchema(body.properties, body.required, body.additionalProperties === undefined ? {} : { additionalProperties: body.additionalProperties }),
-      end: close >= 0 ? close + 1 : index + 1,
-    };
-  }
-
-  if (isPunct(token, '[')) {
-    return { ok: false, reason: 'a tuple type, which a schema cannot describe', end: index };
-  }
-
-  if (token.type === 'str') {
-    return { ok: true, schema: { enum: [String(token.value)] }, end: index + 1 };
-  }
-  if (token.type === 'num') {
-    return { ok: true, schema: { enum: [Number(token.value)] }, end: index + 1 };
-  }
-  if (isPunct(token, '-') && tokens[index + 1]?.type === 'num') {
-    return { ok: true, schema: { enum: [-Number(tokens[index + 1].value)] }, end: index + 2 };
-  }
-
-  if (!isIdentifier(token)) return { ok: false, reason: `${describeToken(token)} is not a type`, end: index };
-  const name = String(token.value);
-
-  if (name === 'true' || name === 'false') {
-    return { ok: true, schema: { enum: [name === 'true'] }, end: index + 1 };
-  }
-  if (name === 'string' || name === 'number' || name === 'boolean' || name === 'null') {
-    return { ok: true, schema: { type: name }, end: index + 1 };
-  }
-  if (name === 'any' || name === 'unknown' || name === 'undefined' || name === 'void' || name === 'never' || name === 'object') {
-    return { ok: true, schema: {}, end: index + 1 };
-  }
-  if (name === 'Array' || name === 'ReadonlyArray') {
-    if (!isPunct(tokens[index + 1], '<')) return { ok: false, reason: `${name} without an element type`, end: index + 1 };
-    const inner = parseTypeNode(ctx, structure, comments, index + 2, schemaOf);
-    if (!inner.ok) return inner;
-    let end = inner.end;
-    if (isPunct(tokens[end], '>')) end += 1;
-    else return { ok: false, reason: `${name}<…> without its closing \`>\``, end };
-    return { ok: true, schema: { type: 'array', items: inner.schema }, end };
-  }
-  if (name === 'Record') {
-    if (!isPunct(tokens[index + 1], '<')) return { ok: false, reason: 'Record without its key and value types', end: index + 1 };
-    const key = parseTypeNode(ctx, structure, comments, index + 2, schemaOf);
-    if (!key.ok) return key;
-    if (!isPunct(tokens[key.end], ',')) return { ok: false, reason: 'Record with one type argument', end: key.end };
-    const value = parseTypeNode(ctx, structure, comments, key.end + 1, schemaOf);
-    if (!value.ok) return value;
-    let end = value.end;
-    if (isPunct(tokens[end], '>')) end += 1;
-    else return { ok: false, reason: 'Record without its closing `>`', end };
-    return { ok: true, schema: { type: 'object', additionalProperties: value.schema }, end };
-  }
-  if (name === 'Promise' || name === 'PromiseLike' || name === 'Map' || name === 'Set' || name === 'Date' ||
-    name === 'Function' || name === 'Error' || name === 'typeof' || name === 'keyof' || name === 'infer' ||
-    name === 'unique' || name === 'symbol' || name === 'bigint') {
-    return { ok: false, reason: `\`${name}\`, which a schema cannot describe`, end: index + 1 };
-  }
-  if (isPunct(tokens[index + 1], '<')) {
-    return { ok: false, reason: `a generic type (\`${name}<…>\`)`, end: index + 1 };
-  }
-
-  const resolved = schemaOf(name);
-  if (!resolved.ok) return { ok: false, reason: resolved.reason ?? `"${name}" cannot be turned into a schema`, end: index + 1 };
-  return { ok: true, schema: resolved.schema, end: index + 1 };
-}
-/* ------------------------------------------------------------------------------------------------
- * Verbatim diagnostic messages (docs/recon/zcode-host.md §3.3, extracted from zcode.cjs)
- * ---------------------------------------------------------------------------------------------- */
-
-const MESSAGES = Object.freeze({
-  phaseLiteral: 'phase()\'s argument must be a compile-time string literal ("gate" or a no-substitution template): the script\'s phase names are fixed when it is submitted, because they label the graph the user confirms before anything runs. Write the name inline — a name that only exists at run time cannot be drawn.',
-  phaseEmpty: 'phase("") has no name to show: the phase label is what the confirmation graph draws. Give the group a word ("preflight", "gate", "wrap-up"), or drop the marker — a script with no markers is perfectly legal and is drawn step by step.',
-  phaseStandalone: 'phase("…") must stand alone as its own statement. The marker claims the rest of the block it stands in, so one in expression position (a variable initializer, an argument, a ternary arm) has no rest-of-block to claim. Put the call on its own line at the head of the steps it names.',
-  phaseMissing: 'a workflow script needs at least one phase("…") marker: the phases are the graph the user approves before anything runs, and a run with none is drawn as a wall of steps. Add a phase at the head of each stage.',
-  worldLiteral: 'world.run\'s first argument must be a compile-time string literal ("lean" or a no-substitution template): the script\'s command set is shown to the user at confirmation and only those commands are executable. Move the command name out of the variable/template, and put runtime values in the args array instead.',
-  duplicateActor: (name, firstLine) => `two actors are named "${name}" (the first is on line ${firstLine}): an actor name must be unique within a run. The name is the identity key an amended re-run matches its imported cache against, and any run can become the predecessor of one, so a repeated name makes that match ambiguous. Give this one its own name, or drop the name entirely — anonymous actors are legal (they just never reuse cached work).`,
-  actorInFanOut: (name) => `this agent(...) runs once per element of a fan-out but its name "${name}" is a fixed string, so every element creates a different actor under the same name — the run fails with DuplicateActorName as soon as the collection holds more than one item. An actor name must be unique within a run: it is the identity key an amended re-run matches its imported cache against. Build a per-element name (\`${name}-\${item}\`), or drop the name — anonymous actors are legal (they just never reuse cached work).`,
-  holeTypeArgument: 'hole() needs an explicit type argument (hole<Plan>(...)): the type is the contract the fill is compiled against, and an inferred unknown is no contract. Write what the rest of the script needs from the hole.',
-  holeNameLiteral: 'hole()\'s name must be a compile-time string literal: it is the hole\'s phase name and the identity every surface shows (the station, the notification, the fill file). Write it inline.',
-  holeNameEmpty: 'hole("") has no name to show. Give the gap a word in the user\'s language ("决定分组", "choose the plan"); it labels the station and the notification.',
-  holeNameLong: (limit) => `hole()'s name is longer than ${limit} characters; a phase name is a label, not a paragraph.`,
-  holeNotAwaited: 'hole() must be awaited where it is called (await hole<T>(...) or return await hole<T>(...)): the script must not run past a gap that has no value yet.',
-  holeInFanOut: 'hole() cannot stand inside a fan-out callback (xs.map(...), Promise.all(xs.map(...)) and the other per-element array methods): the elements run concurrently, so its fill would have to be written while they are already running. Hoist the decision out of the callback, or use a loop (for, for...of, while), where one round waits and the fill runs in every later round.',
-  holeBodyNotArrow: 'hole()\'s body must be an inline async arrow (async () => { ... }): a fill is spliced into the script as text, so a function held in a variable has nothing to splice.',
-  holeDuplicate: (name) => `two holes are named "${name}"; a hole's name is its identity and must be unique among the script's holes and phase markers.`,
-  holePhaseCollision: (name) => `hole "${name}" shares its name with a phase("${name}") marker; a hole is a phase of its own, so the name must be unique among holes and markers.`,
-  artifactIdLiteral: 'an artifact id must be a compile-time string literal ("report" or a no-substitution template): the set of artifacts a run can publish is fixed when the script is submitted, so it can be listed before anything runs. Write the id inline; put the runtime value in the title instead (artifact.file("report", path, { title: `Report for ${name}` })).',
-  artifactIdEmpty: 'an artifact id must not be empty: it is the identity the card, the version history and the report tag all key off. Give it a short stable name ("book", "perf", "coverage").',
-  artifactIdLong: (name, length, limit) => `artifact id "${name}" is ${length} characters; the limit is ${limit}. The id is a key, not a description — put the prose in the title.`,
-  artifactIdCharacters: (name) => `artifact id "${name}" contains characters outside [A-Za-z0-9_.-]. The id is carried verbatim through the journal, the artifact store and the side pane, so it is restricted to characters that need no escaping anywhere ("build-log", "perf.p95").`,
-  artifactKindConflict: (name, firstKind, firstLine, kind) => `artifact id "${name}" is used with two different kinds: artifact.${firstKind} on line ${firstLine} and artifact.${kind} here. Within one run an id belongs to exactly one kind — publishing it again is what mints the next VERSION, and a version cannot change what the thing is. Give this one its own id.`,
-  artifactUnknownKind: (kind) => `artifact has no member "${kind}": the kinds are file and markdown (content, published once per call) and chart, table, metrics and board (presets, fed by report(item, id)).`,
-  artifactPrimaryConflict: (name, otherId, otherKind, otherLine) => `artifact "${name}" is marked primary, but "${otherId}" already is (artifact.${otherKind} on line ${otherLine}). A run has one deliverable — the card and the run pane lead with it. Drop primary from one of them, or publish this content as a new version of the other id.`,
-  presetInCallback: 'a preset artifact declared inside a callback: hoist it to the top level and declare it once. A preset is a declaration, not a step — it says how the items tagged with its id are drawn, and the tagged report() calls are what fill it in. Declaring it where the callback runs buries it: move artifact.<kind>("<id>", spec) to the head of the script and keep only report(item, "<id>") in the callback.',
-  presetInBranch: 'a preset artifact declared inside a conditional branch: hoist it to the top level and declare it once. The card should exist from the moment the run starts (it is legitimately empty until the first tagged report arrives), and a declaration that may or may not have run is a card that may or may not exist. Declare it unconditionally and let the branch decide what to report.',
-  presetInLoop: 'a preset artifact declared inside a loop: hoist it to the top level and declare it once. A preset is declared once and fed many times — the loop body is where report(item, "<id>") belongs, not the declaration. Re-declaring the same spec is a no-op, but re-declaring it with a different spec fails the whole run, so the loop is the wrong place for it either way.',
-  reportTagLiteral: 'report()\'s artifact tag must be a compile-time string literal naming a preset artifact declared in this script: the tag is how an item finds its dashboard, and a tag that only exists at run time cannot be checked against the declarations. Write the id inline.',
-  reportTagContent: (tag) => `report()'s tag "${tag}" names a file/markdown artifact, which holds content rather than a stream of items — there is nothing for this item to become. Tag the item with a preset artifact (chart / table / metrics / board), or drop the tag and let the item go to the Run's Results.`,
-  reportTagUnknown: (tag, presets) => `report()'s tag "${tag}" names no preset artifact declared in this script${presets}. Declare it first — artifact.chart("${tag}", { x, y }) at the top of the script — or drop the tag.`,
-  reportTagNoPresets: ' (this script declares no preset artifacts at all)',
-  declareModifier: 'The `declare` modifier is not allowed in a workflow script: the script is compiled inside a function body, where ambient declarations are illegal. Remove `declare` and write a plain declaration (e.g. `interface Foo { ... }`).',
-  exportStatement: '`export` is not allowed in a workflow script: the script is compiled inside a function body. Remove `export` — the workflow\'s output is its final `return` value.',
-  importStatement: '`import` is not allowed in a workflow script: the script is compiled inside a function body, so it has no module graph. The facade (agent, world, files, git, artifact) is its whole outside world; remove the import.',
-  modelLiteral: 'model() takes the model name as a non-empty string literal (a model id or "providerId/modelId", optionally with "$level"): every model a script can use is checked against the configured models before the run starts. Put runtime choices in which ModelRef you pass, not in the name.',
-  askTypeUnsupported: (text) => `ask<${text}> needs an interface or type alias declared in this script: the runtime validates the subagent's answer against a schema built from that declaration, and this type argument is not one this compiler can build a schema from. Declare \`interface ${text.replace(/\[\]$/u, '')} { … }\` and pass its name (an array of it as \`Name[]\`).`,
-  askTypeUndeclared: (name) => `ask<${name}> needs an interface declared in this script: the runtime validates the subagent's answer against a schema built from that declaration, and "${name}" is not declared here. Define \`interface ${name} { … }\` (a plain interface, no declare) or drop the type argument to take the answer as text.`,
-  emptyScript: 'the workflow script is empty: it needs at least a phase("…") marker and a step (an agent ask, a world.run, or a return value).',
-  syntax: (message) => `the script does not parse: ${message}`,
-  snippetAbsent: (name) => `${name}() does not exist in a snippet: a snippet is the test bench for the fixed logic of a script, not for orchestration — agent(), phase(), report(), artifact.*, hole() and model() are absent. Run the orchestration through the workflow tool instead.`,
-  forbiddenGlobal: (name) => `${name} is not available in a workflow script: Node and web APIs are not reachable from a script. Use world.run for a command, files/git for the workspace, and a subagent for anything else.`,
-  forbiddenClock: 'Date.now() is not available in a workflow script: a replayable run cannot read the clock. The run records wall-clock times for you; if a step needs the time, pass it in through args.',
-  forbiddenRandom: 'Math.random() is not available in a workflow script: a replayable run cannot be random. Derive a stable value from the inputs, or let a subagent choose and record its choice.',
-  forbiddenEval: 'eval() is not available in a workflow script: it would run code the compiler never checked. Write the logic in the script.',
-  forbiddenFunctionConstructor: 'the Function constructor is not available in a workflow script: it would run code the compiler never checked. Write the function in the script.',
-  forbiddenNodeModule: (specifier) => `"${specifier}" cannot be imported in a workflow script: Node builtins are not reachable, and there are no imports. Reach the outside world through world.run, files, git or a subagent.`,
-  facadeMisuse: (name) => `facade function '${name}' may only be called directly; taking a reference to it defeats site identity (journal and replay key off call sites).`,
-});
-
-/* ------------------------------------------------------------------------------------------------
- * Discovery helpers
- * ---------------------------------------------------------------------------------------------- */
-
-/**
- * Names the script declares itself; a facade call to a shadowed name is the script's own function.
- * @param {Structure} structure
- * @returns {Set<string>}
- */
-function collectDeclaredNames(structure) {
-  const tokens = structure.tokens;
-  /** @type {Set<string>} */
-  const names = new Set();
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    if (!isIdentifier(token)) continue;
-    const value = String(token.value);
-    if (value === 'const' || value === 'let' || value === 'var') {
-      let cursor = i + 1;
-      while (isIdentifier(tokens[cursor])) {
-        names.add(String(tokens[cursor].value));
-        cursor += 1;
-        if (isPunct(tokens[cursor], ',')) cursor += 1;
-        else break;
-      }
-      continue;
-    }
-    if (value === 'function' || value === 'class') {
-      if (isIdentifier(tokens[i + 1])) names.add(String(tokens[i + 1].value));
-    }
-  }
-  // Parameters of function literals.
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (structure.kinds[i] !== FRAME_KINDS.PARAMS || !isIdentifier(tokens[i])) continue;
-    const previous = tokens[i - 1];
-    const next = tokens[i + 1];
-    if (!(isPunct(previous, '(') || isPunct(previous, ',') || isPunct(previous, '?'))) continue;
-    if (isPunct(next, ')') || isPunct(next, ',') || isPunct(next, ':') || isPunct(next, '=') || isPunct(next, '?')) {
-      names.add(String(tokens[i].value));
-    }
-  }
-  return names;
-}
-
-/**
- * Calls of a bare facade function: `phase(…)`, `agent(…)`, `report(…)`, …
- * @param {Structure} structure
- * @param {string} name
- * @returns {{ callee: number, openParen: number }[]}
- */
-function findBareCalls(structure, name) {
-  const tokens = structure.tokens;
-  /** @type {{ callee: number, openParen: number }[]} */
-  const calls = [];
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (!isId(tokens[i], name)) continue;
-    if (isPunct(tokens[i - 1], '.') || isPunct(tokens[i - 1], '?.')) continue;
-    if (isPunct(tokens[i + 1], '(')) {
-      calls.push({ callee: i, openParen: i + 1 });
-      continue;
-    }
-    // A typed call: `hole<T>(…)`, `model<T>(…)`.
-    const range = typeArgumentRange(structure, i);
-    if (range !== null) calls.push({ callee: i, openParen: range.close + 1 });
-  }
-  return calls;
-}
-
-/**
- * Calls of a member function: `world.run(…)`, `artifact.chart(…)`.
- * @param {Structure} structure
- * @param {string} object
- * @param {string} member
- * @returns {{ objectToken: number, memberToken: number, openParen: number }[]}
- */
-function findMemberCalls(structure, object, member) {
-  const tokens = structure.tokens;
-  /** @type {{ objectToken: number, memberToken: number, openParen: number }[]} */
-  const calls = [];
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (!isId(tokens[i], object)) continue;
-    if (isPunct(tokens[i - 1], '.') || isPunct(tokens[i - 1], '?.')) continue;
-    if (!(isPunct(tokens[i + 1], '.') || isPunct(tokens[i + 1], '?.'))) continue;
-    if (!isId(tokens[i + 2], member)) continue;
-    if (!isPunct(tokens[i + 3], '(')) continue;
-    calls.push({ objectToken: i, memberToken: i + 2, openParen: i + 3 });
-  }
-  return calls;
-}
-
-/**
- * Find the type-argument range of a call: `name<…>(`.
- * @param {Structure} structure
- * @param {number} callee token index of the callee
- * @returns {{ open: number, close: number } | null}
- */
-function typeArgumentRange(structure, callee) {
-  const tokens = structure.tokens;
-  if (!isPunct(tokens[callee + 1], '<')) return null;
-  let depth = 1;
-  let index = callee + 2;
-  while (index < tokens.length) {
-    const token = tokens[index];
-    if (token.type === 'punct' && token.value === '<') depth += 1;
-    else if (token.type === 'punct' && token.value === '>') {
-      depth -= 1;
-      if (depth === 0) {
-        const after = tokens[index + 1];
-        return isPunct(after, '(') ? { open: callee + 1, close: index } : null;
-      }
-    } else if (isPunct(token, '(') || isPunct(token, ')') || isPunct(token, ';') || isPunct(token, '{') || isPunct(token, '}')) {
-      return null;
-    }
-    index += 1;
-  }
-  return null;
-}
-
-/**
- * Whether a call is a standalone statement: `phase("a");` yes, `const x = phase("a")` no.
- * @param {Structure} structure
- * @param {number} callee
- * @param {number} openParen
- * @returns {boolean}
- */
-function isStandaloneStatement(structure, callee, openParen) {
-  const tokens = structure.tokens;
-  const close = structure.pairs[openParen];
-  if (close < 0) return false;
-  const previous = tokens[callee - 1];
-  if (previous !== undefined) {
-    if (isPunct(previous, ';') || isPunct(previous, '{') || isPunct(previous, '}') || isPunct(previous, ')')) {
-      // `)` ends a control header (`if (x)`, `for (…)`, `while (…)`) or a parenthesized expression —
-      // either way a call after it starts a statement.
-    } else if (isId(previous, 'else')) {
-      // `else phase("…");`
-    } else if (isPunct(previous, ':')) {
-      let frame = structure.parent[callee];
-      let inSwitch = false;
-      while (frame >= 0) {
-        if (structure.kinds[frame] === FRAME_KINDS.SWITCH) {
-          inSwitch = true;
-          break;
-        }
-        frame = structure.parent[frame];
-      }
-      if (!inSwitch) return false;
-    } else {
-      return false;
-    }
-  }
-  const after = tokens[close + 1];
-  if (after === undefined || after.type === 'eof') return true;
-  if (isPunct(after, ';') || isPunct(after, '}')) return true;
-  return lineStartIndexOf(structure, after.start) > lineStartIndexOf(structure, tokens[close].start);
-}
-
-/**
- * The offset of the start of the line containing `offset`; used for automatic-semicolon boundaries.
- * @param {Structure} structure
- * @param {number} offset
- * @returns {number}
- */
-function lineStartIndexOf(structure, offset) {
-  const code = structure.code ?? '';
-  const index = code.lastIndexOf('\n', offset - 1);
-  return index + 1;
-}
-
-/**
- * Whether a token range contains a step: a subagent `ask` or a `world.run`.
- * @param {Structure} structure
- * @param {number} from
- * @param {number} to exclusive
- * @returns {boolean}
- */
-function containsStep(structure, from, to) {
-  const tokens = structure.tokens;
-  const limit = Math.min(to, tokens.length);
-  for (let i = Math.max(from, 1); i < limit; i += 1) {
-    if (isId(tokens[i], 'ask') && isPunct(tokens[i - 1], '.')) {
-      if (isPunct(tokens[i + 1], '(')) return true;
-      if (isPunct(tokens[i + 1], '<')) {
-        const range = typeArgumentRange(structure, i);
-        if (range !== null) return true;
-      }
-    }
-    if (isId(tokens[i], 'world') && isPunct(tokens[i + 1], '.') && isId(tokens[i + 2], 'run') && isPunct(tokens[i + 3], '(')) return true;
-    // A hole is a station of its own: its fill adds the asks, so a marker around it shows work.
-    if (isId(tokens[i], 'hole') && !isPunct(tokens[i - 1], '.') && !isPunct(tokens[i - 1], '?.')) {
-      if (isPunct(tokens[i + 1], '(')) return true;
-      if (isPunct(tokens[i + 1], '<') && typeArgumentRange(structure, i) !== null) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Names of local helpers whose bodies contain a step: a phase that only calls one of these still
- * shows work on the graph (ZCode counts inlined helpers).
- * @param {Structure} structure
- * @returns {Set<string>}
- */
-function collectStepHelperNames(structure) {
-  const tokens = structure.tokens;
-  /** @type {Set<string>} */
-  const names = new Set();
-
-  /** @param {number} from @param {number} max @returns {number} */
-  const nextFunctionBody = (from, max) => {
-    for (let i = from; i < tokens.length && i < from + max; i += 1) {
-      if (isPunct(tokens[i], '{')) return i;
-      if (isPunct(tokens[i], ';')) return -1;
-    }
-    return -1;
-  };
-
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (isId(tokens[i], 'function') && isIdentifier(tokens[i + 1])) {
-      const open = nextFunctionBody(i + 2, 40);
-      if (open < 0) continue;
-      const close = structure.pairs[open];
-      if (close > open && containsStep(structure, open, close)) names.add(String(tokens[i + 1].value));
-      continue;
-    }
-    if ((isId(tokens[i], 'const') || isId(tokens[i], 'let') || isId(tokens[i], 'var')) && isIdentifier(tokens[i + 1])) {
-      let equals = -1;
-      for (let j = i + 2; j < tokens.length && j < i + 40; j += 1) {
-        if (isPunct(tokens[j], '=')) {
-          equals = j;
-          break;
-        }
-        if (isPunct(tokens[j], ';')) break;
-      }
-      if (equals < 0) continue;
-      const open = nextFunctionBody(equals + 1, 40);
-      if (open < 0) continue;
-      const previous = tokens[open - 1];
-      if (!(isPunct(previous, '=>') || isPunct(previous, ')'))) continue;
-      const close = structure.pairs[open];
-      if (close > open && containsStep(structure, open, close)) names.add(String(tokens[i + 1].value));
-    }
-  }
-  return names;
-}
-
-/**
- * Whether a token range calls a local helper by name.
- * @param {Structure} structure
+ * 按顶层分隔符切分 token 区间。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
  * @param {number} from
  * @param {number} to
- * @param {string} name
+ * @param {string} separator
+ * @returns {{from: number, to: number}[]}
+ */
+function splitTopLevel(tokens, pairs, from, to, separator) {
+  /** @type {{from: number, to: number}[]} */
+  const parts = [];
+  let depth = 0;
+  let start = from;
+  for (let index = from; index < to; index += 1) {
+    const token = tokens[index];
+    if (token.kind !== 'punct') continue;
+    if (OPENERS.has(token.value)) depth += 1;
+    else if (CLOSER_TO_OPEN.has(token.value)) depth -= 1;
+    else if (token.value === separator && depth === 0) {
+      parts.push({ from: start, to: index });
+      start = index + 1;
+    }
+  }
+  if (start < to) parts.push({ from: start, to });
+  return parts.length === 0 ? [{ from, to }] : parts.filter((part) => part.to > part.from);
+}
+
+/* ================================================================================================
+ * 6. 结构分析：函数体、扇出回调、独立语句
+ * ============================================================================================== */
+
+/**
+ * `{` 是否是函数体（而不是 if/for/while/switch/catch 的块）。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} open
  * @returns {boolean}
  */
-function rangeCallsHelper(structure, from, to, name) {
-  const tokens = structure.tokens;
-  for (let i = Math.max(from, 1); i < Math.min(to, tokens.length); i += 1) {
-    if (!isId(tokens[i], name)) continue;
-    if (isPunct(tokens[i - 1], '.') || isPunct(tokens[i - 1], '?.')) continue;
-    if (isPunct(tokens[i + 1], '(')) return true;
+function isFunctionBody(tokens, pairs, open) {
+  const before = tokens[open - 1];
+  if (isPunct(before, '=>')) return true;
+  if (!isPunct(before, ')')) return false;
+  const paramsOpen = pairs.get(open - 1);
+  if (paramsOpen === undefined) return false;
+  const head = tokens[paramsOpen - 1];
+  if (head === undefined) return false;
+  if (isKeyword(head, 'function') || isKeyword(head, 'async')) return true;
+  if (isPunct(head, '*')) return true;
+  if (isIdent(head) || head.kind === 'keyword') {
+    // `name(...) {` 可能是方法定义，也可能是 if/for/while/switch/catch/with
+    const control = new Set(['if', 'for', 'while', 'switch', 'catch', 'with', 'do', 'else']);
+    return !control.has(String(head.value));
   }
   return false;
 }
 
 /**
- * Find a `primary: true` literal inside the object literal at a token range.
- * @param {Structure} structure
- * @param {{ start: number, end: number } | undefined} range
+ * 找出包住 `index` 的函数体（开括号下标），由内到外。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} index
+ * @returns {number[]}
+ */
+function enclosingFunctionBodies(tokens, pairs, index) {
+  /** @type {number[]} */
+  const bodies = [];
+  for (const [opener, closer] of pairs.entries()) {
+    if (!isPunct(tokens[opener], '{')) continue;
+    if (!(opener < index && index < closer)) continue;
+    if (isFunctionBody(tokens, pairs, opener)) bodies.push(opener);
+  }
+  return bodies.sort((a, b) => b - a);
+}
+
+/**
+ * 一个函数体是否属于某个扇出数组方法的回调（`xs.map(…)` / `Promise.all(xs.map(…))`）。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} bodyOpen
  * @returns {boolean}
  */
-function hasPrimaryTrue(structure, range) {
-  if (range === undefined) return false;
-  const tokens = structure.tokens;
-  if (!isPunct(tokens[range.start], '{')) return false;
-  const close = structure.pairs[range.start];
-  if (close < 0) return false;
-  for (let i = range.start + 1; i < close; i += 1) {
-    if (!isId(tokens[i], 'primary')) continue;
-    if (!isPunct(tokens[i + 1], ':')) continue;
-    return isId(tokens[i + 2], 'true');
+function isFanOutCallbackBody(tokens, pairs, bodyOpen) {
+  // body ← `=>` ← (参数表) ← 方法名 `.` … ；或 function 表达式
+  let cursor = bodyOpen - 1;
+  if (isPunct(tokens[cursor], '=>')) cursor -= 1;
+  if (isPunct(tokens[cursor], ')')) {
+    const paramsOpen = pairs.get(cursor);
+    if (paramsOpen === undefined) return false;
+    cursor = paramsOpen - 1;
+  }
+  // 箭头函数单参数形如 `item => {`
+  const callee = tokens[cursor];
+  if (!isIdent(callee)) return false;
+  if (!isPunct(tokens[cursor - 1], '.') && !isPunct(tokens[cursor - 1], '?.')) return false;
+  return FANOUT_METHODS.has(String(callee.value));
+}
+
+/** 数组方法集合：回调按元素并发执行。 */
+const FANOUT_METHODS = new Set([
+  'map', 'flatMap', 'forEach', 'filter', 'find', 'findIndex', 'findLast', 'findLastIndex',
+  'some', 'every', 'reduce', 'reduceRight', 'sort', 'toSorted', 'toReversed',
+]);
+
+/**
+ * 找出包住 `index` 的循环体（`for` / `while` / `do` 的块）。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} index
+ * @returns {boolean}
+ */
+function insideLoop(tokens, pairs, index) {
+  for (const [opener, closer] of pairs.entries()) {
+    if (!isPunct(tokens[opener], '{')) continue;
+    if (!(opener < index && index < closer)) continue;
+    const head = tokens[opener - 1];
+    if (isPunct(head, ')')) {
+      const open = pairs.get(opener - 1);
+      const keyword = tokens[(open ?? 0) - 1];
+      if (isKeyword(keyword, 'for') || isKeyword(keyword, 'while') || isKeyword(keyword, 'switch')) return true;
+    }
+    if (isKeyword(head, 'do')) return true;
   }
   return false;
 }
 
-/* ------------------------------------------------------------------------------------------------
- * Rule checks
- * ---------------------------------------------------------------------------------------------- */
-
 /**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {string} mode
+ * 找出包住 `index` 的条件分支体。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} index
+ * @returns {boolean}
  */
-function checkModuleSyntax(ctx, structure) {
-  const tokens = structure.tokens;
-  const DECLARATION_KEYWORDS = new Set(['const', 'let', 'var', 'function', 'class', 'interface', 'type', 'enum', 'namespace', 'module', 'abstract', 'async']);
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    if (!isIdentifier(token)) continue;
-    const value = String(token.value);
-    if (value === 'import') {
-      ctx.add(CODE.MODULE_SYNTAX, MESSAGES.importStatement, token.start);
-      continue;
+function insideBranch(tokens, pairs, index) {
+  for (const [opener, closer] of pairs.entries()) {
+    if (!isPunct(tokens[opener], '{')) continue;
+    if (!(opener < index && index < closer)) continue;
+    const head = tokens[opener - 1];
+    if (isPunct(head, ')')) {
+      const open = pairs.get(opener - 1);
+      const keyword = tokens[(open ?? 0) - 1];
+      if (isKeyword(keyword, 'if') || isKeyword(keyword, 'switch') || isKeyword(keyword, 'catch')) return true;
     }
-    if (value === 'export') {
-      ctx.add(CODE.MODULE_SYNTAX, MESSAGES.exportStatement, token.start);
-      continue;
-    }
-    if (value === 'declare' && DECLARATION_KEYWORDS.has(String(tokens[i + 1]?.value))) {
-      ctx.add(CODE.MODULE_SYNTAX, MESSAGES.declareModifier, token.start);
-    }
+    if (isKeyword(head, 'else')) return true;
   }
+  return false;
 }
 
 /**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Set<string>} declaredNames
+ * `phase("…")` 是否独立成句（前后都是语句边界）。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {number} callee 被调用的标识符下标
+ * @param {number} open `(` 的下标
+ * @returns {boolean}
  */
-function checkForbiddenApis(ctx, structure, declaredNames) {
-  const tokens = structure.tokens;
-  for (let i = 0; i < tokens.length; i += 1) {
-    const token = tokens[i];
-    if (token.type === 'str' || token.type === 'tpl') {
-      const text = String(token.value ?? '');
-      if (text.startsWith('node:')) ctx.add(CODE.FORBIDDEN_API, MESSAGES.forbiddenNodeModule(text), token.start);
-      continue;
-    }
-    if (!isIdentifier(token)) continue;
-    const value = String(token.value);
-    const previous = tokens[i - 1];
+function isStandaloneStatement(tokens, pairs, callee, open) {
+  const before = tokens[callee - 1];
+  const boundaryBefore = before === undefined
+    || isPunct(before, ';')
+    || isPunct(before, '{')
+    || isPunct(before, '}');
+  const close = pairs.get(open);
+  if (close === undefined) return false;
+  const after = tokens[close + 1];
+  const boundaryAfter = after === undefined
+    || isPunct(after, ';')
+    || isPunct(after, '}')
+    || after.line > tokens[close].line;
+  return boundaryBefore && boundaryAfter;
+}
 
-    if (FORBIDDEN_GLOBAL_NAMES.has(value)) {
-      if (isPunct(previous, '.') || isPunct(previous, '?.')) continue;
-      // Object keys (`{ process: true }`) and property definitions are not references.
-      if (isPunct(tokens[i + 1], ':') && (isPunct(previous, '{') || isPunct(previous, ','))) continue;
-      if (declaredNames.has(value)) continue;
-      ctx.add(CODE.FORBIDDEN_API, MESSAGES.forbiddenGlobal(value), token.start);
-      continue;
-    }
-
-    if (value === 'Date' || value === 'Math') {
-      if (isPunct(previous, '.') || isPunct(previous, '?.')) continue;
-      const entry = FORBIDDEN_STATIC_MEMBERS.find((candidate) => candidate.object === value && isId(tokens[i + 2], candidate.member) && isPunct(tokens[i + 1], '.') && isPunct(tokens[i + 3], '('));
-      if (entry !== undefined) {
-        ctx.add(CODE.FORBIDDEN_API, value === 'Date' ? MESSAGES.forbiddenClock : MESSAGES.forbiddenRandom, token.start);
+/**
+ * 名字是否被脚本自己声明（遮蔽 facade）。
+ * @param {object[]} tokens
+ * @returns {Set<string>}
+ */
+function collectDeclaredNames(tokens) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (isKeyword(token, 'const') || isKeyword(token, 'let') || isKeyword(token, 'var')) {
+      let cursor = index + 1;
+      while (isIdent(tokens[cursor])) {
+        names.add(String(tokens[cursor].value));
+        cursor += 1;
+        if (isPunct(tokens[cursor], ',')) {
+          cursor += 1;
+          continue;
+        }
+        break;
       }
       continue;
     }
-
-    if (value === 'eval' && isPunct(tokens[i + 1], '(') && !isPunct(previous, '.')) {
-      ctx.add(CODE.FORBIDDEN_API, MESSAGES.forbiddenEval, token.start);
-      continue;
-    }
-    if (value === 'new' && isId(tokens[i + 1], 'Function')) {
-      ctx.add(CODE.FORBIDDEN_API, MESSAGES.forbiddenFunctionConstructor, tokens[i + 1].start);
-    }
-  }
-}
-
-/**
- * 9001: a facade callable taken as a value instead of called.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Set<string>} declaredNames
- */
-function checkFacadeMisuse(ctx, structure, declaredNames) {
-  if (structure.tokens.length > 4000) return; // large scripts: skip the O(n) heuristic
-  const tokens = structure.tokens;
-  const CALLABLES = new Set(['agent', 'phase', 'report', 'hole', 'model', 'log', 'channel', 'future']);
-
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (!isIdentifier(tokens[i])) continue;
-    const value = String(tokens[i].value);
-    if (!CALLABLES.has(value)) continue;
-    if (declaredNames.has(value)) continue;
-    if (isPunct(tokens[i - 1], '.') || isPunct(tokens[i - 1], '?.')) continue;
-    if (isPunct(tokens[i + 1], '(')) continue; // called directly: fine
-    if (typeArgumentRange(structure, i) !== null) continue; // `channel<T>(…)`: still called directly
-    if (isPunct(tokens[i + 1], ':')) continue; // object key or label
-
-    const previous = tokens[i - 1];
-    // `const f = phase;` / `f = phase;`
-    const declarationLike = isPunct(previous, '=') || isPunct(previous, ',') || isPunct(previous, '(') ||
-      isPunct(previous, '[') || isPunct(previous, ':') ||
-      isId(previous, 'return') || isId(previous, 'await') || isId(previous, 'typeof');
-    if (!declarationLike) continue;
-    // A type position (`typeof phase`, `Array<typeof phase>`) is not a reference.
-    if (structure.kinds[structure.parent[i]] === FRAME_KINDS.PARAMS) continue;
-    ctx.add(CODE.FACADE_MISUSE, MESSAGES.facadeMisuse(value), tokens[i].start);
-  }
-}
-
-/**
- * 9004: phase markers, plus coverage.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {string} mode
- * @returns {{ markers: { name?: string, callee: number, blockEnd: number }[] }}
- */
-function checkPhases(ctx, structure, mode) {
-  const tokens = structure.tokens;
-  /** @type {{ name?: string, callee: number, blockEnd: number }[]} */
-  const markers = [];
-  if (mode !== 'workflow') return { markers };
-
-  for (const call of findBareCalls(structure, 'phase')) {
-    const args = callArguments(structure, call.openParen);
-    let name;
-    if (args.length === 0) {
-      ctx.add(CODE.PHASE, MESSAGES.phaseLiteral, tokens[call.openParen].start);
-    } else {
-      const token = singleToken(tokens, args[0]);
-      name = literalText(token);
-      if (name === undefined) {
-        ctx.add(CODE.PHASE, MESSAGES.phaseLiteral, tokens[args[0].start].start);
-      } else if (name.trim() === '') {
-        ctx.add(CODE.PHASE, MESSAGES.phaseEmpty, tokens[args[0].start].start);
+    if (isKeyword(token, 'function') && isIdent(tokens[index + 1])) names.add(String(tokens[index + 1].value));
+    if (isKeyword(token, 'class') && isIdent(tokens[index + 1])) names.add(String(tokens[index + 1].value));
+    if (isKeyword(token, 'interface') && isIdent(tokens[index + 1])) names.add(String(tokens[index + 1].value));
+    if (isKeyword(token, 'type') && isIdent(tokens[index + 1])) names.add(String(tokens[index + 1].value));
+    // 函数/箭头参数
+    if ((isIdent(token) || isPunct(token, ')')) && isPunct(tokens[index + 1], '=>')) {
+      const previous = tokens[index];
+      let paramStart = index;
+      if (isPunct(previous, ')')) {
+        // 参数表
+        let depth = 0;
+        for (let back = index; back >= 0; back -= 1) {
+          if (isPunct(tokens[back], ')')) depth += 1;
+          else if (isPunct(tokens[back], '(')) {
+            depth -= 1;
+            if (depth === 0) {
+              paramStart = back + 1;
+              break;
+            }
+          }
+        }
       }
-    }
-    if (!isStandaloneStatement(structure, call.callee, call.openParen)) {
-      ctx.add(CODE.PHASE, MESSAGES.phaseStandalone, tokens[call.callee].start);
-    }
-    if (name !== undefined && name.trim() !== '') {
-      markers.push({ name, callee: call.callee, blockEnd: enclosingBlockEnd(structure, call.callee) });
-    }
-  }
-
-  if (markers.length === 0) {
-    ctx.add(CODE.PHASE, MESSAGES.phaseMissing, 0);
-    return { markers };
-  }
-
-  const helperNames = collectStepHelperNames(structure);
-  /** @type {Map<string, { name: string, callee: number, blockEnd: number }[]>} */
-  const groups = new Map();
-  for (const marker of markers) {
-    const list = groups.get(marker.name) ?? [];
-    list.push(marker);
-    groups.set(marker.name, list);
-  }
-  for (const [name, group] of groups) {
-    const covered = group.some((marker) => {
-      if (containsStep(structure, marker.callee, marker.blockEnd)) return true;
-      for (const helper of helperNames) {
-        if (rangeCallsHelper(structure, marker.callee, marker.blockEnd, helper)) return true;
+      for (let cursor = paramStart; cursor <= index; cursor += 1) {
+        if (isIdent(tokens[cursor])) names.add(String(tokens[cursor].value));
       }
-      return false;
-    });
-    if (!covered) {
-      ctx.add(
-        CODE.PHASE,
-        `phase("${name}") has no ask(...) or world.run(...) in the steps it covers: plain script logic is not a stage, so this marker adds a node that shows no progress. Fold it into the phase before or after it, or give it the step that belongs to it.`,
-        tokens[group[0].callee].start,
-        'warning',
-      );
-    }
-  }
-  return { markers };
-}
-
-/**
- * 9005 / 9006: agent names.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {string} mode
- * @param {Set<string>} declaredNames
- * @returns {string[]} literal names in source order, deduped
- */
-function checkAgents(ctx, structure, mode, declaredNames) {
-  if (mode !== 'workflow' || declaredNames.has('agent')) return [];
-  const tokens = structure.tokens;
-  /** @type {Map<string, number>} */
-  const firstSeen = new Map();
-  /** @type {string[]} */
-  const names = [];
-  for (const call of findBareCalls(structure, 'agent')) {
-    const args = callArguments(structure, call.openParen);
-    if (args.length === 0) continue;
-    const name = literalText(singleToken(tokens, args[0]));
-    if (name === undefined || name.length === 0) continue; // computed or anonymous: allowed
-    const previous = firstSeen.get(name);
-    if (previous !== undefined) {
-      ctx.add(CODE.DUPLICATE_AGENT, MESSAGES.duplicateActor(name, ctx.lineAt(tokens[previous].start)), tokens[call.callee].start);
-    } else {
-      firstSeen.set(name, call.callee);
-      names.push(name);
-    }
-    if (isInsideFanOutCallback(structure, call.callee)) {
-      ctx.add(CODE.FIXED_ACTOR_NAME, MESSAGES.actorInFanOut(name), tokens[call.callee].start);
     }
   }
   return names;
 }
 
-/**
- * 9003: world.run command literals.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {Set<string>} declaredNames
- * @returns {string[]} literal commands, source order, deduped
- */
-function checkWorldCommands(ctx, structure, declaredNames) {
-  if (declaredNames.has('world')) return [];
-  const tokens = structure.tokens;
-  /** @type {string[]} */
-  const commands = [];
-  for (const call of findMemberCalls(structure, 'world', 'run')) {
-    const args = callArguments(structure, call.openParen);
-    const command = args.length === 0 ? undefined : literalText(singleToken(tokens, args[0]));
-    if (command === undefined) {
-      ctx.add(CODE.WORLD_COMMAND, MESSAGES.worldLiteral, args.length === 0 ? tokens[call.openParen].start : tokens[args[0].start].start);
-      continue;
-    }
-    if (!commands.includes(command)) commands.push(command);
-  }
-  return commands;
-}
+/* ================================================================================================
+ * 7. 站点收集 + 校验
+ * ============================================================================================== */
 
 /**
- * 9007 / 9008 / 9009: artifact declarations, preset placement and report tags.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {string} mode
- * @returns {{ artifacts: { id: string, kind: string, primary: boolean }[] }}
- */
-function checkArtifactsAndReports(ctx, structure, mode) {
-  if (mode !== 'workflow') return { artifacts: [] };
-  const tokens = structure.tokens;
-  /** @type {Map<string, { kind: string, line: number, primary: boolean }>} */
-  const declared = new Map();
-  /** @type {{ id: string, kind: string, primary: boolean }[]} */
-  const artifacts = [];
-  /** @type {{ id: string, kind: string, line: number, nameToken: number } | undefined} */
-  let primarySite;
-
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (!isId(tokens[i], 'artifact')) continue;
-    if (isPunct(tokens[i - 1], '.') || isPunct(tokens[i - 1], '?.')) continue;
-    if (!(isPunct(tokens[i + 1], '.') || isPunct(tokens[i + 1], '?.'))) continue;
-    if (!isIdentifier(tokens[i + 2])) continue;
-    if (!isPunct(tokens[i + 3], '(')) continue;
-
-    const kind = String(tokens[i + 2].value);
-    const openParen = i + 3;
-    if (!ARTIFACT_KINDS.has(kind)) {
-      ctx.add(CODE.ARTIFACT, MESSAGES.artifactUnknownKind(kind), tokens[i + 2].start);
-      continue;
-    }
-    const args = callArguments(structure, openParen);
-    const id = args.length === 0 ? undefined : literalText(singleToken(tokens, args[0]));
-    if (id === undefined) {
-      ctx.add(CODE.ARTIFACT, MESSAGES.artifactIdLiteral, args.length === 0 ? tokens[openParen].start : tokens[args[0].start].start);
-      continue;
-    }
-    const idOffset = tokens[args[0].start].start;
-    if (id.length === 0) {
-      ctx.add(CODE.ARTIFACT, MESSAGES.artifactIdEmpty, idOffset);
-      continue;
-    }
-    if (id.length > MAX_ARTIFACT_ID_LENGTH) {
-      ctx.add(CODE.ARTIFACT, MESSAGES.artifactIdLong(id, id.length, MAX_ARTIFACT_ID_LENGTH), idOffset);
-      continue;
-    }
-    if (!ARTIFACT_ID_PATTERN.test(id)) {
-      ctx.add(CODE.ARTIFACT, MESSAGES.artifactIdCharacters(id), idOffset);
-      continue;
-    }
-
-    const previous = declared.get(id);
-    if (previous !== undefined && previous.kind !== kind) {
-      ctx.add(CODE.ARTIFACT, MESSAGES.artifactKindConflict(id, previous.kind, previous.line, kind), idOffset);
-      continue;
-    }
-
-    const primary = hasPrimaryTrue(structure, PRESET_ARTIFACT_KINDS.has(kind) ? args[1] : args[2]);
-    if (primary) {
-      if (primarySite === undefined) {
-        primarySite = { id, kind, line: ctx.lineAt(idOffset), nameToken: args[0].start };
-      } else if (primarySite.id !== id) {
-        ctx.add(CODE.ARTIFACT, MESSAGES.artifactPrimaryConflict(id, primarySite.id, primarySite.kind, primarySite.line), idOffset);
-      }
-    }
-
-    if (PRESET_ARTIFACT_KINDS.has(kind) && !isTopLevel(structure, i)) {
-      const context = presetHoistingContext(structure, i);
-      ctx.add(CODE.PRESET_PLACEMENT, context === 'callback' ? MESSAGES.presetInCallback : context === 'loop' ? MESSAGES.presetInLoop : MESSAGES.presetInBranch, tokens[i].start);
-    }
-
-    if (previous === undefined) {
-      declared.set(id, { kind, line: ctx.lineAt(idOffset), primary });
-      artifacts.push({ id, kind, primary });
-    } else if (primary && !previous.primary) {
-      previous.primary = true;
-      const entry = artifacts.find((candidate) => candidate.id === id);
-      if (entry !== undefined) entry.primary = true;
-    }
-  }
-
-  // report(item, "tag")
-  const presetIds = [...declared.entries()].filter(([, value]) => PRESET_ARTIFACT_KINDS.has(value.kind)).map(([id]) => id);
-  const presetsText = presetIds.length === 0
-    ? MESSAGES.reportTagNoPresets
-    : ` (declared presets: ${[...presetIds].sort().map((id) => `"${id}"`).join(', ')})`;
-  for (const call of findBareCalls(structure, 'report')) {
-    const args = callArguments(structure, call.openParen);
-    if (args.length < 2) continue;
-    const tagToken = singleToken(tokens, args[1]);
-    // `report(item, undefined)` / `report(item, null)` is a legal spelling of "no tag".
-    if (tagToken !== undefined && tagToken.type === 'id' && (tagToken.value === 'undefined' || tagToken.value === 'null')) continue;
-    if (tagToken === undefined && args[1].end - args[1].start === 2 && isId(tokens[args[1].start], 'void')) continue;
-    const tag = literalText(tagToken);
-    if (tag === undefined) {
-      ctx.add(CODE.REPORT_TAG, MESSAGES.reportTagLiteral, tokens[args[1].start].start);
-      continue;
-    }
-    const artifact = declared.get(tag);
-    if (artifact === undefined) {
-      ctx.add(CODE.REPORT_TAG, MESSAGES.reportTagUnknown(tag, presetsText), tokens[args[1].start].start, 'warning');
-      continue;
-    }
-    if (!PRESET_ARTIFACT_KINDS.has(artifact.kind)) {
-      ctx.add(CODE.REPORT_TAG, MESSAGES.reportTagContent(tag), tokens[args[1].start].start);
-    }
-  }
-
-  return { artifacts };
-}
-
-/**
- * Where a preset artifact was declared: a callback body, a loop body, or a conditional branch.
- * @param {Structure} structure
+ * 判断一个标识符 token 是不是「作为值被读取」（前缀/后缀 `.`、属性名、声明名都不算）。
+ * @param {object[]} tokens
  * @param {number} index
- * @returns {'callback'|'loop'|'branch'}
+ * @returns {boolean}
  */
-function presetHoistingContext(structure, index) {
-  let frame = structure.parent[index];
-  while (frame >= 0) {
-    const kind = structure.kinds[frame];
-    if (kind === FRAME_KINDS.LOOP) return 'loop';
-    if (kind === FRAME_KINDS.BRANCH || kind === FRAME_KINDS.CATCH || kind === FRAME_KINDS.SWITCH) return 'branch';
-    if (kind === FRAME_KINDS.FUNCTION) return 'callback';
-    frame = structure.parent[frame];
-  }
-  return 'branch';
+function isValueRead(tokens, index) {
+  const before = tokens[index - 1];
+  const after = tokens[index + 1];
+  if (isPunct(before, '.') || isPunct(before, '?.') || isPunct(before, '#')) return false;
+  if (isPunct(before, ':') && isPunct(tokens[index - 2], '{')) return false;
+  if (isPunct(after, ':') && (isPunct(tokens[index - 2], '{') || isPunct(tokens[index - 2], ','))) return false;
+  if (isKeyword(before, 'const') || isKeyword(before, 'let') || isKeyword(before, 'var')) return false;
+  if (isKeyword(before, 'function') || isKeyword(before, 'class')) return false;
+  if (isKeyword(before, 'interface') || isKeyword(before, 'type')) return false;
+  return true;
 }
+
+/** facade 里「只能直接调用」的函数名（`agent/phase/report/hole/log/channel/future/model`）。 */
+const FACADE_CALLABLES = new Set(['agent', 'phase', 'report', 'hole', 'log', 'channel', 'future', 'model']);
+
+/** 片段（snippet）里不存在的 facade 名。 */
+const SNIPPET_ABSENT = new Set(['agent', 'phase', 'report', 'artifact', 'hole', 'model']);
 
 /**
- * 9012: hole() rules.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {string} mode
- * @param {{ name?: string }[]} phaseMarkers
- */
-function checkHoles(ctx, structure, mode, phaseMarkers) {
-  if (mode !== 'workflow') return;
-  const tokens = structure.tokens;
-  const phaseNames = new Set((phaseMarkers ?? []).map((marker) => marker.name).filter((name) => name !== undefined));
-  /** @type {Map<string, number>} */
-  const holes = new Map();
-
-  for (const call of findBareCalls(structure, 'hole')) {
-    const typeRange = typeArgumentRange(structure, call.callee);
-    if (typeRange === null) {
-      ctx.add(CODE.HOLE, MESSAGES.holeTypeArgument, tokens[call.callee].start);
-    } else {
-      // Models named in a hole type are checked at fill time; only the presence matters here.
-    }
-
-    const args = callArguments(structure, call.openParen);
-    let name;
-    if (args.length === 0) {
-      ctx.add(CODE.HOLE, MESSAGES.holeNameLiteral, tokens[call.openParen].start);
-    } else {
-      name = literalText(singleToken(tokens, args[0]));
-      if (name === undefined) {
-        ctx.add(CODE.HOLE, MESSAGES.holeNameLiteral, tokens[args[0].start].start);
-      } else if (name.trim() === '') {
-        ctx.add(CODE.HOLE, MESSAGES.holeNameEmpty, tokens[args[0].start].start);
-      } else if (name.length > MAX_HOLE_NAME_LENGTH) {
-        ctx.add(CODE.HOLE, MESSAGES.holeNameLong(MAX_HOLE_NAME_LENGTH), tokens[args[0].start].start);
-      }
-    }
-
-    if (name !== undefined && name.trim() !== '' && name.length <= MAX_HOLE_NAME_LENGTH) {
-      if (phaseNames.has(name)) {
-        ctx.add(CODE.HOLE, MESSAGES.holePhaseCollision(name), tokens[call.callee].start);
-      } else if (holes.has(name)) {
-        ctx.add(CODE.HOLE, MESSAGES.holeDuplicate(name), tokens[call.callee].start);
-      } else {
-        holes.set(name, call.callee);
-      }
-    }
-
-    if (!isId(tokens[call.callee - 1], 'await')) {
-      ctx.add(CODE.HOLE, MESSAGES.holeNotAwaited, tokens[call.callee].start);
-    }
-    if (isInsideFanOutCallback(structure, call.callee)) {
-      ctx.add(CODE.HOLE, MESSAGES.holeInFanOut, tokens[call.callee].start);
-    }
-
-    // The body, when passed, must be an inline async arrow rather than a held reference.
-    const bodyRange = args.length === 3 ? args[2] : args.length === 2 ? args[1] : undefined;
-    if (bodyRange !== undefined) {
-      const bodyToken = singleToken(tokens, bodyRange);
-      if (bodyToken !== undefined && bodyToken.type === 'id') {
-        ctx.add(CODE.HOLE, MESSAGES.holeBodyNotArrow, bodyToken.start);
-      }
-    }
-  }
-}
-
-/**
- * String constants the script declares at any scope: `const MODEL = "provider/model" as const;`.
- * A model name written once and reused keeps working without forcing it back inline.
- * @param {Structure} structure
- * @returns {Map<string, string>}
- */
-function collectStringConstants(structure) {
-  const tokens = structure.tokens;
-  /** @type {Map<string, string>} */
-  const constants = new Map();
-  for (let i = 0; i < tokens.length; i += 1) {
-    if (!isId(tokens[i], 'const') || !isIdentifier(tokens[i + 1])) continue;
-    if (!isPunct(tokens[i + 2], '=')) continue;
-    const value = literalText(tokens[i + 3]);
-    if (value === undefined) continue;
-    const after = tokens[i + 4];
-    const endsValue = after === undefined || after.type === 'eof' || isPunct(after, ';') ||
-      isPunct(after, ',') || isPunct(after, '}') || isId(after, 'as');
-    if (!endsValue) continue;
-    constants.set(String(tokens[i + 1].value), value);
-  }
-  return constants;
-}
-
-/**
- * 9011: model() takes a literal model name.
- * @param {object} ctx
- * @param {Structure} structure
- * @param {string} mode
- */
-function checkModels(ctx, structure, mode) {
-  if (mode !== 'workflow') return;
-  const tokens = structure.tokens;
-  const stringConstants = collectStringConstants(structure);
-  for (const call of findBareCalls(structure, 'model')) {
-    const args = callArguments(structure, call.openParen);
-    let name = args.length === 0 ? undefined : literalText(singleToken(tokens, args[0]));
-    if (name === undefined && args.length > 0 && args[0].end - args[0].start === 1 && isIdentifier(tokens[args[0].start])) {
-      // `const MODEL = "provider/model" as const; model(MODEL)` is still a literal model name.
-      name = stringConstants.get(String(tokens[args[0].start].value));
-    }
-    if (name === undefined || name.trim() === '') {
-      ctx.add(CODE.UNSUPPORTED, MESSAGES.modelLiteral, args.length === 0 ? tokens[call.openParen].start : tokens[args[0].start].start);
-    }
-  }
-}
-
-/**
- * 9002: facade callables that do not exist in a snippet.
- * @param {object} ctx
- * @param {Structure} structure
- */
-function checkSnippetFacade(ctx, structure) {
-  for (const name of SNIPPET_FORBIDDEN_GLOBALS) {
-    for (const call of findBareCalls(structure, name)) {
-      ctx.add(CODE.FORBIDDEN_API, MESSAGES.snippetAbsent(name), structure.tokens[call.callee].start);
-    }
-  }
-}
-/* ------------------------------------------------------------------------------------------------
- * `ask<T>` schema markers
+ * 分析 + 校验。
  *
- * `stripTypeScriptTypes` erases type arguments, so the runtime would never learn which interface an
- * `ask` answer must satisfy. Before transpiling, every `.ask<T>(` site is rewritten to
- * `.ask(__zcodeSchema("T"), ` (arrays become `"T[]"`), and the schema is returned in `interfaces`
- * under both the bare name and that exact marker key. The rewrite is textual, but driven by the
- * token stream, so nothing inside a comment, string or template literal is touched.
- * ---------------------------------------------------------------------------------------------- */
-
-/**
+ * 返回所有站点（供 lowering 用）与结构化事实；诊断按 `{code, line, column, message}` 收集。
+ *
  * @param {string} code
- * @param {{ start: number, end: number, text: string }[]} edits
- * @returns {string}
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {'workflow'|'snippet'} mode
+ * @returns {{diagnostics: object[], sites: object[], types: Map<string, object>}}
  */
-function applyEdits(code, edits) {
-  if (edits.length === 0) return code;
-  const ordered = [...edits].sort((left, right) => left.start - right.start);
-  let output = '';
-  let cursor = 0;
-  for (const edit of ordered) {
-    if (edit.start < cursor) continue; // overlapping edit: keep the first
-    output += code.slice(cursor, edit.start);
-    output += edit.text;
-    cursor = edit.end;
-  }
-  output += code.slice(cursor);
-  return output;
-}
+function analyze(code, tokens, pairs, mode) {
+  /** @type {object[]} */
+  const diagnostics = [];
+  const report = (code_, token, message) => {
+    diagnostics.push({ code: code_, line: token?.line ?? 1, column: token?.column ?? 1, message });
+  };
 
-/**
- * @typedef {object} SchemaRewrite
- * @property {{ start: number, end: number, text: string }[]} edits
- * @property {Map<string, object>} markerSchemas marker key -> schema
- */
-
-/**
- * @param {object} ctx
- * @param {Structure} structure
- * @param {(name: string) => { ok: boolean, schema?: object, reason?: string }} schemaOf
- * @returns {SchemaRewrite}
- */
-function rewriteAskSites(ctx, structure, schemaOf) {
-  const tokens = structure.tokens;
-  /** @type {{ start: number, end: number, text: string }[]} */
-  const edits = [];
+  const declared = collectDeclaredNames(tokens);
+  const typeDecls = collectTypeDeclarations(tokens, pairs);
   /** @type {Map<string, object>} */
-  const markerSchemas = new Map();
+  const interfaces = new Map();
+  const isFacadeFree = (name) => !declared.has(name);
 
-  for (let i = 1; i < tokens.length; i += 1) {
-    if (!isPunct(tokens[i], '.') && !isPunct(tokens[i], '?.')) continue;
-    if (!isId(tokens[i + 1], 'ask')) continue;
-    const range = typeArgumentRange(structure, i + 1);
-    if (range === null) continue;
-    const openParen = range.close + 1;
+  /** @type {object[]} */
+  const sites = [];
+  /** @type {object[]} */
+  const phases = [];
+  /** @type {{name: string, line: number}[]} */
+  const actorLiterals = [];
+  /** @type {string[]} */
+  const holeNames = [];
+  const holeSiteIds = new Map();
+  /** @type {Map<string, {op: string, line: number}>} */
+  const artifactIds = new Map();
 
-    const inner = tokens.slice(range.open + 1, range.close);
-    const typeText = inner.map((token) => token.raw ?? String(token.value ?? '')).join('');
-    let name;
-    let isArray = false;
-    if (inner.length === 1 && isIdentifier(inner[0])) {
-      name = String(inner[0].value);
-    } else if (inner.length === 3 && isIdentifier(inner[0]) && isPunct(inner[1], '[') && isPunct(inner[2], ']')) {
-      name = String(inner[0].value);
-      isArray = true;
-    } else if (inner.length === 4 && isId(inner[0], 'Array') && isPunct(inner[1], '<') && isIdentifier(inner[2]) && isPunct(inner[3], '>')) {
-      name = String(inner[2].value);
-      isArray = true;
-    }
+  /** phase 语句的位置（名字 + 括号结束处），用于推导站点所属阶段 */
+  const phaseMarkers = [];
+  const counters = new SiteCounters();
 
-    if (name === undefined) {
-      ctx.add(CODE.UNSUPPORTED, MESSAGES.askTypeUnsupported(typeText.trim()), tokens[range.open].start);
+  // —— 第一遍：模块语法 / 禁止 API / facade 取引用 ——
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (isKeyword(token, 'declare')) {
+      report(CODE.MODULE_SYNTAX, token, DIAGNOSTIC_MESSAGES.declareModifier);
       continue;
     }
-
-    const resolved = schemaOf(name);
-    if (!resolved.ok) {
-      const declared = resolved.reason !== undefined && resolved.reason.includes('is not declared in this script');
-      ctx.add(
-        CODE.UNSUPPORTED,
-        declared ? MESSAGES.askTypeUndeclared(name) : `ask<${isArray ? `${name}[]` : name}> cannot be validated: ${resolved.reason ?? 'its type cannot be turned into a schema'}.`,
-        tokens[range.open].start,
-      );
+    if (isKeyword(token, 'export')) {
+      report(CODE.MODULE_SYNTAX, token, DIAGNOSTIC_MESSAGES.exportStatement);
       continue;
     }
-
-    const marker = isArray ? `${name}[]` : name;
-    const markerSchema = isArray ? { type: 'array', items: resolved.schema } : resolved.schema;
-    if (!markerSchemas.has(marker)) markerSchemas.set(marker, markerSchema);
-    if (isArray && !markerSchemas.has(name)) markerSchemas.set(name, resolved.schema);
-
-    edits.push({
-      start: tokens[range.open].start,
-      end: tokens[openParen].end,
-      text: `(__zcodeSchema(${JSON.stringify(marker)}), `,
-    });
+    if (isKeyword(token, 'import')) {
+      report(CODE.MODULE_SYNTAX, token, DIAGNOSTIC_MESSAGES.importStatement);
+      continue;
+    }
+    if (token.kind !== 'ident') continue;
+    const name = String(token.value);
+    // 禁止的全局
+    if (isFacadeFree(name) && (name === 'process' || name === 'require' || name === 'fetch' || name === 'fs')) {
+      if (isValueRead(tokens, index)) report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenGlobal(name));
+      continue;
+    }
+    if (isFacadeFree(name) && name === 'eval' && !isPunct(tokens[index - 1], '=>')) {
+      report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenEval);
+      continue;
+    }
+    if (isFacadeFree(name) && name === 'Function' && isKeyword(tokens[index - 1], 'new')) {
+      report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenGlobal('the Function constructor'));
+      continue;
+    }
+    // Date.now() / Math.random()
+    if (isFacadeFree(name) && name === 'Date' && isPunct(tokens[index + 1], '.') && isIdent(tokens[index + 2], 'now')) {
+      report(CODE.FORBIDDEN_API, tokens[index + 2], DIAGNOSTIC_MESSAGES.forbiddenClock);
+      continue;
+    }
+    if (isFacadeFree(name) && name === 'Math' && isPunct(tokens[index + 1], '.') && isIdent(tokens[index + 2], 'random')) {
+      report(CODE.FORBIDDEN_API, tokens[index + 2], DIAGNOSTIC_MESSAGES.forbiddenRandom);
+      continue;
+    }
+    // facade 取引用（9001）
+    if (FACADE_CALLABLES.has(name) && isFacadeFree(name)) {
+      const next = tokens[index + 1];
+      const isCall = isPunct(next, '(');
+      if (!isCall && isValueRead(tokens, index)) report(CODE.FACADE_MISUSE, token, DIAGNOSTIC_MESSAGES.facadeReturned(name));
+    }
+    // 片段里不存在的 facade（9001）
+    if (mode === 'snippet' && SNIPPET_ABSENT.has(name) && isFacadeFree(name) && isPunct(tokens[index + 1], '(')) {
+      report(CODE.FACADE_MISUSE, token, DIAGNOSTIC_MESSAGES.snippetAbsent(name));
+    }
   }
 
-  return { edits, markerSchemas };
-}
+  // —— 第二遍：站点收集 + 各规则 ——
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.kind !== 'ident') continue;
+    const name = String(token.value);
+    const open = index + 1;
+    if (!isPunct(tokens[open], '(')) continue;
+    const close = pairs.get(open);
+    if (close === undefined) continue;
+    const args = callArguments(tokens, pairs, open);
+    const shadowed = declared.has(name);
 
-/* ------------------------------------------------------------------------------------------------
- * Transpile
- * ---------------------------------------------------------------------------------------------- */
+    // agent(name?, persona?)
+    if (name === 'agent' && !shadowed) {
+      const siteId = counters.next('actor');
+      const nameArg = args[0];
+      const literalName = nameArg === undefined ? undefined : literalText(tokens[nameArg.from]);
+      const site = {
+        kind: 'actor',
+        id: siteId,
+        callee: index,
+        open,
+        close,
+        line: token.line,
+        args,
+        name: literalName,
+        persona: args[1] === undefined ? undefined : rangeText(code, tokens, args[1].from, args[1].to),
+      };
+      sites.push(site);
+      if (literalName !== undefined) {
+        if (literalName !== '') actorLiterals.push({ name: literalName, line: token.line });
+        if (literalName !== '' && isInsideFanOut()) report(CODE.FIXED_ACTOR_NAME, token, DIAGNOSTIC_MESSAGES.fixedActorName(literalName));
+      }
+      // persona.model 必须是字面量或 ModelRef（9010）
+      checkPersonaModel(site, token);
+      continue;
+    }
 
-/**
- * Parse the line/column amaro puts on the first line of a syntax error's stack (`:12` / `:12:7`).
- * @param {unknown} error
- * @returns {{ line: number, column: number } | null}
- */
-function parseSyntaxErrorPosition(error) {
-  const stack = String(error?.stack ?? '');
-  const lines = stack.split('\n');
-  const header = /^:(\d+)(?::(\d+))?$/u.exec(lines[0] ?? '');
-  if (header === null) return null;
-  const line = Number(header[1]);
-  let column = header[2] === undefined ? 1 : Number(header[2]);
-  // amaro's snippet puts a caret line (`      ^^^^^`) under the offending span; its offset is the
-  // only column information the error carries.
-  if (header[2] === undefined) {
-    for (let index = 1; index < lines.length; index += 1) {
-      const snippetLine = lines[index];
-      if (/^SyntaxError\b/u.test(snippetLine) || /^\s+at\s/u.test(snippetLine)) break;
-      const match = /^([ \t]*)[\^~]+[ \t]*$/u.exec(snippetLine);
-      if (match !== null) {
-        column = match[1].length + 1;
+    // a.ask(…) / a.ask<T>(…)
+    if (name === 'ask' && !shadowed && isPunct(tokens[index - 1], '.') || (name === 'ask' && isPunct(tokens[index - 1], '?.'))) {
+      const receiverEnd = index - 1;
+      const receiverStart = expressionStart(tokens, pairs, receiverEnd - 1);
+      const siteId = counters.next('ask');
+      const spec = askSpecAt(index, open);
+      sites.push({
+        kind: 'ask',
+        id: siteId,
+        callee: index,
+        open,
+        close,
+        line: token.line,
+        args,
+        receiverStart,
+        receiverEnd,
+        optional: isPunct(tokens[index - 1], '?.'),
+        ...spec,
+      });
+      continue;
+    }
+
+    // hole<T>(…)
+    if (name === 'hole' && !shadowed) {
+      // 类型参数
+      let typeArgFrom = -1;
+      let typeArgTo = -1;
+      let callOpen = open;
+      if (isPunct(tokens[open], '<')) {
+        typeArgFrom = open + 1;
+        let depth = 0;
+        for (let cursor = open; cursor < tokens.length; cursor += 1) {
+          if (isPunct(tokens[cursor], '<')) depth += 1;
+          else if (isPunct(tokens[cursor], '>')) {
+            depth -= 1;
+            if (depth === 0) {
+              typeArgTo = cursor;
+              callOpen = cursor + 1;
+              break;
+            }
+          }
+        }
+      }
+      if (callOpen === open || !isPunct(tokens[callOpen], '(')) {
+        report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeTypeArgument);
+        continue;
+      }
+      const holeArgs = callArguments(tokens, pairs, callOpen);
+      const holeClose = pairs.get(callOpen);
+      if (typeArgFrom < 0) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeTypeArgument);
+      const nameToken = holeArgs[0] === undefined ? undefined : tokens[holeArgs[0].from];
+      const literalName = literalText(nameToken);
+      if (literalName === undefined) report(CODE.HOLE, nameToken ?? token, DIAGNOSTIC_MESSAGES.holeNameLiteral);
+      else if (literalName.trim() === '') report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeNameEmpty);
+      else if (literalName.length > 128) report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeNameLong(128));
+      if (literalName !== undefined && literalName.trim() !== '') {
+        const trimmed = literalName.trim();
+        if (phases.some((phase) => phase.name === trimmed)) report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holePhaseCollision(trimmed));
+        if (holeNames.includes(trimmed)) report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeDuplicate(trimmed));
+        holeNames.push(trimmed);
+        const siteId = `hole#${fnv1a(trimmed)}`;
+        if (holeSiteIds.has(siteId) && holeSiteIds.get(siteId) !== trimmed) {
+          report(CODE.HOLE, nameToken, DIAGNOSTIC_MESSAGES.holeIdCollision(holeSiteIds.get(siteId), trimmed));
+        }
+        holeSiteIds.set(siteId, trimmed);
+      }
+      // await 与扇出位置
+      if (!isKeyword(tokens[index - 1], 'await')) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeNotAwaited);
+      if (isInsideFanOut()) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeInFanOut);
+      // body 必须是内联箭头
+      const bodyArg = holeArgs.length >= 3 ? holeArgs[2] : (holeArgs.length === 2 && isFunctionArgument(tokens, holeArgs[1]) ? holeArgs[1] : undefined);
+      if (bodyArg !== undefined && !isArrowFunctionArgument(tokens, bodyArg)) {
+        report(CODE.HOLE, tokens[bodyArg.from], DIAGNOSTIC_MESSAGES.holeBodyNotArrow);
+      }
+      const typeText = typeArgFrom >= 0 ? rangeText(code, tokens, typeArgFrom, typeArgTo) : undefined;
+      sites.push({
+        kind: 'hole',
+        id: literalName !== undefined && literalName.trim() !== '' ? `hole#${fnv1a(literalName.trim())}` : counters.next('hole'),
+        callee: index,
+        open: callOpen,
+        close: holeClose,
+        line: token.line,
+        args: holeArgs,
+        name: literalName,
+        typeText,
+        hasTypeArg: typeArgFrom >= 0,
+      });
+      continue;
+    }
+
+    // phase("…")
+    if (name === 'phase' && !shadowed) {
+      const nameToken = args[0] === undefined ? undefined : tokens[args[0].from];
+      const literalName = literalText(nameToken);
+      if (literalName === undefined) report(CODE.PHASE, nameToken ?? token, DIAGNOSTIC_MESSAGES.phaseLiteral);
+      else if (literalName.trim() === '') report(CODE.PHASE, nameToken, DIAGNOSTIC_MESSAGES.phaseEmpty);
+      else if (!isStandaloneStatement(tokens, pairs, index, open)) report(CODE.PHASE, token, DIAGNOSTIC_MESSAGES.phaseStandalone);
+      if (literalName !== undefined && literalName.trim() !== '') {
+        phases.push({ name: literalName.trim(), line: token.line });
+        phaseMarkers.push({ name: literalName.trim(), start: tokens[index].start, close, index });
+      }
+      sites.push({ kind: 'phase', id: counters.next('phase'), callee: index, open, close, line: token.line, name: literalName, args });
+      continue;
+    }
+
+    // log / channel / future
+    if ((name === 'log' || name === 'channel' || name === 'future') && !shadowed) {
+      sites.push({ kind: 'call', op: name, id: counters.next('call'), callee: index, open, close, line: token.line, args });
+      continue;
+    }
+
+    // model("…")
+    if (name === 'model' && !shadowed) {
+      const literal = args[0] === undefined ? undefined : literalText(tokens[args[0].from]);
+      if (literal === undefined || literal.length === 0) report(CODE.MODEL, token, DIAGNOSTIC_MESSAGES.modelLiteral);
+      sites.push({ kind: 'model', id: counters.next('model'), callee: index, open, close, line: token.line, args, model: literal });
+      continue;
+    }
+
+    // report(item, tag?)
+    if (name === 'report' && !shadowed) {
+      const tagArg = args[1];
+      const tag = tagArg === undefined ? undefined : literalText(tokens[tagArg.from]);
+      if (tagArg !== undefined && tag === undefined) report(CODE.ARTIFACT, tokens[tagArg.from], DIAGNOSTIC_MESSAGES.reportTagLiteral);
+      if (tag !== undefined && tag !== '') {
+        const declaredKind = artifactIds.get(tag);
+        if (declaredKind !== undefined && (declaredKind.op === 'file' || declaredKind.op === 'markdown')) {
+          report(CODE.ARTIFACT, tokens[tagArg.from], DIAGNOSTIC_MESSAGES.reportTagContent(tag));
+        } else if (declaredKind === undefined) {
+          const presets = [...artifactIds.entries()].filter(([, info]) => info.op !== 'file' && info.op !== 'markdown').map(([id]) => id);
+          report(CODE.ARTIFACT, tokens[tagArg.from], DIAGNOSTIC_MESSAGES.reportTagUnknown(tag, presets.length === 0 ? DIAGNOSTIC_MESSAGES.noPresets : DIAGNOSTIC_MESSAGES.declaredPresets(presets)));
+        }
+      }
+      sites.push({ kind: 'report', id: counters.next('report'), callee: index, open, close, line: token.line, args });
+      continue;
+    }
+
+    // artifact.<op>(…)
+    if (name === 'artifact' && !shadowed && isPunct(tokens[index + 1], '.')) {
+      const opToken = tokens[index + 2];
+      const op = opToken !== undefined && opToken.kind === 'ident' ? String(opToken.value) : '';
+      if (!ARTIFACT_KINDS.has(op)) {
+        report(CODE.ARTIFACT, opToken ?? token, DIAGNOSTIC_MESSAGES.artifactUnknownKind(op));
+        continue;
+      }
+      const opOpen = index + 3;
+      if (!isPunct(tokens[opOpen], '(')) continue;
+      const opClose = pairs.get(opOpen);
+      const opArgs = callArguments(tokens, pairs, opOpen);
+      const idArg = opArgs[0];
+      const idToken = idArg === undefined ? undefined : tokens[idArg.from];
+      const id = literalText(idToken);
+      if (idToken === undefined || id === undefined) {
+        report(CODE.ARTIFACT, idToken ?? opToken ?? token, DIAGNOSTIC_MESSAGES.artifactIdLiteral);
+      } else if (id === '') {
+        report(CODE.ARTIFACT, idToken, DIAGNOSTIC_MESSAGES.artifactIdEmpty);
+      } else if (id.length > 64) {
+        report(CODE.ARTIFACT, idToken, DIAGNOSTIC_MESSAGES.artifactIdLong(id, id.length, 64));
+      } else if (!/^[A-Za-z0-9_.-]+$/u.test(id)) {
+        report(CODE.ARTIFACT, idToken, DIAGNOSTIC_MESSAGES.artifactIdCharacters(id));
+      } else {
+        const previous = artifactIds.get(id);
+        if (previous !== undefined && previous.op !== op) {
+          report(CODE.ARTIFACT, token, DIAGNOSTIC_MESSAGES.artifactKindConflict(id, previous.op, previous.line, op));
+        } else if (previous === undefined) {
+          artifactIds.set(id, { op, line: token.line });
+        }
+      }
+      // preset 必须在顶层（9008）
+      if (op !== 'file' && op !== 'markdown') {
+        if (isInsideCallback()) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInCallback);
+        else if (insideLoop(tokens, pairs, index)) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInLoop);
+        else if (insideBranch(tokens, pairs, index)) report(CODE.PRESET_PLACEMENT, token, DIAGNOSTIC_MESSAGES.presetInBranch);
+      }
+      sites.push({
+        kind: 'artifact',
+        id: counters.next('artifact'),
+        op,
+        callee: index,
+        memberStart: index,
+        open: opOpen,
+        close: opClose,
+        line: token.line,
+        args: opArgs,
+        artifactId: id,
+        primary: hasPrimary(op, opArgs),
+      });
+      continue;
+    }
+
+    // files.* / git.* / world.run
+    const isFiles = name === 'files' && !shadowed && isPunct(tokens[index + 1], '.');
+    const isGit = name === 'git' && !shadowed && isPunct(tokens[index + 1], '.');
+    const isWorld = name === 'world' && !shadowed && isPunct(tokens[index + 1], '.') && isIdent(tokens[index + 2], 'run');
+    if (isFiles || isGit || isWorld) {
+      const op = String(tokens[index + 2]?.value);
+      const opOpen = index + 3;
+      if (!isPunct(tokens[opOpen], '(')) continue;
+      const opClose = pairs.get(opOpen);
+      const opArgs = callArguments(tokens, pairs, opOpen);
+      if (isWorld && op === 'run') {
+        const first = opArgs[0] === undefined ? undefined : literalText(tokens[opArgs[0].from]);
+        if (first === undefined) report(CODE.WORLD_COMMAND, tokens[opArgs[0]?.from ?? index], DIAGNOSTIC_MESSAGES.worldLiteral);
+      }
+      sites.push({
+        kind: 'worldRead',
+        id: counters.next('world-read'),
+        op,
+        object: name,
+        callee: index,
+        open: opOpen,
+        close: opClose,
+        line: token.line,
+        args: opArgs,
+      });
+      continue;
+    }
+  }
+
+  // —— actor 重名（9005） ——
+  const seenActors = new Map();
+  for (const actor of actorLiterals) {
+    const first = seenActors.get(actor.name);
+    if (first !== undefined) {
+      const token = tokens.find((candidate) => candidate.line === actor.line && candidate.kind === 'ident' && candidate.value === 'agent');
+      report(CODE.DUPLICATE_ACTOR, token ?? { line: actor.line, column: 1 }, DIAGNOSTIC_MESSAGES.duplicateActor(actor.name, first.line));
+    } else {
+      seenActors.set(actor.name, actor);
+    }
+  }
+
+  // —— 阶段归属：每个站点属于哪个 phase（由内向外找最近的、位于站点之前的 marker） ——
+  const sitePhases = new Map();
+  for (const site of sites) {
+    const siteStart = tokens[site.callee]?.start ?? 0;
+    const siteTokenIndex = site.callee;
+    // 找最内层包住该站点的块
+    const blocks = [];
+    for (const [opener, closer] of pairs.entries()) {
+      if (!isPunct(tokens[opener], '{')) continue;
+      if (opener < siteTokenIndex && siteTokenIndex < closer) {
+        blocks.push({ opener, closer, depth: closer - opener });
+      }
+    }
+    blocks.sort((a, b) => a.depth - b.depth);
+    const chain = [...blocks.slice(0, 1).map((block) => ({ from: block.opener, to: block.closer })), { from: 0, to: tokens.length }];
+    let phaseName;
+    for (const scope of chain) {
+      const marker = phaseMarkers
+        .filter((candidate) => candidate.start < siteStart && candidate.close < scope.to && candidate.close > scope.from)
+        .sort((a, b) => b.start - a.start)[0];
+      if (marker !== undefined) {
+        phaseName = marker.name;
         break;
       }
     }
+    if (phaseName !== undefined) sitePhases.set(site.id, phaseName);
   }
-  return { line: Number.isFinite(line) ? line : 1, column: Number.isFinite(column) ? column : 1 };
-}
 
-/**
- * Map a position in the rewritten, wrapped script back to the submitted script's line/column.
- * The wrapper adds one leading line; the `ask<T>` rewrites add characters on their own lines only.
- * @param {object} ctx
- * @param {{ start: number, end: number, text: string }[]} edits
- * @param {{ line: number, column: number }} position
- * @returns {{ line: number, column: number }}
- */
-function mapWrappedPosition(ctx, edits, position) {
-  const line = Math.max(1, position.line - WRAPPER_LINE_OFFSET);
-  let column = Math.max(1, position.column);
-
-  // Per rewritten line, how much the edits shifted the text before a column.
-  const perLine = new Map();
-  for (const edit of edits) {
-    const original = locate(ctx.starts, edit.start);
-    const prior = perLine.get(original.line) ?? [];
-    const previousDelta = prior.reduce((total, entry) => total + entry.delta, 0);
-    const delta = edit.text.length - (edit.end - edit.start);
-    prior.push({ rewrittenStartColumn: original.column + previousDelta, delta });
-    perLine.set(original.line, prior);
-  }
-  const changes = perLine.get(line) ?? [];
-  let shift = 0;
-  for (const change of changes) {
-    if (change.rewrittenStartColumn < column) shift += change.delta;
-  }
-  column = Math.max(1, column - shift);
-  return { line, column };
-}
-
-/**
- * @param {object} ctx
- * @param {string} code normalized original source
- * @param {{ start: number, end: number, text: string }[]} edits
- * @returns {{ ok: true, js: string } | { ok: false }}
- */
-function transpile(ctx, code, edits) {
-  const rewritten = applyEdits(code, edits);
-  const wrapped = wrapScript(rewritten);
-  let js;
-  try {
-    js = stripTypeScriptTypes(wrapped, { mode: 'transform' });
-  } catch (error) {
-    const position = parseSyntaxErrorPosition(error);
-    if (position === null) {
-      ctx.add(CODE.SYNTAX, MESSAGES.syntax(String(error?.message ?? error)), 0);
-    } else {
-      const mapped = mapWrappedPosition(ctx, edits, position);
-      const lineStarts = ctx.starts;
-      const lineStart = lineStarts[Math.min(Math.max(mapped.line, 1), lineStarts.length) - 1] ?? 0;
-      ctx.add(CODE.SYNTAX, MESSAGES.syntax(String(error?.message ?? error)), lineStart + mapped.column - 1);
+  /* ------- 局部辅助 ------- */
+  function isInsideFanOut() {
+    for (const body of enclosingFunctionBodies(tokens, pairs, index)) {
+      if (isFanOutCallbackBody(tokens, pairs, body)) return true;
     }
-    return { ok: false };
+    return false;
   }
-  return { ok: true, js };
+
+  function isInsideCallback() {
+    const bodies = enclosingFunctionBodies(tokens, pairs, index);
+    // 脚本最外层本身也是函数体（`__workflowScript__`），token 化后并不会被识别为函数体，
+    // 所以这里任何被包住的函数体都是用户写的回调/辅助函数。
+    return bodies.length > 0;
+  }
+
+  function askSpecAt(siteIndex, openParen) {
+    let typeFrom = -1;
+    let typeTo = -1;
+    let callOpen = openParen;
+    if (isPunct(tokens[openParen], '<')) {
+      typeFrom = openParen + 1;
+      let depth = 0;
+      for (let cursor = openParen; cursor < tokens.length; cursor += 1) {
+        if (isPunct(tokens[cursor], '<')) depth += 1;
+        else if (isPunct(tokens[cursor], '>')) {
+          depth -= 1;
+          if (depth === 0) {
+            typeTo = cursor;
+            callOpen = cursor + 1;
+            break;
+          }
+        }
+      }
+    }
+    const spec = { typed: false, typeText: undefined, schema: undefined, typeName: undefined, open: callOpen, typeOpen: typeFrom >= 0 ? openParen : -1, typeClose: typeTo };
+    if (typeFrom < 0) return spec;
+    const typeText = rangeText(code, tokens, typeFrom, typeTo);
+    // 只支持单一名（含 `[]`）的接口/别名
+    const plain = /^([A-Za-z_$][\w$]*)(\[\])?$/u.exec(typeText.trim());
+    if (plain === null) {
+      report(CODE.HOLE, tokens[siteIndex], DIAGNOSTIC_MESSAGES.askTypeUnsupported(typeText));
+      return spec;
+    }
+    const baseName = plain[1];
+    let schema;
+    const built = interfaces.get(baseName);
+    if (built !== undefined) schema = built;
+    else if (PRIMITIVE_SCHEMAS.has(baseName)) schema = PRIMITIVE_SCHEMAS.get(baseName);
+    else if (typeDecls.has(baseName) || [...typeDecls.keys()].includes(baseName)) {
+      schema = typeRangeToSchema(tokens, pairs, typeFrom, typeTo, interfaces, typeDecls);
+    } else {
+      report(CODE.HOLE, tokens[siteIndex], DIAGNOSTIC_MESSAGES.askTypeUndeclared(baseName));
+      return spec;
+    }
+    const finalSchema = plain[2] === undefined ? schema : { type: 'array', items: schema ?? {} };
+    return { typed: true, typeText, typeName: baseName + (plain[2] ?? ''), schema: finalSchema, open: callOpen, typeOpen: typeFrom >= 0 ? openParen : -1, typeClose: typeTo };
+  }
+
+  function checkPersonaModel(site, token) {
+    // persona 是第二个实参；只检查对象字面量里的 `model: <非字面量>`
+    const personaArg = site.args[1];
+    if (personaArg === undefined) return;
+    for (let cursor = personaArg.from; cursor < personaArg.to - 1; cursor += 1) {
+      if (isIdent(tokens[cursor], 'model') && isPunct(tokens[cursor + 1], ':')) {
+        const valueToken = tokens[cursor + 2];
+        const literal = literalText(valueToken);
+        const isModelRefCall = isIdent(valueToken, 'model') && isPunct(tokens[cursor + 3], '(');
+        const isMember = isPunct(valueToken, '.') || isIdent(valueToken);
+        if (literal === undefined && !isModelRefCall && isMember) {
+          // 允许 `model()` 调用与字面量；其他表达式报 9010
+          if (!(isIdent(valueToken, 'model'))) {
+            report(CODE.MODEL, valueToken ?? token, DIAGNOSTIC_MESSAGES.actorModelDynamic('unknown'));
+          }
+        }
+      }
+    }
+  }
+
+  function hasPrimary(op, opArgs) {
+    const optionsArg = op === 'file' ? opArgs[2] : opArgs[1];
+    if (optionsArg === undefined) return false;
+    for (let cursor = optionsArg.from; cursor < optionsArg.to - 1; cursor += 1) {
+      if (isIdent(tokens[cursor], 'primary') && isPunct(tokens[cursor + 1], ':')) {
+        return isKeyword(tokens[cursor + 2], 'true');
+      }
+    }
+    return false;
+  }
+
+  // primary 冲突（9009）
+  const primaries = sites.filter((site) => site.kind === 'artifact' && site.primary === true && site.artifactId);
+  if (primaries.length > 1) {
+    const [first, ...rest] = primaries;
+    for (const extra of rest) {
+      report(CODE.PRIMARY_CONFLICT, tokens[extra.callee], DIAGNOSTIC_MESSAGES.primaryConflict(extra.artifactId, first.artifactId, first.op, first.line));
+    }
+  }
+
+  // 接口 schema：预解析所有已声明 interface / type alias，供 ask<T> 引用
+  for (const [name, declaration] of typeDecls.entries()) {
+    if (declaration.alias) {
+      const schema = typeRangeToSchema(tokens, pairs, declaration.bodyFrom, declaration.bodyTo, interfaces, typeDecls);
+      if (schema !== undefined) interfaces.set(name, schema);
+    } else {
+      interfaces.set(name, objectBodyToSchema(tokens, pairs, declaration.bodyFrom, declaration.bodyTo, interfaces, typeDecls, new Set()));
+    }
+  }
+
+  // 空脚本
+  if (mode === 'workflow' && tokens.length === 0) {
+    report(CODE.HOLE, { line: 1, column: 1 }, DIAGNOSTIC_MESSAGES.emptyScript);
+  }
+
+  return { diagnostics, sites, types: interfaces, phases, sitePhases };
 }
 
-/* ------------------------------------------------------------------------------------------------
- * Saved-workflow metadata block (`/* zcode-workflow` … `*\/`)
- * ---------------------------------------------------------------------------------------------- */
+/** artifact 的六个成员。 */
+const ARTIFACT_KINDS = new Set(['file', 'markdown', 'chart', 'table', 'metrics', 'board']);
+
+/* ================================================================================================
+ * 8. lowering：文本编辑
+ * ============================================================================================== */
+
+/**
+ * 把分析得到的站点改写为 `__host.*` 调用。
+ *
+ * 为什么用文本编辑而不是重新打印 AST：行号必须与用户脚本一致（诊断、journal 的
+ * `scriptLine`、UI 都按行号引用）；文本编辑只在必要处插入/替换，其余字节原样保留。
+ *
+ * @param {string} code
+ * @param {object} analysis analyze() 的返回值
+ * @returns {{ code: string, edits: object[] }}
+ */
+function lowerScript(code, analysis) {
+  const { sites } = analysis;
+  /** @type {{start: number, end: number, text: string}[]} */
+  const edits = [];
+  const insert = (at, text) => edits.push({ start: at, end: at, text });
+  const replace = (start, end, text) => edits.push({ start, end, text });
+  const source = analysis.tokens ?? [];
+  void source;
+
+  for (const site of sites) {
+    if (site.kind === 'actor') {
+      // agent(…) → __host.createActor("actor#N", …)
+      replace(site.calleeStart ?? site.start, site.calleeEnd ?? site.end, '__host.createActor');
+      insert(site.afterOpen, `${jsString(site.id)}, `);
+      continue;
+    }
+    if (site.kind === 'ask') {
+      // <recv>.ask<T>(args) → __host.ask("ask#N", <recv>, args)
+      if (site.optional) {
+        // x?.ask(…) → ((__a) => __a === null || __a === undefined ? undefined : __host.ask("s", __a, args))(x)
+        const receiver = site.receiverText;
+        const argsText = site.argsText;
+        replace(site.start, site.end, `((__a) => __a === null || __a === undefined ? undefined : __host.ask(${jsString(site.id)}, __a${argsText.length > 0 ? `, ${argsText}` : ''}))(${receiver})`);
+      } else {
+        insert(site.receiverStartOffset, `__host.ask(${jsString(site.id)}, `);
+        replace(site.memberStartOffset, site.memberEndOffset, ', ');
+        if (site.typeRange !== undefined) replace(site.typeRange.start, site.typeRange.end, '');
+      }
+      continue;
+    }
+    if (site.kind === 'hole') {
+      // hole<T>(name, …) → __host.hole("hole#…", name, prompt, (__src) => eval(__src), body?)
+      replace(site.calleeStart, site.calleeEnd, '__host.hole');
+      insert(site.afterOpen, `${jsString(site.id)}, `);
+      if (site.typeRange !== undefined) replace(site.typeRange.start, site.typeRange.end, '');
+      if (site.args.length >= 3) {
+        insert(site.args[1].endOffset, ', (__src) => eval(__src)');
+      } else if (site.args.length === 2 && site.secondIsFunction) {
+        insert(site.args[1].startOffset, 'void 0, (__src) => eval(__src), ');
+      } else if (site.args.length <= 1) {
+        insert(site.args[0]?.endOffset ?? site.afterOpen, ', void 0, (__src) => eval(__src)');
+      } else {
+        // hole(name, prompt) —— 只有 prompt
+        insert(site.args[1].endOffset, ', (__src) => eval(__src)');
+      }
+      continue;
+    }
+    if (site.kind === 'phase') {
+      if (site.name === undefined || site.name.trim() === '') {
+        replace(site.start, site.end, 'void 0');
+      } else {
+        replace(site.calleeStart, site.calleeEnd, '__host.enterPhase');
+      }
+      continue;
+    }
+    if (site.kind === 'call') {
+      // log(x) / channel(n) / future(f) → __host.<op>(…)
+      replace(site.calleeStart, site.calleeEnd, `__host.${site.op}`);
+      continue;
+    }
+    if (site.kind === 'model') {
+      if (site.model === undefined) replace(site.start, site.end, 'void 0');
+      else replace(site.start, site.end, jsString(site.model));
+      continue;
+    }
+    if (site.kind === 'report') {
+      insert(site.afterOpen, `${jsString(site.id)}, `);
+      continue;
+    }
+    if (site.kind === 'artifact') {
+      const host = site.op === 'file' || site.op === 'markdown' ? 'publishArtifact' : 'declareArtifact';
+      replace(site.memberStartOffset, site.afterOpen, `__host.${host}(${jsString(site.id)}, ${jsString(site.op)}, [`);
+      insert(site.closeOffset, '])');
+      continue;
+    }
+    if (site.kind === 'worldRead') {
+      replace(site.memberStartOffset, site.afterOpen, `__host.worldRead(${jsString(site.id)}, ${jsString(site.op)}, [`);
+      insert(site.closeOffset, '])');
+      continue;
+    }
+  }
+
+  // 自由标识符 args / run → __host.args / __host.run（在站点改写之后做，避免影响站点位置计算）
+  for (let index = 0; index < analysis.tokens.length; index += 1) {
+    const token = analysis.tokens[index];
+    if (token.kind !== 'ident') continue;
+    if (token.value !== 'args' && token.value !== 'run') continue;
+    if (analysis.declared?.has(String(token.value)) === true) continue;
+    if (!isValueRead(analysis.tokens, index)) continue;
+    const before = analysis.tokens[index - 1];
+    if (isPunct(before, '.') || isPunct(before, '?.')) continue;
+    replace(token.start, token.end, `__host.${token.value}`);
+  }
+
+  // 应用编辑：从后往前，保证偏移不互相影响
+  edits.sort((a, b) => (b.start - a.start) || (b.end - a.end));
+  let output = code;
+  for (const edit of edits) {
+    output = `${output.slice(0, edit.start)}${edit.text}${output.slice(edit.end)}`;
+  }
+  return { code: output, edits };
+}
+
+/* ================================================================================================
+ * 9. 保存工作流的元数据块（`/* zcode-workflow` YAML）
+ * ============================================================================================== */
 
 const METADATA_OPEN = '/* zcode-workflow';
-const METADATA_CLOSE = '*/';
 const ARG_TYPES = new Set(['string', 'number', 'boolean', 'json']);
 
 /**
- * @typedef {object} WorkflowArgument
- * @property {'string'|'number'|'boolean'|'json'} type
- * @property {string} [description]
- * @property {boolean} [required]
- * @property {unknown} [default]
+ * 解析保存工作流的元数据块。
+ * 失败返回 `{ ok: false, reason }`，reason ∈ missing_frontmatter / unterminated_frontmatter /
+ * invalid_yaml / invalid_metadata。
  *
- * @typedef {object} WorkflowMetadata
- * @property {string} [name]
- * @property {string} description
- * @property {string} [whenToUse]
- * @property {Record<string, WorkflowArgument>} [args]
+ * @param {string} input
+ * @returns {{ok: true, meta: object, script: string, bodyLineOffset: number} | {ok: false, reason: string, message: string}}
  */
-
-/**
- * Parse the `/* zcode-workflow` metadata block of a saved workflow file.
- *
- * Returns `{ ok: true, meta, body, bodyLineOffset }` or, on a malformed block, a diagnostic-style
- * `{ ok: false, reason, detail, diagnostics }` — never throws.
- *
- * @param {string} input file text
- * @param {{ path?: string }} [options]
- * @returns {{ ok: true, meta: WorkflowMetadata, body: string, header: string, bodyLineOffset: number, diagnostics: Diagnostic[] } | { ok: false, reason: 'missing_frontmatter'|'unterminated_frontmatter'|'invalid_yaml'|'invalid_metadata', detail: string, meta: null, body: null, diagnostics: Diagnostic[] }}
- */
-export function extractMetadataHeader(input, options = {}) {
-  const path = typeof options.path === 'string' && options.path.length > 0 ? options.path : '<workflow>';
-  const { code } = normalizeSource(input);
-  const starts = lineStartIndex(code);
+export function extractMetadataHeader(input) {
+  const code = normalizeSource(input);
   const lines = code.split('\n');
-
-  /** @param {'missing_frontmatter'|'unterminated_frontmatter'|'invalid_yaml'|'invalid_metadata'} reason @param {string} detail @param {number} line */
-  const fail = (reason, detail, line = 1) => ({
-    ok: false,
-    reason,
-    detail,
-    meta: null,
-    body: null,
-    diagnostics: [{ path, line, column: 1, code: CODE.SYNTAX, message: detail, severity: 'error' }],
-  });
-
-  let index = 0;
-  while (index < lines.length && lines[index].trim() === '') index += 1;
-  if (index >= lines.length) {
-    return fail('missing_frontmatter', 'file does not start with the `/* zcode-workflow` metadata block', 1);
-  }
-  if (lines[index].trim() !== METADATA_OPEN) {
-    return fail('missing_frontmatter', 'file does not start with the `/* zcode-workflow` metadata block', index + 1);
-  }
-  let close = index + 1;
-  while (close < lines.length && lines[close].trim() !== METADATA_CLOSE) close += 1;
-  if (close >= lines.length) {
-    return fail('unterminated_frontmatter', 'metadata block is never closed with `*/`', index + 1);
-  }
-
-  const yamlText = lines.slice(index + 1, close).join('\n');
-  const parsed = parseYamlSubset(yamlText);
-  if (!parsed.ok) {
-    return fail('invalid_yaml', parsed.detail, index + 1 + (parsed.line ?? 0));
-  }
-  const metaResult = normalizeMetadata(parsed.value);
-  if (!metaResult.ok) {
-    return fail('invalid_metadata', metaResult.detail, index + 1);
-  }
-
-  return {
-    ok: true,
-    meta: metaResult.meta,
-    body: lines.slice(close + 1).join('\n'),
-    header: lines.slice(index, close + 1).join('\n'),
-    bodyLineOffset: close + 1,
-    diagnostics: [],
-  };
-}
-
-/**
- * @param {unknown} value parsed YAML value
- * @returns {{ ok: true, meta: WorkflowMetadata } | { ok: false, detail: string }}
- */
-function normalizeMetadata(value) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return { ok: false, detail: '(root): the metadata block must be a mapping of `description`, `whenToUse` and `args`' };
-  }
-  /** @type {Record<string, unknown>} */
-  const raw = /** @type {any} */ (value);
-  /** @type {WorkflowMetadata} */
-  const meta = { description: '' };
-
-  if (raw.name !== undefined) {
-    if (typeof raw.name !== 'string' || raw.name.trim() === '') {
-      return { ok: false, detail: 'name: must be a non-empty string' };
-    }
-    meta.name = raw.name;
-  }
-  if (typeof raw.description !== 'string' || raw.description.trim() === '') {
-    return { ok: false, detail: 'description: Required' };
-  }
-  meta.description = raw.description;
-  if (raw.whenToUse !== undefined) {
-    if (typeof raw.whenToUse !== 'string' || raw.whenToUse.trim() === '') {
-      return { ok: false, detail: 'whenToUse: must be a non-empty string' };
-    }
-    meta.whenToUse = raw.whenToUse;
-  }
-  if (raw.args !== undefined) {
-    const args = normalizeArgumentDeclarations(raw.args);
-    if (!args.ok) return args;
-    meta.args = args.args;
-  }
-  return { ok: true, meta };
-}
-
-/**
- * Accept both metadata shapes ZCode-era files and this port's tool fields use: the ZCode object map
- * (`args: { pr: { type: string } }`) and a list (`args: [{ name: pr, type: string }]`).
- * @param {unknown} value
- * @returns {{ ok: true, args: Record<string, WorkflowArgument> } | { ok: false, detail: string }}
- */
-function normalizeArgumentDeclarations(value) {
-  /** @type {Record<string, WorkflowArgument>} */
-  const args = {};
-
-  /**
-   * @param {string} name
-   * @param {unknown} declaration
-   * @param {string} at
-   * @returns {string | null} a validation error, or null
-   */
-  const add = (name, declaration, at) => {
-    if (name.trim() === '') return `${at}: the argument name is empty`;
-    if (declaration === null || typeof declaration !== 'object' || Array.isArray(declaration)) {
-      return `${at}: must be a mapping with a \`type\``;
-    }
-    /** @type {Record<string, unknown>} */
-    const raw = /** @type {any} */ (declaration);
-    if (typeof raw.type !== 'string' || !ARG_TYPES.has(raw.type)) {
-      return `${at}.type: Invalid enum value. Expected 'string' | 'number' | 'boolean' | 'json'`;
-    }
-    if (raw.description !== undefined && typeof raw.description !== 'string') {
-      return `${at}.description: must be a string`;
-    }
-    if (raw.required !== undefined && typeof raw.required !== 'boolean') {
-      return `${at}.required: must be a boolean`;
-    }
-    args[name] = {
-      type: /** @type {WorkflowArgument['type']} */ (raw.type),
-      ...(raw.description === undefined ? {} : { description: raw.description }),
-      ...(raw.required === undefined ? {} : { required: raw.required }),
-      ...(raw.default === undefined ? {} : { default: raw.default }),
+  let first = 0;
+  while (first < lines.length && lines[first].trim() === '') first += 1;
+  if (lines[first] === undefined || lines[first].trim() !== METADATA_OPEN) {
+    return {
+      ok: false,
+      reason: 'missing_frontmatter',
+      message: 'file does not start with the `/* zcode-workflow` metadata block',
     };
-    return null;
-  };
-
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      const entry = value[index];
-      if (entry === null || typeof entry !== 'object' || Array.isArray(entry) || typeof entry.name !== 'string') {
-        return { ok: false, detail: `args.${index}: must be a mapping with a \`name\` and a \`type\`` };
-      }
-      const error = add(entry.name, entry, `args.${index}`);
-      if (error !== null) return { ok: false, detail: error };
+  }
+  let close = -1;
+  for (let index = first + 1; index < lines.length; index += 1) {
+    if (lines[index].trim() === '*/') {
+      close = index;
+      break;
     }
-    return { ok: true, args };
   }
-
-  if (value === null || typeof value !== 'object') {
-    return { ok: false, detail: 'args: must be a mapping of argument name to declaration' };
+  if (close < 0) {
+    return { ok: false, reason: 'unterminated_frontmatter', message: 'metadata block is never closed with `*/`' };
   }
-  for (const [name, declaration] of Object.entries(value)) {
-    const error = add(name, declaration, `args.${name}`);
-    if (error !== null) return { ok: false, detail: error };
+  const yamlText = lines.slice(first + 1, close).join('\n');
+  let meta;
+  try {
+    meta = parseYamlSubset(yamlText);
+  } catch (error) {
+    return { ok: false, reason: 'invalid_yaml', message: `metadata block is not valid YAML: ${error instanceof Error ? error.message : String(error)}` };
   }
-  return { ok: true, args };
+  if (meta === null || typeof meta !== 'object' || typeof meta.description !== 'string' || meta.description.trim() === '') {
+    return { ok: false, reason: 'invalid_metadata', message: 'metadata block needs a non-empty `description`' };
+  }
+  const normalized = {
+    description: meta.description,
+    ...(typeof meta.whenToUse === 'string' ? { whenToUse: meta.whenToUse } : {}),
+    ...(meta.args === undefined ? {} : { args: normalizeArgumentDeclarations(meta.args) }),
+  };
+  const script = lines.slice(close + 1).join('\n');
+  return { ok: true, meta: normalized, script, bodyLineOffset: close + 1 };
 }
 
-/* --- YAML subset ------------------------------------------------------------------------------- */
+/**
+ * 反序列化 `args` 声明。
+ * @param {unknown} value
+ * @returns {Record<string, {type: string, description?: string, required?: boolean, default?: unknown}>}
+ */
+export function normalizeArgumentDeclarations(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('`args` must be a mapping of argument name to declaration');
+  }
+  const result = {};
+  for (const [name, declaration] of Object.entries(value)) {
+    if (declaration === null || typeof declaration !== 'object' || Array.isArray(declaration)) {
+      throw new Error(`argument "${name}" must be a mapping with a \`type\``);
+    }
+    const type = declaration.type;
+    if (typeof type !== 'string' || !ARG_TYPES.has(type)) {
+      throw new Error(`argument "${name}" needs a type of string, number, boolean or json`);
+    }
+    result[name] = {
+      type,
+      ...(typeof declaration.description === 'string' ? { description: declaration.description } : {}),
+      ...(typeof declaration.required === 'boolean' ? { required: declaration.required } : {}),
+      ...(declaration.default === undefined ? {} : { default: declaration.default }),
+    };
+  }
+  return result;
+}
 
 /**
- * Parse the small YAML subset a workflow metadata block uses: a mapping of scalars, a nested
- * mapping (`args`), sequences of mappings, block scalars (`|` / `>`), quoted scalars and flow JSON.
- *
+ * 写一段元数据块 + 正文（`/* zcode-workflow\n<YAML>\n<CLOSE>\n<body>`）。
+ * @param {object} meta
+ * @param {string} body
+ * @returns {string}
+ */
+export function serializeMetadataHeader(meta, body) {
+  const lines = [METADATA_OPEN];
+  lines.push(...serializeYamlSubset(meta, 0));
+  lines.push('*/');
+  return `${lines.join('\n')}\n${body.replace(/^\n+/u, '')}`;
+}
+
+/**
+ * 极简 YAML 子集解析：映射、序列、标量、块标量（`|`/`>`）。
+ * 为什么自己写：元数据块只允许 `description`/`whenToUse`/`args` 三个键，引一个 YAML 依赖
+ * 反而扩大了可被接受的输入面。
  * @param {string} text
- * @returns {{ ok: true, value: unknown } | { ok: false, detail: string, line: number }}
+ * @returns {unknown}
  */
 function parseYamlSubset(text) {
-  const lines = text.split('\n');
-  try {
-    const result = parseYamlNode(lines, 0, -1);
-    let cursor = result.next;
-    while (cursor < lines.length && (lines[cursor].trim() === '' || lines[cursor].trim().startsWith('#'))) cursor += 1;
-    if (cursor < lines.length) {
-      return { ok: false, detail: `YAML: unexpected content on line ${cursor + 1}`, line: cursor };
+  const lines = text.split('\n').map((line, index) => ({ text: line.replace(/\t/gu, '  '), index, indent: line.length - line.trimStart().length, blank: line.trim() === '' || line.trim().startsWith('#') }));
+  let cursor = 0;
+  const skipBlank = () => {
+    while (cursor < lines.length && lines[cursor].blank) cursor += 1;
+  };
+  const parseBlock = (parentIndent) => {
+    skipBlank();
+    if (cursor >= lines.length) return null;
+    const line = lines[cursor];
+    if (line.indent <= parentIndent && parentIndent >= 0) return null;
+    if (line.text.trimStart().startsWith('- ')) return parseSequence(line.indent);
+    return parseMapping(line.indent);
+  };
+  const parseMapping = (indent) => {
+    /** @type {Record<string, unknown>} */
+    const mapping = {};
+    for (;;) {
+      skipBlank();
+      if (cursor >= lines.length) break;
+      const line = lines[cursor];
+      if (line.indent < indent) break;
+      if (line.indent > indent) throw new Error(`unexpected indentation on line ${line.index + 1}`);
+      const content = line.text.trimStart();
+      if (content.startsWith('- ')) break;
+      const colon = findKeyColon(content);
+      if (colon < 0) throw new Error(`expected "key: value" on line ${line.index + 1}`);
+      const key = unquote(content.slice(0, colon).trim());
+      const rest = content.slice(colon + 1).trim();
+      cursor += 1;
+      if (rest === '') {
+        const nested = parseBlock(indent);
+        mapping[key] = nested;
+      } else if (rest === '|' || rest === '>' || rest === '|-' || rest === '>-' || rest === '|+' || rest === '>+') {
+        mapping[key] = readBlockScalar(rest, indent);
+      } else {
+        mapping[key] = parseScalar(rest);
+      }
     }
-    return { ok: true, value: result.value };
-  } catch (error) {
-    const failure = /** @type {any} */ (error);
-    return { ok: false, detail: String(failure?.yamlDetail ?? failure?.message ?? error), line: Number(failure?.yamlLine ?? 0) };
-  }
-}
-
-/**
- * @param {string} detail
- * @param {number} line 0-based
- * @returns {Error}
- */
-function yamlError(detail, line) {
-  const error = new Error(detail);
-  error.yamlDetail = detail;
-  error.yamlLine = line;
-  return error;
-}
-
-/**
- * @param {string} line
- * @returns {number}
- */
-function indentOf(line) {
-  let index = 0;
-  while (index < line.length && line[index] === ' ') index += 1;
-  if (line[index] === '\t') throw yamlError('YAML: tab characters cannot be used for indentation', 0);
-  return index;
-}
-
-/**
- * @param {string} line
- * @returns {boolean}
- */
-function isBlankLine(line) {
-  return line.trim() === '' || line.trim().startsWith('#');
-}
-
-/**
- * @param {string[]} lines
- * @param {number} start
- * @param {number} parentIndent
- * @returns {{ value: unknown, next: number }}
- */
-function parseYamlNode(lines, start, parentIndent) {
-  let index = start;
-  while (index < lines.length && isBlankLine(lines[index])) index += 1;
-  if (index >= lines.length) return { value: null, next: index };
-  const indent = indentOf(lines[index]);
-  if (indent <= parentIndent) return { value: null, next: index };
-  const content = lines[index].slice(indent).trimEnd();
-  if (content === '-' || content.startsWith('- ')) return parseYamlSequence(lines, index, indent);
-  return parseYamlMapping(lines, index, indent);
-}
-
-/**
- * @param {string[]} lines
- * @param {number} start
- * @param {number} indent
- * @returns {{ value: Record<string, unknown>, next: number }}
- */
-function parseYamlMapping(lines, start, indent) {
-  /** @type {Record<string, unknown>} */
-  const mapping = {};
-  let index = start;
-  while (true) {
-    while (index < lines.length && isBlankLine(lines[index])) index += 1;
-    if (index >= lines.length) break;
-    const line = lines[index];
-    const lineIndent = indentOf(line);
-    if (lineIndent < indent) break;
-    if (lineIndent > indent) throw yamlError(`YAML: unexpected indentation on line ${index + 1}`, index);
-    const content = line.slice(lineIndent).trimEnd();
-    const colon = findKeyColon(content);
-    if (colon < 0) throw yamlError(`YAML: expected \`key: value\` on line ${index + 1}`, index);
-    const key = parseScalarKey(content.slice(0, colon).trim(), index);
-    const rest = content.slice(colon + 1).trim();
-    index += 1;
-
-    if (rest === '') {
-      const child = parseYamlNode(lines, index, indent);
-      mapping[key] = child.value;
-      index = child.next;
-      continue;
+    return mapping;
+  };
+  const parseSequence = (indent) => {
+    /** @type {unknown[]} */
+    const sequence = [];
+    for (;;) {
+      skipBlank();
+      if (cursor >= lines.length) break;
+      const line = lines[cursor];
+      if (line.indent < indent) break;
+      if (line.indent !== indent) break;
+      const content = line.text.trimStart();
+      if (!content.startsWith('- ')) break;
+      const rest = content.slice(2).trim();
+      cursor += 1;
+      if (rest === '') sequence.push(parseBlock(indent));
+      else if (findKeyColon(rest) >= 0) {
+        // `- key: value` 起的映射：把该行视作映射首行
+        const mapping = {};
+        const colon = findKeyColon(rest);
+        mapping[unquote(rest.slice(0, colon).trim())] = parseScalar(rest.slice(colon + 1).trim());
+        const nested = parseMapping(indent + 2);
+        if (nested !== null && typeof nested === 'object') Object.assign(mapping, nested);
+        sequence.push(mapping);
+      } else sequence.push(parseScalar(rest));
     }
-    const block = /^([|>])([+-]?)$/u.exec(rest);
-    if (block !== null) {
-      const scalar = readBlockScalar(lines, index, indent, block[1] === '>', block[2]);
-      mapping[key] = scalar.value;
-      index = scalar.next;
-      continue;
+    return sequence;
+  };
+  const readBlockScalar = (marker, indent) => {
+    const folded = marker.startsWith('>');
+    const chomping = marker.slice(1);
+    const collected = [];
+    let blockIndent = -1;
+    while (cursor < lines.length) {
+      const line = lines[cursor];
+      if (line.text.trim() === '') {
+        collected.push('');
+        cursor += 1;
+        continue;
+      }
+      if (line.indent <= indent) break;
+      if (blockIndent < 0) blockIndent = line.indent;
+      collected.push(line.text.slice(blockIndent));
+      cursor += 1;
     }
-    mapping[key] = parseScalar(rest, index);
-  }
-  return { value: mapping, next: index };
+    let value = folded ? collected.join(' ').replace(/ {2,}/gu, ' ').trim() : collected.join('\n');
+    if (chomping !== '-' && value.length > 0) value += '\n';
+    return chomping === '-' ? value.trimEnd() : value;
+  };
+  const result = parseBlock(-1);
+  return result;
 }
 
 /**
- * @param {string[]} lines
- * @param {number} start
- * @param {number} indent
- * @returns {{ value: unknown[], next: number }}
- */
-function parseYamlSequence(lines, start, indent) {
-  /** @type {unknown[]} */
-  const items = [];
-  let index = start;
-  while (true) {
-    while (index < lines.length && isBlankLine(lines[index])) index += 1;
-    if (index >= lines.length) break;
-    const line = lines[index];
-    const lineIndent = indentOf(line);
-    if (lineIndent < indent) break;
-    if (lineIndent > indent) throw yamlError(`YAML: unexpected indentation on line ${index + 1}`, index);
-    const content = line.slice(lineIndent).trimEnd();
-    if (!(content === '-' || content.startsWith('- '))) break;
-    const itemText = content === '-' ? '' : content.slice(2).trim();
-    index += 1;
-    if (itemText === '') {
-      const child = parseYamlNode(lines, index, indent);
-      items.push(child.value);
-      index = child.next;
-      continue;
-    }
-    const colon = findKeyColon(itemText);
-    if (colon < 0) {
-      items.push(parseScalar(itemText, index));
-      continue;
-    }
-    // `- name: pr` opens an inline mapping whose continuation lines are indented past the dash.
-    const virtualIndent = indent + 2;
-    const firstLine = ' '.repeat(virtualIndent) + itemText;
-    const merged = [firstLine, ...lines.slice(index)];
-    const child = parseYamlMapping(merged, 0, virtualIndent);
-    items.push(child.value);
-    index += Math.max(0, child.next - 1);
-  }
-  return { value: items, next: index };
-}
-
-/**
- * The index of the `:` that separates a key from its value, honouring quoted keys.
+ * 找 `key: value` 里的冒号（跳过引号内与行内注释）。
  * @param {string} content
  * @returns {number}
  */
@@ -3184,326 +2224,385 @@ function findKeyColon(content) {
   for (let index = 0; index < content.length; index += 1) {
     const char = content[index];
     if (quote !== '') {
-      if (char === '\\') index += 1;
-      else if (char === quote) quote = '';
+      if (char === quote) quote = '';
+      else if (char === '\\') index += 1;
       continue;
     }
-    if (char === '"' || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === ':' && (index + 1 === content.length || content[index + 1] === ' ')) return index;
+    if (char === '"' || char === '\'') quote = char;
+    else if (char === ':' && (index === content.length - 1 || content[index + 1] === ' ')) return index;
   }
   return -1;
 }
 
 /**
+ * 去引号。
  * @param {string} text
- * @param {number} line
  * @returns {string}
  */
-function parseScalarKey(text, line) {
-  const value = parseScalar(text, line);
-  if (typeof value !== 'string') throw yamlError(`YAML: the key on line ${line + 1} must be a string`, line);
-  return value;
+function unquote(text) {
+  if (text.startsWith('"') && text.endsWith('"') && text.length >= 2) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text.slice(1, -1);
+    }
+  }
+  if (text.startsWith('\'') && text.endsWith('\'') && text.length >= 2) return text.slice(1, -1).replace(/''/gu, '\'');
+  return text;
 }
 
 /**
+ * 解析标量。
  * @param {string} text
- * @param {number} line
  * @returns {unknown}
  */
-function parseScalar(text, line) {
-  const value = text.trim();
-  if (value === '' || value === '~' || value === 'null' || value === 'Null' || value === 'NULL') return null;
-  if (value === 'true' || value === 'True' || value === 'TRUE') return true;
-  if (value === 'false' || value === 'False' || value === 'FALSE') return false;
-  if (value.startsWith('"')) {
-    if (!value.endsWith('"') || value.length < 2) throw yamlError(`YAML: unterminated double-quoted string on line ${line + 1}`, line);
+function parseScalar(text) {
+  const stripped = text.replace(/\s+#.*$/u, '').trim();
+  if (stripped === '') return '';
+  if (stripped === 'true') return true;
+  if (stripped === 'false') return false;
+  if (stripped === 'null' || stripped === '~') return null;
+  if (/^-?\d+$/u.test(stripped)) return Number.parseInt(stripped, 10);
+  if (/^-?\d+\.\d+$/u.test(stripped)) return Number.parseFloat(stripped);
+  if (stripped.startsWith('[') || stripped.startsWith('{')) {
     try {
-      return JSON.parse(value);
+      return JSON.parse(stripped.replace(/'/gu, '"'));
     } catch {
-      throw yamlError(`YAML: invalid double-quoted string on line ${line + 1}`, line);
+      return stripped;
     }
   }
-  if (value.startsWith("'")) {
-    if (!value.endsWith("'") || value.length < 2) throw yamlError(`YAML: unterminated single-quoted string on line ${line + 1}`, line);
-    return value.slice(1, -1).replace(/''/gu, "'");
-  }
-  if (value.startsWith('{') || value.startsWith('[')) {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
-  }
-  if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/u.test(value)) return Number(value);
-  return stripInlineComment(value);
+  return unquote(stripped);
 }
 
 /**
- * @param {string} value
- * @returns {string}
- */
-function stripInlineComment(value) {
-  const index = value.search(/\s#/u);
-  return (index < 0 ? value : value.slice(0, index)).trim();
-}
-
-/**
- * @param {string[]} lines
- * @param {number} start
- * @param {number} parentIndent
- * @param {boolean} folded
- * @param {string} chomping
- * @returns {{ value: string, next: number }}
- */
-function readBlockScalar(lines, start, parentIndent, folded, chomping) {
-  const collected = [];
-  let index = start;
-  let blockIndent = -1;
-  while (index < lines.length) {
-    const line = lines[index];
-    if (line.trim() === '') {
-      collected.push('');
-      index += 1;
-      continue;
-    }
-    const indent = indentOf(line);
-    if (indent <= parentIndent) break;
-    if (blockIndent < 0) blockIndent = indent;
-    if (indent < blockIndent) break;
-    collected.push(line.slice(blockIndent));
-    index += 1;
-  }
-  while (collected.length > 0 && collected[collected.length - 1] === '') {
-    if (chomping === '-' || chomping === '') {
-      collected.pop();
-      continue;
-    }
-    break;
-  }
-  const value = folded ? collected.join(' ').trim() : collected.join('\n');
-  if (chomping === '-') return { value, next: index };
-  return { value: `${value}\n`, next: index };
-}
-
-/* --- serialization ----------------------------------------------------------------------------- */
-
-/**
- * Serialize a saved workflow: the `/* zcode-workflow` metadata block, then the script verbatim.
- * Mirrors ZCode's `serializeSavedWorkflow` shape.
- *
- * @param {WorkflowMetadata} meta
- * @param {string} body the workflow script
- * @returns {string}
- */
-export function serializeMetadataHeader(meta, body) {
-  /** @type {Record<string, unknown>} */
-  const mapping = { description: String(meta?.description ?? '') };
-  if (meta?.name !== undefined) mapping.name = meta.name;
-  if (meta?.whenToUse !== undefined) mapping.whenToUse = meta.whenToUse;
-  if (meta?.args !== undefined && Object.keys(meta.args).length > 0) {
-    /** @type {Record<string, unknown>} */
-    const args = {};
-    for (const [name, declaration] of Object.entries(meta.args)) {
-      /** @type {Record<string, unknown>} */
-      const entry = { type: declaration.type };
-      if (declaration.description !== undefined) entry.description = declaration.description;
-      if (declaration.required !== undefined) entry.required = declaration.required;
-      if (declaration.default !== undefined) entry.default = declaration.default;
-      args[name] = entry;
-    }
-    mapping.args = args;
-  }
-  return `${METADATA_OPEN}\n${serializeYamlMapping(mapping, 0)}${METADATA_CLOSE}\n${body}`;
-}
-
-/**
- * @param {Record<string, unknown>} mapping
- * @param {number} indent
- * @returns {string}
- */
-function serializeYamlMapping(mapping, indent) {
-  const pad = ' '.repeat(indent);
-  let output = '';
-  for (const [key, value] of Object.entries(mapping)) {
-    const renderedKey = needsYamlQuote(key) ? JSON.stringify(key) : key;
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      output += `${pad}${renderedKey}:\n${serializeYamlMapping(/** @type {Record<string, unknown>} */ (value), indent + 2)}`;
-      continue;
-    }
-    output += `${pad}${renderedKey}: ${renderYamlScalar(value, indent + 2)}\n`;
-  }
-  return output;
-}
-
-/**
+ * 序列化 YAML 子集（元数据块只需映射/序列/标量）。
  * @param {unknown} value
  * @param {number} indent
- * @returns {string}
+ * @returns {string[]}
  */
-function renderYamlScalar(value, indent) {
-  if (value === null || value === undefined) return 'null';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (typeof value === 'object') return JSON.stringify(value);
-  const text = String(value);
-  if (text.includes('\n')) {
-    const pad = ' '.repeat(indent);
-    const trailing = text.endsWith('\n') ? '' : '-';
-    const body = (trailing === '' ? text.slice(0, -1) : text).split('\n').map((line) => `${pad}${line}`).join('\n');
-    return `|${trailing}\n${body}`;
-  }
-  return needsYamlQuote(text) ? JSON.stringify(text) : text;
-}
-
-/**
- * @param {string} text
- * @returns {boolean}
- */
-function needsYamlQuote(text) {
-  if (text === '' || text !== text.trim()) return true;
-  if (/^(true|false|null|~|yes|no|on|off|[-+]?\d+(\.\d+)?)$/iu.test(text)) return true;
-  if (/^[-?:,[\]{}#&*!|>'"%@`]/u.test(text)) return true;
-  if (/:\s/u.test(text) || /\s#/u.test(text) || text.includes('\t')) return true;
-  return false;
-}
-
-/* ------------------------------------------------------------------------------------------------
- * Public compile entry point
- * ---------------------------------------------------------------------------------------------- */
-
-/**
- * @typedef {object} CompileOptions
- * @property {string} code the workflow script (TypeScript)
- * @property {string} [filename] path used in diagnostics
- * @property {'workflow'|'snippet'} [mode]
- */
-
-/**
- * Compile one workflow script.
- *
- * @param {CompileOptions} options
- * @returns {{
- *   ok: boolean,
- *   js: string|null,
- *   diagnostics: Diagnostic[],
- *   phases: string[],
- *   agents: string[],
- *   artifacts: { id: string, kind: string, primary: boolean }[],
- *   worldCommands: string[],
- *   interfaces: Record<string, object>,
- * }}
- */
-export function compileWorkflowScript(options = {}) {
-  const mode = options.mode ?? 'workflow';
-  const filename = typeof options.filename === 'string' && options.filename.length > 0 ? options.filename : 'workflow.ts';
-  const { code } = normalizeSource(options.code);
-
-  if (mode !== 'workflow' && mode !== 'snippet') {
-    return {
-      ok: false,
-      js: null,
-      diagnostics: [{
-        path: filename,
-        line: 1,
-        column: 1,
-        code: CODE.SYNTAX,
-        message: `unknown compiler mode ${JSON.stringify(mode)}; use "workflow" or "snippet"`,
-        severity: 'error',
-      }],
-      phases: [],
-      agents: [],
-      artifacts: [],
-      worldCommands: [],
-      interfaces: {},
-    };
-  }
-
-  const ctx = createContext(code, filename);
-
-  /** @type {Diagnostic[]} */
-  const diagnostics = ctx.diagnostics;
-  /** @param {boolean} ok @param {string|null} js @param {object} facts */
-  const finish = (ok, js, facts) => {
-    diagnostics.sort((left, right) => left.line - right.line || left.column - right.column || left.code - right.code);
-    const failed = diagnostics.some((diagnostic) => diagnostic.severity !== 'warning');
-    return {
-      ok: failed ? false : ok,
-      js: failed ? null : js,
-      diagnostics,
-      phases: facts.phases ?? [],
-      agents: facts.agents ?? [],
-      artifacts: facts.artifacts ?? [],
-      worldCommands: facts.worldCommands ?? [],
-      interfaces: facts.interfaces ?? {},
-    };
-  };
-
-  if (code.trim() === '') {
-    ctx.add(CODE.SYNTAX, MESSAGES.emptyScript, 0);
-    return finish(false, null, {});
-  }
-
-  const tokenized = tokenize(code);
-  if (tokenized.error !== null) {
-    ctx.add(CODE.SYNTAX, MESSAGES.syntax(tokenized.error.message), tokenized.error.offset);
-    return finish(false, null, {});
-  }
-
-  const structure = buildStructure(tokenized.tokens);
-  structure.code = code;
-  const declaredNames = collectDeclaredNames(structure);
-  const types = collectTypeDeclarations(ctx, structure, tokenized.comments);
-
-  // Rules that apply to both modes.
-  checkModuleSyntax(ctx, structure);
-  checkForbiddenApis(ctx, structure, declaredNames);
-  checkFacadeMisuse(ctx, structure, declaredNames);
-
-  /** @type {{ phases: string[], agents: string[], artifacts: object[], worldCommands: string[] }} */
-  const facts = { phases: [], agents: [], artifacts: [], worldCommands: [] };
-
-  if (mode === 'snippet') {
-    checkSnippetFacade(ctx, structure);
-  } else {
-    const phaseResult = checkPhases(ctx, structure, mode);
-    facts.phases = [...new Set(phaseResult.markers.map((marker) => marker.name).filter((name) => name !== undefined))];
-    facts.agents = checkAgents(ctx, structure, mode, declaredNames);
-    const artifactResult = checkArtifactsAndReports(ctx, structure, mode);
-    facts.artifacts = artifactResult.artifacts;
-    facts.worldCommands = checkWorldCommands(ctx, structure, declaredNames);
-    checkHoles(ctx, structure, mode, phaseResult.markers);
-    checkModels(ctx, structure, mode);
-  }
-
-  // Type declarations that cannot become a schema: warn when unused, error when an ask needs them.
-  const schemaOf = (name) => types.schemaOf(name);
-  for (const declaration of types.declarations.values()) {
-    if (declaration.unsupported !== undefined) {
-      ctx.add(CODE.UNSUPPORTED, `type "${declaration.name}" cannot be turned into a JSON schema: ${declaration.unsupported}. It is only checked when an ask<T> names it.`, tokenized.tokens[declaration.nameIndex].start, 'warning');
+function serializeYamlSubset(value, indent) {
+  const pad = ' '.repeat(indent);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return [pad + scalarText(value)];
+  /** @type {string[]} */
+  const lines = [];
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === undefined) continue;
+    if (entry !== null && typeof entry === 'object' && !Array.isArray(entry)) {
+      lines.push(`${pad}${key}:`);
+      lines.push(...serializeYamlSubset(entry, indent + 2));
       continue;
     }
-    const resolved = schemaOf(declaration.name);
-    if (!resolved.ok) {
-      ctx.add(CODE.UNSUPPORTED, `type "${declaration.name}" cannot be turned into a JSON schema: ${resolved.reason ?? 'unsupported'}. It is only checked when an ask<T> names it.`, tokenized.tokens[declaration.nameIndex].start, 'warning');
+    if (Array.isArray(entry)) {
+      lines.push(`${pad}${key}:`);
+      for (const item of entry) lines.push(`${pad}  - ${scalarText(item)}`);
+      continue;
+    }
+    if (typeof entry === 'string' && entry.includes('\n')) {
+      lines.push(`${pad}${key}: |-`);
+      for (const line of entry.split('\n')) lines.push(`${' '.repeat(indent + 2)}${line}`);
+      continue;
+    }
+    lines.push(`${pad}${key}: ${scalarText(entry)}`);
+  }
+  return lines;
+}
+
+/**
+ * 标量文本（必要时加引号）。
+ * @param {unknown} value
+ * @returns {string}
+ */
+function scalarText(value) {
+  if (value === null || value === undefined) return 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'number') return String(value);
+  const text = String(value);
+  if (text === '' || /^[\s]|[\s]$|[:#]|^-|\n/u.test(text) || ['true', 'false', 'null', '~'].includes(text) || /^-?\d+(\.\d+)?$/u.test(text)) {
+    return JSON.stringify(text);
+  }
+  return text;
+}
+
+/* ================================================================================================
+ * 10. 编译入口
+ * ============================================================================================== */
+
+/**
+ * @typedef {{code: number, line: number, column: number, message: string}} WorkflowDiagnostic
+ */
+
+/**
+ * 编译一份工作流脚本（或片段）。
+ *
+ * @param {object} options
+ * @param {string} options.code 源码
+ * @param {string} [options.filename] 文件名（只用于错误消息）
+ * @param {'workflow'|'snippet'} [options.mode]
+ * @param {boolean} [options.snippet] 旧名兼容：等价于 mode:'snippet'
+ * @returns {object}
+ */
+export function compileWorkflowScript({ code, filename = 'workflow-script.ts', mode, snippet = false } = {}) {
+  const resolvedMode = mode ?? (snippet === true ? 'snippet' : 'workflow');
+  const source = normalizeSource(String(code ?? ''));
+  const tokens = tokenize(source);
+  const structure = buildStructure(tokens);
+  const pairs = structure.pairs;
+
+  let analysis;
+  try {
+    analysis = analyze(source, tokens, pairs, resolvedMode);
+  } catch (error) {
+    return {
+      ok: false,
+      diagnostics: [{ code: CODE.HOLE, line: 1, column: 1, message: DIAGNOSTIC_MESSAGES.syntax(error instanceof Error ? error.message : String(error)) }],
+      lowered: '',
+      js: '',
+      sites: [],
+      askSpecs: new Map(),
+      sitePhases: new Map(),
+      phases: [],
+      actors: [],
+      holes: [],
+      artifacts: [],
+      worldReads: [],
+      models: [],
+      interfaces: {},
+      metadata: undefined,
+      scriptHash: hashSource(source),
+    };
+  }
+
+  if (analysis.diagnostics.length > 0) {
+    return {
+      ok: false,
+      diagnostics: analysis.diagnostics.map((diagnostic) => ({ ...diagnostic })),
+      lowered: '',
+      js: '',
+      sites: [],
+      askSpecs: new Map(),
+      sitePhases: analysis.sitePhases,
+      phases: analysis.phases.map((phase) => phase.name),
+      actors: [],
+      holes: [],
+      artifacts: [],
+      worldReads: [],
+      models: [],
+      interfaces: Object.fromEntries(analysis.types),
+      metadata: metadataOf(source, resolvedMode),
+      scriptHash: hashSource(source),
+    };
+  }
+
+  // 站点字段补齐（lowering 需要源码偏移与实参文本）
+  const sites = analysis.sites.map((site) => decorateSite(source, tokens, pairs, site));
+
+  let loweredBody;
+  let loweredSource;
+  try {
+    const lowered = lowerScript(source, { ...analysis, tokens, declared: collectDeclaredNames(tokens) });
+    loweredSource = lowered.code;
+    // 类型擦除（Node 内建）。strip 之后 `interface` 声明消失、注解消失，`return` 保留。
+    loweredBody = stripTypeScriptTypes(loweredSource, { mode: 'transform', sourceMap: false });
+  } catch (error) {
+    return {
+      ok: false,
+      diagnostics: [{
+        code: CODE.HOLE,
+        line: error?.line ?? 1,
+        column: error?.column ?? 1,
+        message: DIAGNOSTIC_MESSAGES.syntax(error instanceof Error ? error.message : String(error)),
+      }],
+      lowered: '',
+      js: '',
+      sites: [],
+      askSpecs: new Map(),
+      sitePhases: analysis.sitePhases,
+      phases: analysis.phases.map((phase) => phase.name),
+      actors: [],
+      holes: [],
+      artifacts: [],
+      worldReads: [],
+      models: [],
+      interfaces: Object.fromEntries(analysis.types),
+      metadata: metadataOf(source, resolvedMode),
+      scriptHash: hashSource(source),
+    };
+  }
+
+  /** @type {Map<string, {typed: boolean, schema?: object, typeName?: string}>} */
+  const askSpecs = new Map();
+  /** @type {object[]} */
+  const actors = [];
+  /** @type {object[]} */
+  const holes = [];
+  /** @type {object[]} */
+  const artifacts = [];
+  /** @type {object[]} */
+  const worldReads = [];
+  /** @type {string[]} */
+  const models = [];
+
+  for (const site of sites) {
+    if (site.kind === 'ask') {
+      askSpecs.set(site.id, {
+        typed: site.typed === true,
+        ...(site.schema === undefined ? {} : { schema: site.schema }),
+        ...(site.typeName === undefined ? {} : { typeName: site.typeName }),
+      });
+    } else if (site.kind === 'actor') {
+      actors.push({ siteId: site.id, name: site.name, persona: site.persona, line: site.line });
+    } else if (site.kind === 'hole') {
+      holes.push({ siteId: site.id, name: site.name, line: site.line, typeText: site.typeText });
+    } else if (site.kind === 'artifact') {
+      artifacts.push({ siteId: site.id, op: site.op, id: site.artifactId, line: site.line });
+    } else if (site.kind === 'worldRead') {
+      worldReads.push({ siteId: site.id, op: site.op, line: site.line });
+    } else if (site.kind === 'model') {
+      if (site.model !== undefined) models.push(site.model);
     }
   }
 
-  // Bind `ask<T>` answers to their schemas.
-  const rewrite = rewriteAskSites(ctx, structure, schemaOf);
+  const body = loweredBody.replace(/^\n+/u, '').replace(/\n+$/u, '');
+  const js = `(async (__host) => {\n${body}\n})`;
 
-  /** @type {Record<string, object>} */
-  const interfaces = {};
-  for (const [name, declaration] of types.declarations) {
-    if (declaration.unsupported !== undefined) continue;
-    const resolved = schemaOf(name);
-    if (resolved.ok) interfaces[name] = resolved.schema;
-  }
-  for (const [marker, schema] of rewrite.markerSchemas) {
-    if (interfaces[marker] === undefined) interfaces[marker] = schema;
-  }
-
-  const transpiled = transpile(ctx, code, rewrite.edits);
-  return finish(transpiled.ok, transpiled.ok ? transpiled.js : null, { ...facts, interfaces });
+  return {
+    ok: true,
+    diagnostics: [],
+    lowered: body,
+    js,
+    sites,
+    askSpecs: askSpecs.size === 0 ? new Map() : askSpecs,
+    sitePhases: analysis.sitePhases,
+    phases: analysis.phases.map((phase) => phase.name),
+    actors,
+    holes,
+    artifacts,
+    worldReads,
+    models,
+    interfaces: Object.fromEntries(analysis.types),
+    metadata: metadataOf(source, resolvedMode),
+    scriptHash: hashSource(source),
+    lineOffset: 1,
+    filename,
+  };
 }
+
+/**
+ * 站点补全：把 lowering 需要的偏移/文本算好。
+ * @param {string} code
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {object} site
+ * @returns {object}
+ */
+function decorateSite(code, tokens, pairs, site) {
+  const enriched = { ...site };
+  const callee = tokens[site.callee];
+  if (callee !== undefined) {
+    enriched.calleeStart = callee.start;
+    enriched.calleeEnd = callee.end;
+    enriched.start = callee.start;
+    const open = site.open !== undefined && isPunct(tokens[site.open], '(') ? site.open : -1;
+    if (open >= 0) {
+      enriched.afterOpen = tokens[open].end;
+      enriched.closeOffset = tokens[site.close]?.start ?? tokens[open].end;
+      enriched.end = tokens[site.close]?.end ?? tokens[open].end;
+    }
+    enriched.end = tokens[site.close]?.end ?? enriched.afterOpen ?? callee.end;
+  }
+  if (Array.isArray(site.args)) {
+    enriched.args = site.args.map((arg) => ({
+      from: arg.from,
+      to: arg.to,
+      startOffset: tokens[arg.from]?.start ?? 0,
+      endOffset: tokens[arg.to - 1]?.end ?? 0,
+      text: arg.to > arg.from ? code.slice(tokens[arg.from].start, tokens[arg.to - 1].end) : '',
+    }));
+    enriched.argsText = site.open !== undefined
+      ? enriched.args.map((arg) => arg.text).join(', ')
+      : '';
+    if (suiteSecondIsFunction(enriched, tokens)) enriched.secondIsFunction = true;
+  }
+  if (site.kind === 'ask') {
+    enriched.memberStartOffset = callee !== undefined ? callee.start : 0;
+    enriched.memberEndOffset = callee !== undefined ? callee.end : 0;
+    enriched.receiverStartOffset = tokens[site.receiverStart]?.start ?? 0;
+    enriched.receiverText = site.receiverStart !== undefined
+      ? code.slice(tokens[site.receiverStart].start, tokens[site.receiverEnd]?.end ?? tokens[site.receiverEnd]?.start ?? 0)
+      : '';
+    if (site.typeOpen !== undefined && site.typeOpen >= 0 && site.typeClose !== undefined && site.typeClose > 0) {
+      enriched.typeRange = { start: tokens[site.typeOpen].start, end: tokens[site.typeClose].end };
+    }
+  }
+  if (site.kind === 'artifact' || site.kind === 'worldRead') {
+    enriched.memberStartOffset = callee !== undefined ? callee.start : 0;
+  }
+  if (site.kind === 'hole' && site.callee !== undefined) {
+    enriched.typeRange = undefined;
+    if (site.hasTypeArg === true) {
+      // `hole<T>` 的 `<` 紧跟在 callee 后
+      const less = tokens[site.callee + 1];
+      if (isPunct(less, '<')) {
+        let depth = 0;
+        for (let cursor = site.callee + 1; cursor < tokens.length; cursor += 1) {
+          if (isPunct(tokens[cursor], '<')) depth += 1;
+          else if (isPunct(tokens[cursor], '>')) {
+            depth -= 1;
+            if (depth === 0) {
+              enriched.typeRange = { start: less.start, end: tokens[cursor].end };
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+  return enriched;
+}
+
+/**
+ * hole 的第二个实参是否是函数（body 而非 prompt）。
+ * @param {object} site
+ * @param {object[]} tokens
+ * @returns {boolean}
+ */
+function suiteSecondIsFunction(site, tokens) {
+  if (site.args.length !== 2) return false;
+  const arg = site.args[1];
+  const first = tokens.find((token) => token.start === arg.startOffset);
+  if (first === undefined) return false;
+  if (isKeyword(first, 'async')) return true;
+  if (isKeyword(first, 'function')) return true;
+  return isPunct(first, '(') && site.args[1].text.includes('=>');
+}
+
+/**
+ * 去掉元数据块后的正文（片段没有元数据）。
+ * @param {string} source
+ * @param {'workflow'|'snippet'} mode
+ * @returns {object | undefined}
+ */
+function metadataOf(source, mode) {
+  if (mode !== 'workflow' || !source.trimStart().startsWith(METADATA_OPEN)) return undefined;
+  const parsed = extractMetadataHeader(source);
+  return parsed.ok ? parsed.meta : undefined;
+}
+
+/**
+ * 脚本哈希：正文 + 元数据的稳定摘要（sha1 足够，只用于判断“还是不是同一份脚本”）。
+ * @param {string} source
+ * @returns {string}
+ */
+function hashSource(source) {
+  // 这里刻意不用 node:crypto：编译器要保持纯函数式、可在 vm/测试里直接跑。
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index) & 255;
+    hash ^= (source.charCodeAt(index) >> 8) & 255;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `s${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+/** 兼容旧名（tools.js/prompt.js 之前按这些名字取）。 */
+export const compileWorkflow = compileWorkflowScript;

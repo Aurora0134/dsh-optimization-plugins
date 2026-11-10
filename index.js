@@ -356,10 +356,13 @@ export function apply(ctx, config = {}) {
   /**
    * The policy surface the browser reads and writes: ZCode keeps an `enabled` switch plus a `mode`,
    * and turning the feature off clears the mode. The stored mode is the single source of truth, so
-   * `enabled` is derived rather than stored twice.
+   * `enabled` is derived rather than stored twice. `projectRoot` is accepted for call parity with
+   * the desktop RPC and ignored on purpose: this profile runs one workflow policy for every
+   * project, and pretending otherwise would let two tabs disagree.
+   * @param {{ projectRoot?: string }} [_scope]
    * @returns {Promise<{ enabled: boolean, mode: 'disabled' | 'onDemand' | 'alwaysOn', writable: boolean, effective: string }>}
    */
-  const readPolicy = async () => {
+  const readPolicy = async (_scope = {}) => {
     const current = await modeController.readMode();
     const appliedMode = /** @type {'disabled' | 'onDemand' | 'alwaysOn'} */ (current.mode);
     return {
@@ -373,10 +376,12 @@ export function apply(ctx, config = {}) {
   /**
    * Persist one policy change. `enabled: false` stores `disabled`, which is what ZCode's own
    * handler does when it clears the mode.
-   * @param {{ enabled?: unknown, mode?: unknown }} next
+   * @param {{ projectRoot?: string, enabled?: unknown, mode?: unknown }} next
    */
-  const writePolicy = async (next) => {
-    const wanted = next?.enabled === false ? 'disabled' : explicitMode(next?.mode) ?? (next?.enabled === true ? 'alwaysOn' : undefined);
+  const writePolicy = async (next = {}) => {
+    const wanted = next.enabled === false
+      ? 'disabled'
+      : explicitMode(next.mode) ?? (next.enabled === true ? 'alwaysOn' : undefined);
     if (wanted === undefined) throw new Error('a policy change needs `enabled` or a known `mode`');
     const written = await modeController.writeMode(wanted);
     return {
