@@ -38,9 +38,46 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
   /**
    * One waiting question per run id: a run is confirmed at most once, and a second submit for the
    * same run (a double click, two open surfaces) must not queue a second answer.
-   * @type {Map<string, { promise: Promise<ApprovalDecision>, resolve: (decision: ApprovalDecision) => void, timer: ReturnType<typeof setTimeout>, sessionId: string, createdAt: number }>}
+   * @type {Map<string, { promise: Promise<ApprovalDecision>, resolve: (decision: ApprovalDecision) => void, timer: ReturnType<typeof setTimeout>, sessionId: string, toolName: string, createdAt: number }>}
    */
   const waiting = new Map();
+
+  /**
+   * Session-wide grants: a Session that chose "allow for this session" answers for its own later
+   * launches of the same tool, which is what the dialog promises. Nothing here outlives the
+   * plugin process — the durable choice in ZCode is a session permission rule, and the port has no
+   * per-session rule store to write to.
+   * @type {Map<string, Set<string>>}
+   */
+  const sessionGrants = new Map();
+
+  /**
+   * @param {string} sessionId
+   * @param {string} toolName
+   * @returns {boolean} whether this Session already answered "allow for this session"
+   */
+  function allowsSession(sessionId, toolName) {
+    const granted = sessionGrants.get(sessionId);
+    return granted !== undefined && granted.has(toolName);
+  }
+
+  /**
+   * @param {string} sessionId
+   * @param {string} toolName
+   */
+  function grantSession(sessionId, toolName) {
+    const granted = sessionGrants.get(sessionId);
+    if (granted === undefined) sessionGrants.set(sessionId, new Set([toolName]));
+    else granted.add(toolName);
+  }
+
+  /**
+   * Drop one Session's grants (its launch policy changed or the Session ended).
+   * @param {string} sessionId
+   */
+  function revokeSession(sessionId) {
+    sessionGrants.delete(sessionId);
+  }
 
   /**
    * Turn one dialog answer into the decision the tool consumes.
@@ -79,10 +116,10 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
 
   /**
    * Ask the user to confirm one run launch.
-   * @param {{ runId: string, sessionId: string }} request
+   * @param {{ runId: string, sessionId: string, toolName?: string }} request
    * @returns {Promise<ApprovalDecision>} settles exactly once
    */
-  function request({ runId, sessionId }) {
+  function request({ runId, sessionId, toolName }) {
     if (typeof runId !== 'string' || runId.length === 0) {
       return Promise.reject(new Error('zcode-workflow: an approval request needs a run id'));
     }
@@ -112,6 +149,7 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
       resolve: settle,
       timer,
       sessionId: typeof sessionId === 'string' ? sessionId : '',
+      toolName: typeof toolName === 'string' ? toolName : '',
       createdAt: Date.now(),
     });
     return promise;
@@ -129,6 +167,9 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
       throw new Error(`zcode-workflow: unknown confirmation option "${String(optionId)}"`);
     }
     const decision = toDecision(optionId, { reason, adjustments });
+    if (optionId === 'allow_session' && entry.toolName.length > 0) {
+      grantSession(entry.sessionId, entry.toolName);
+    }
     entry.resolve(decision);
     return decision;
   }
@@ -161,9 +202,10 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
   /** Drop every waiter — plugin teardown must not leave tool calls hanging. */
   function dispose() {
     for (const runId of [...waiting.keys()]) cancel(runId);
+    sessionGrants.clear();
   }
 
-  return { request, settle, list, cancel, dispose };
+  return { request, settle, list, cancel, dispose, allowsSession, grantSession, revokeSession };
 }
 
 /**

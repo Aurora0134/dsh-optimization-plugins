@@ -105,3 +105,23 @@ test('a request without a run id is refused', async () => {
   const { created } = broker();
   await assert.rejects(() => created.request({ runId: '', sessionId: 'sess-1' }), /needs a run id/u);
 });
+
+test('"allow for this session" answers later launches of the same tool', async () => {
+  const { created } = broker();
+  assert.equal(created.allowsSession('sess-9', 'CreateWorkflow'), false);
+  const pending = created.request({ runId: 'run-10', sessionId: 'sess-9', toolName: 'CreateWorkflow' });
+  created.settle({ runId: 'run-10', optionId: 'allow_session' });
+  await pending;
+  assert.equal(created.allowsSession('sess-9', 'CreateWorkflow'), true);
+  assert.equal(created.allowsSession('sess-9', 'AmendWorkflow'), false);
+  created.revokeSession('sess-9');
+  assert.equal(created.allowsSession('sess-9', 'CreateWorkflow'), false);
+});
+
+test('a one-off allow grants nothing beyond its own run', async () => {
+  const { created } = broker();
+  const pending = created.request({ runId: 'run-11', sessionId: 'sess-10', toolName: 'CreateWorkflow' });
+  created.settle({ runId: 'run-11', optionId: 'allow_once' });
+  await pending;
+  assert.equal(created.allowsSession('sess-10', 'CreateWorkflow'), false);
+});

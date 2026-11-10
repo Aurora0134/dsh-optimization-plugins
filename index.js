@@ -15,6 +15,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compileWorkflowScript, extractMetadataHeader } from './host/compiler.js';
+import { createApprovalBroker } from './host/approval.js';
 import { userMessage } from './host/messages.js';
 import { createRuntime } from './host/runtime.js';
 import { createStore } from './host/store.js';
@@ -346,6 +347,45 @@ export function apply(ctx, config = {}) {
 
   const modeController = createModeController({ ctx, appliedMode: mode, settingsFile, logger });
 
+  // The launch confirmation is a question asked by a tool and answered by the browser half, so one
+  // broker instance serves both: the tool waits on it, the `/run/approve` route settles it, and
+  // teardown cancels whatever is still waiting.
+  const approval = createApprovalBroker({ logger });
+  ctx.effect(() => () => approval.dispose(), 'zcode-workflow approval broker');
+
+  /**
+   * The policy surface the browser reads and writes: ZCode keeps an `enabled` switch plus a `mode`,
+   * and turning the feature off clears the mode. The stored mode is the single source of truth, so
+   * `enabled` is derived rather than stored twice.
+   * @returns {Promise<{ enabled: boolean, mode: 'disabled' | 'onDemand' | 'alwaysOn', writable: boolean, effective: string }>}
+   */
+  const readPolicy = async () => {
+    const current = await modeController.readMode();
+    const appliedMode = /** @type {'disabled' | 'onDemand' | 'alwaysOn'} */ (current.mode);
+    return {
+      enabled: appliedMode !== 'disabled',
+      mode: appliedMode,
+      writable: current.writable,
+      effective: current.effective,
+    };
+  };
+
+  /**
+   * Persist one policy change. `enabled: false` stores `disabled`, which is what ZCode's own
+   * handler does when it clears the mode.
+   * @param {{ enabled?: unknown, mode?: unknown }} next
+   */
+  const writePolicy = async (next) => {
+    const wanted = next?.enabled === false ? 'disabled' : explicitMode(next?.mode) ?? (next?.enabled === true ? 'alwaysOn' : undefined);
+    if (wanted === undefined) throw new Error('a policy change needs `enabled` or a known `mode`');
+    const written = await modeController.writeMode(wanted);
+    return {
+      enabled: written.mode !== 'disabled',
+      mode: written.mode,
+      effective: written.effective,
+    };
+  };
+
   // The browser data channel stays registered in every mode so the settings row can read and
   // change the mode while the model-facing surface is off; run/start itself refuses to start a
   // run while the applied mode is disabled.
@@ -358,6 +398,9 @@ export function apply(ctx, config = {}) {
         resolveProjectRoot,
         readMode: modeController.readMode,
         writeMode: modeController.writeMode,
+        readPolicy,
+        writePolicy,
+        approval,
         logger,
       });
     });
@@ -395,6 +438,7 @@ export function apply(ctx, config = {}) {
     runtime: runtimeLookup(cwd),
     store: storeFor(cwd),
     compiler: { compileWorkflowScript, extractMetadataHeader },
+    approval,
     config,
     logger: logger,
   });
@@ -426,6 +470,7 @@ export function apply(ctx, config = {}) {
     SaveWorkflow: 'Save workflow',
     ListSavedWorkflows: 'Saved workflows',
     EvalWorkflowSnippet: 'Workflow snippet',
+    ResolveWorkflowQuestion: 'Workflow question',
   };
   const definitions = template.map((source) => ({
     name: source.name,
