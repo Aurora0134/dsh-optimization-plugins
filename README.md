@@ -54,10 +54,30 @@ session.append(
 
 ## 宿主接口
 
-宿主服务键 `sessionRollback`，两个方法以 Typert Remote 的**源码模式**（SRC）暴露为端点 `sessionRollback/state` 与 `sessionRollback/rollback`。本包不含生成物 `./typert`，所以服务实例自己在类原型上写出与 `@Remote()` 相同的版本化描述符，并给出 `typertRemote` 绑定；Gateway 以方法参数名推导线上字段。两个方法因此只用简单标识符参数。
+宿主服务键 `sessionRollback`，两个方法各对应一条与页面同源的 HTTP 路由（`host/api.js`）。浏览器半用 `fetch` 直接调它们，不带自定义头、不走 RPC 命名空间。
+
+| 方法 | 路径 | 请求 |
+|---|---|---|
+| `POST` | `/session-rollback/state` | JSON 体 `{ sessionId }`；也接受 `GET ?sessionId=<id>` |
+| `POST` | `/session-rollback/rollback` | JSON 体 `{ sessionId, seq?, ordinal?, index? }` |
+
+请求体必须是 `application/json`，上限 64 KiB。鉴权由组合的 `connection` 服务负责：路由先用 `requestRejection` 过 Host/Origin 围栏与浏览器登录态校验，通过后才处理请求；没有有效登录态一律拒绝。
+
+成功一律 `200` 加业务 JSON（下面两段就是响应体），业务层的"不能回退"也是 `200`：例如 `state.available` 为 `false` 并给出 `reason`。失败是下列状态码加统一 `{ code, message }`：
+
+| 状态 | `code` | 含义 |
+|---|---|---|
+| 400 | `missing-parameter` / `bad-parameter` / `bad-request` | 缺少或非法参数；请求体不是 JSON 对象 |
+| 401 | `unauthorized` | 请求没有有效的浏览器登录态 |
+| 403 | `forbidden` | 请求没通过 Host/Origin 围栏 |
+| 405 | `method-not-allowed` | 方法不符，`Allow` 头给出可用方法 |
+| 413 | `payload-too-large` | 请求体超过 64 KiB |
+| 415 | `unsupported-media-type` | 请求体不是 `application/json` |
+| 500 | `internal-error` | 宿主内部失败；响应只有固定句子，不含堆栈与内部路径 |
 
 ```ts
-state(sessionId: string): Promise<{
+// POST /session-rollback/state  { sessionId }
+{
   available: boolean            // 此刻能否回退
   reason: string                // ready | turn-open | session-not-live | no-user-message | rollback-in-progress | internal-error
   detail: string | null
@@ -74,14 +94,10 @@ state(sessionId: string): Promise<{
   snapshotTurns: { turn: number, files: number, complete: boolean, reasons: object[] }[]
   snapshotComplete?: boolean
   limits: { maxFileBytes, maxTurnBytes, maxTurnFiles, maxSessionBytes }
-}>
+}
 
-rollback(request: {
-  sessionId: string
-  seq?: number                  // 优先：用户消息事件的 seq
-  ordinal?: number              // 拿不到 seq 时：第几条用户提问（1 基）
-  index?: number                // 0 基下标，二者等价
-}): Promise<{
+// POST /session-rollback/rollback  { sessionId, seq?, ordinal?, index? }
+{
   ok: boolean                   // 会话替换完成且无文件失败
   stage: 'precheck' | 'surface' | 'files' | 'done' | 'internal'
   reason: string                // rolled-back | partial-snapshot | file-restore-incomplete | 见上表
@@ -99,21 +115,12 @@ rollback(request: {
   incompleteTurns: { turn, files, complete, reasons }[]
   complete: boolean             // 文件侧可完整还原且无失败
   writeBack: { text: string, nonTextParts: number } | null
-}>
+}
 ```
 
-浏览器半从 `ctx.connection` 的通用 RPC 直接调这两个端点（SRC 端点没有生成物，因此不会出现在 `ctx.remote` 的命名空间里）：
+`seq` 优先；拿不到（页面还没拿到事件序号）时传 `ordinal`（1 基）或 `index`（0 基），二者等价。`seq` 必须指向当前 surface 中一条 `source.kind` 为 `user` 的用户消息，注入的上下文不是用户提问，不能作为回退目标。
 
-```js
-const reply = await ctx.connection.rpc.call('/api', 'sessionRollback/state', { args: { sessionId } })
-// reply: { ok: true, value } | { ok: false, error: { code, message, details } }
-const done = await ctx.connection.rpc.call('/api', 'sessionRollback/rollback', {
-  args: { request: { sessionId, seq } },
-})
-if (done.ok) { /* done.value.ok / reason / files / writeBack */ }
-```
-
-`args` 必须只含描述符声明的字段；多余的字段由 Gateway 以 `gateway/arguments-invalid` 拒绝，`ok:false` 的 `error.code` 取 `gateway/*` 一类传输/校验失败。业务结果始终在 `ok:true` 的 `value` 里。
+路由注册在 `ctx.inject(['webServer', 'connection'], ...)` 的子上下文里，`webServer.register` 返回的 disposer 由 `ctx.effect` 持有，所以插件卸载时两条路由随之移除。服务实例只创建一次，`ctx.provide` 与路由收到的是同一个对象。
 
 ## 快照落点
 
