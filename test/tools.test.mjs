@@ -352,8 +352,10 @@ test('EvalWorkflowSnippet, SaveWorkflow, GetWorkflowRun and TaskOutput schemas',
   assert.deepEqual(saveSchema.required, ['name', 'description', 'scope']);
   assert.equal(saveSchema.properties.name.maxLength, 64);
   assert.deepEqual(saveSchema.properties.scope.enum, ['project', 'global']);
-  assert.deepEqual(saveSchema.properties.args.additionalProperties.properties.type.enum, ['string', 'number', 'boolean', 'json']);
-  assert.equal(saveSchema.properties.args.additionalProperties.properties.type.description, 'Value type. "json" accepts any JSON value without further checking.');
+  // 逐项 ArgSpec 结构表达不了：DSH 的 JSON Schema 校验只收布尔 additionalProperties（插件激活时会
+  // 直接报 JsonSchemaError），元数据结构由宿主侧校验。
+  assert.equal(saveSchema.properties.args.additionalProperties, true);
+  assert.ok(saveSchema.properties.args.description.includes('Argument declarations'));
 
   const getSchema = h.byName.GetWorkflowRun.parameters;
   assert.deepEqual(getSchema.required, ['run_id']);

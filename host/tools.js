@@ -210,7 +210,9 @@ const RUN_OUTPUT_SCHEMA = {
     },
     maxConcurrency: { type: 'number' },
     subagentModel: { type: 'string' },
-    modelBindings: { type: 'object', additionalProperties: { type: 'string' } },
+    // 契约 Uoe 的 modelBindings 是 record<string,string>，但 DSH 的 schema 校验只收布尔
+    // additionalProperties，所以这里声明成 open object。
+    modelBindings: { type: 'object', additionalProperties: true },
     scriptPath: { type: 'string' },
     actors: {
       type: 'array',
@@ -1803,24 +1805,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
         args: {
           type: 'object',
-          additionalProperties: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['type'],
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['string', 'number', 'boolean', 'json'],
-                description: 'Value type. "json" accepts any JSON value without further checking.',
-              },
-              description: { type: 'string' },
-              required: {
-                type: 'boolean',
-                description: 'When true the workflow cannot run without this argument.',
-              },
-              default: { description: 'Value used when the caller omits this argument.' },
-            },
-          },
+          // record<name, {type, description?, required?, default?}>：DSH 的 schema 校验只收布尔
+          // additionalProperties，逐项结构交给宿主侧的元数据校验。
+          additionalProperties: true,
           description: 'Argument declarations the script reads off `args`.',
         },
         script: {
