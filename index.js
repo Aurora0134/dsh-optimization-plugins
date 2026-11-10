@@ -6,17 +6,19 @@
  *    path a file tool is about to change has its current content stored before
  *    the mutation, attributed to the Session and turn that produced it;
  *  - the `sessionRollback` service (`state`, `rollback`) published through
- *    `ctx.provide` and exposed to the browser as the Typert Remote endpoint
- *    `sessionRollback/state` and `sessionRollback/rollback`;
+ *    `ctx.provide`, plus the two same-origin routes the browser half posts to
+ *    (`POST /session-rollback/state`, `POST /session-rollback/rollback`);
  *  - per-Session cleanup of the captured content.
  *
- * Every registration is effect-owned: unloading the plugin removes the listeners,
- * the service and the stored snapshots.
+ * Both the service and the routes are wired from one instance, and every
+ * registration is effect-owned: unloading the plugin removes the listeners, the
+ * routes, the service and the stored snapshots.
  *
  * @module dsh-session-rollback
  */
 import path from 'node:path'
 
+import { registerRollbackApi } from './host/api.js'
 import { createRecorder } from './host/recorder.js'
 import { createRollbackService, SERVICE_KEY } from './host/service.js'
 import { createSnapshotStore } from './host/snapshots.js'
@@ -64,9 +66,17 @@ export function apply(ctx, config = {}) {
   // Snapshots live under the Harness home, never inside a user workspace.
   const store = createSnapshotStore({ root: snapshotRoot(), config, logger })
 
+  /**
+   * The one service instance of this plugin, shared by `ctx.provide` and the routes.
+   * @type {object | undefined}
+   */
+  let service
+
+  // The effect body runs immediately, so `service` exists before the browser-facing
+  // Context below mounts and the routes always receive this exact instance.
   ctx.effect(() => {
     const recorder = createRecorder({ ctx, store, logger })
-    const service = createRollbackService({ ctx, store, recorder, logger })
+    service = createRollbackService({ ctx, store, recorder, logger })
     const disposers = [
       ctx.provide(SERVICE_KEY, service),
       // A closed Session takes its snapshots with it.
@@ -89,4 +99,14 @@ export function apply(ctx, config = {}) {
       await store.dispose()
     }
   }, 'session-rollback')
+
+  // The routes need the two services that only exist once the composition mounts
+  // them, so they are registered from a child Context that waits for both.
+  if (typeof ctx.inject !== 'function') {
+    logger.warn?.('session-rollback: ctx.inject is unavailable; the browser half cannot reach the rollback service')
+    return
+  }
+  ctx.inject(['webServer', 'connection'], (child) => {
+    registerRollbackApi({ ctx: child, service, logger })
+  })
 }

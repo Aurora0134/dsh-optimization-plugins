@@ -1,17 +1,18 @@
 /**
- * The Host service `sessionRollback`: the two Remote methods the browser half calls.
+ * The Host service `sessionRollback`: the two operations the browser half uses.
  *
  * `state` answers whether a session can be rolled back right now and which user
  * messages the current surface holds; `rollback` performs the surface
  * replacement and the file restoration and returns what the composer gets back.
+ * The browser reaches both through the same-origin HTTP routes `host/api.js`
+ * registers; this module owns only the behaviour and the service identity.
  *
- * Exposure is the Typert Remote protocol in source mode. This package ships no
- * generated `./typert` artifact, so it declares the same class metadata that the
- * protocol decorators write: a versioned descriptor on the class prototype, and
- * the `typertRemote` binding a Cordis Service constructor publishes. The Gateway
- * reads both (`remoteMethods()` and the binding) and derives the endpoint from
- * the method parameter names, which is why the two methods use only plain
- * identifier parameters.
+ * The instance also carries Typert Remote markers, which cost nothing and keep
+ * any consumer of the Remote protocol able to read the same two operations. This
+ * package ships no generated `./typert` artifact, so it declares the same class
+ * metadata that the protocol decorators write: a versioned descriptor on the
+ * class prototype, and the `typertRemote` binding a Cordis Service constructor
+ * publishes. Both methods therefore use only plain identifier parameters.
  *
  * @module dsh-session-rollback/host/service
  */
