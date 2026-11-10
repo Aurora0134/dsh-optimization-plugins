@@ -1,5 +1,32 @@
 /* Client entry: dictionaries, styles and slot registrations. */
 
+/**
+ * Run one surface's slot registration when that surface's part is present.
+ *
+ * Each part declares its own surface object, so a surface that has not been loaded yet (or was
+ * removed) must not break the whole registration pass — hence the guarded read plus the caught
+ * ReferenceError instead of a direct identifier reference.
+ *
+ * @param {() => { register?: (ctx: object, effect: Function) => void } | undefined} read
+ * @param {object} ctx
+ * @param {(callback: Function, label: string) => unknown} effect
+ * @param {string} label
+ */
+function runSurface(read, ctx, effect, label) {
+  let surface;
+  try {
+    surface = read();
+  } catch {
+    return;
+  }
+  if (surface === undefined || surface === null || typeof surface.register !== 'function') return;
+  try {
+    surface.register(ctx, effect);
+  } catch (error) {
+    console.error(`zcode-workflow: ${label} registration failed`, error);
+  }
+}
+
 function apply(ctx) {
   if (typeof ctx !== 'object' || ctx === null) return;
   const effect = typeof ctx.effect === 'function'
@@ -43,10 +70,12 @@ function apply(ctx) {
     }
   });
 
-  if (typeof WF_DETAIL.register === 'function') WF_DETAIL.register(ctx, effect);
-  if (typeof WF_DIRECTORY.register === 'function') WF_DIRECTORY.register(ctx, effect);
-  if (typeof WF_SETTINGS.register === 'function') WF_SETTINGS.register(ctx, effect);
-  if (typeof WF_STATUS.register === 'function') WF_STATUS.register(ctx, effect);
+  runSurface(() => WF_CARDS, ctx, effect, 'tool cards');
+  runSurface(() => WF_PERMISSION, ctx, effect, 'launch confirmation');
+  runSurface(() => WF_DETAIL, ctx, effect, 'run detail');
+  runSurface(() => WF_DIRECTORY, ctx, effect, 'workflow directory');
+  runSurface(() => WF_SETTINGS, ctx, effect, 'settings row');
+  runSurface(() => WF_STATUS, ctx, effect, 'session status');
 }
 
 return {
