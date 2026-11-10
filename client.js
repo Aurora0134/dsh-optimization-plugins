@@ -127,7 +127,7 @@ window.__ModuleLoader__.load({
       "run.status.unknown": "未知"
     };
     const UI_EN = {
-      "ui.justNow": "Just now",
+      "ui.justNow": "just now",
       "ui.minutesAgo": "{count} min ago",
       "ui.hoursAgo": "{count} h ago",
       "ui.daysAgo": "{count} d ago",
@@ -154,111 +154,477 @@ window.__ModuleLoader__.load({
       "ui.runs": "Runs",
       "ui.openDetails": "Open run details",
       "ui.openDirectory": "Open workflow directory",
-      "detail.title": "Workflow run",
-      "detail.close": "Close",
-      "detail.cancel": "Cancel",
-      "detail.copied": "Copied",
-      "detail.copyFailed": "Could not copy",
-      "detail.copyRunId": "Copy run ID",
-      "detail.refresh": "Refresh",
-      "detail.stop": "Stop run",
-      "detail.stopPending": "Stopping…",
-      "detail.stopDisabled": "Only a running workflow can be stopped.",
-      "detail.stopHint": "You can resume later; finished steps are kept.",
-      "detail.stopConfirm.title": "Stop this run?",
-      "detail.stopConfirm.body": "Finished steps are kept, and you can resume it later.",
-      "detail.stopConfirm.confirm": "Stop run",
-      "detail.stopError": "The run could not be stopped.",
-      "detail.scriptOpen": "Script file",
-      "detail.scriptTitle": "Script file",
-      "detail.scriptBody": "The script this run uses is stored on this machine.",
-      "detail.scriptMissing": "This run recorded no script file.",
-      "detail.cwd": "Working directory",
-      "detail.copyPath": "Copy path",
-      "detail.duration": "Duration",
-      "detail.duration.seconds": "{seconds}s",
-      "detail.duration.minutes": "{minutes}m {seconds}s",
-      "detail.duration.hours": "{hours}h {minutes}m",
-      "detail.duration.days": "{days}d {hours}h",
-      "detail.createdAt": "Created",
-      "detail.finishedAt": "Finished",
-      "detail.runId": "Run ID",
-      "detail.modelShort": "Subagents {model}",
-      "detail.concurrency": "Max concurrency {cap}",
-      "detail.stepsValue": "{settled}/{started} steps",
-      "detail.stepsValueOne": "{settled}/{started} step",
-      "detail.stepsRunning": "{count} running",
-      "detail.stepsFailed": "{count} failed",
-      "detail.resumedFrom": "Amends",
-      "detail.config.maxConcurrency": "Max concurrency",
-      "detail.config.model": "Subagent model",
-      "detail.loading": "Loading run details…",
-      "detail.loadError": "This run could not be loaded.",
-      "detail.notFound": "This run is not in this project's records.",
-      "detail.retry": "Retry",
-      "detail.missing.title": "This run cannot be shown",
-      "detail.missing.body": "This run was opened without enough information. Open it again from the run list.",
-      "detail.emptyBody": "This run has no recorded detail yet.",
-      "detail.section.args": "Run parameters",
-      "detail.section.holes": "Holes",
-      "detail.section.phases": "Phases",
-      "detail.section.agents": "Subagents",
-      "detail.section.artifacts": "Artifacts",
-      "detail.section.reports": "Reports",
-      "detail.section.log": "Logs",
-      "detail.section.world": "Commands",
-      "detail.section.result": "Result",
-      "detail.phase.current": "Current",
-      "detail.phase.steps": "{count} steps",
-      "detail.phase.stepsOne": "{count} step",
-      "detail.phase.failed": "{count} failed",
-      "detail.phase.startedAt": "Started {time}",
-      "detail.meta.phase": "Phase {name}",
-      "detail.agent.anonymous": "Unnamed subagent",
-      "detail.agent.steps": "{count} steps",
-      "detail.agent.stepsOne": "{count} step",
-      "detail.agent.settled": "{count} settled",
-      "detail.agent.settledOne": "{count} settled",
-      "detail.agent.failed": "{count} failed",
-      "detail.agent.lastAt": "Updated {time}",
-      "detail.artifact.version": "v{version}",
-      "detail.artifact.versions": "{count} versions",
-      "detail.artifact.primary": "Primary",
-      "detail.artifact.kind.file": "File",
-      "detail.artifact.kind.markdown": "Document",
-      "detail.artifact.kind.chart": "Chart",
-      "detail.artifact.kind.table": "Table",
-      "detail.artifact.kind.metrics": "Metrics",
-      "detail.artifact.kind.board": "Board",
-      "detail.artifact.loading": "Loading artifact…",
-      "detail.artifact.loadError": "Failed to load this artifact.",
-      "detail.artifact.unsupported": "No preview for this file type. It stays available in the workspace.",
-      "detail.artifact.file": "File location",
-      "detail.artifact.copyText": "Copy contents",
-      "detail.artifact.truncated": "Long content; only the beginning is shown.",
-      "detail.hole.waiting": "Waiting for the agent to fill it",
-      "detail.world.exitCode": "Exit code {code}",
-      "detail.result.empty": "This run finished. Its result was delivered to the conversation as a background result message.",
-      "detail.result.errored": "Run errored",
-      "detail.result.stopped": "Run stopped",
-      "detail.result.noError": "No error detail was recorded.",
-      "detail.stopReason.user": "by you",
-      "detail.stopReason.model": "by the agent",
-      "detail.stopReason.provider": "model error",
-      "detail.stopReason.interrupted": "process exited",
-      "detail.stopReason.superseded": "superseded",
-      "detail.stopReason.other": "stopped",
-      "detail.status.pending": "Pending",
-      "detail.status.running": "Running",
-      "detail.status.completed": "Completed",
-      "detail.status.errored": "Errored",
-      "detail.status.stopped": "Stopped",
-      "detail.status.superseded": "Superseded",
-      "detail.status.unknown": "Unknown",
-      "detail.relative.justNow": "just now",
-      "detail.relative.minutesAgo": "{count} min ago",
-      "detail.relative.hoursAgo": "{count} h ago",
-      "detail.relative.daysAgo": "{count} d ago",
+      "amend.amended": "Workflow amended",
+      "amend.amends": "Amends run",
+      "amend.awaitingConfirmation": "Awaiting amendment confirmation",
+      "amend.draft": "Amendment draft",
+      "amend.ran": "Workflow amendment",
+      "amend.revising": "Revising amendment",
+      "amend.scriptUnchanged": "script unchanged",
+      "amend.stopsRunning": "still running, will be stopped",
+      "amend.writing": "Amending workflow",
+      "card.agent": "{count} agent",
+      "card.agents": "{count} agents",
+      "card.agentsWorking": "{count} agents working",
+      "card.agentWorking": "{count} agent working",
+      "card.artifact": "{count} artifact",
+      "card.artifacts": "{count} artifacts",
+      "card.collapseDetails": "Collapse details",
+      "card.completed": "Workflow completed",
+      "card.ended": "Workflow ended",
+      "card.errored": "Workflow errored",
+      "card.expandDetails": "Expand details",
+      "card.hole": "{count} hole",
+      "card.holes": "{count} holes",
+      "card.phase": "{count} phase",
+      "card.phases": "{count} phases",
+      "card.round": "round {count}",
+      "card.rounds": "{count} rounds",
+      "card.running": "Workflow running",
+      "card.started": "Workflow started",
+      "card.steps": "{done}/{total} steps",
+      "card.stopped": "Workflow stopped",
+      "card.superseded": "Workflow superseded",
+      "card.tokens": "{count} tokens",
+      "completion.moreArtifacts": "{count} more",
+      "completion.phases": "phases",
+      "completion.subagents": "subagents",
+      "completion.time": "time",
+      "completion.tokens": "tokens",
+      "completion.unavailable": "Not available",
+      "digest.hideAgents": "Hide subagents",
+      "digest.hole": "{count} hole to fill",
+      "digest.holes": "{count} holes to fill",
+      "digest.question": "{count} question",
+      "digest.questions": "{count} questions",
+      "digest.showAgents": "Show subagents",
+      "escalate.answer": "Answer",
+      "escalate.asked": "Asked the main agent",
+      "escalate.asking": "Asking the main agent",
+      "escalate.context": "Context",
+      "escalate.fallbackName": "Question",
+      "escalate.question": "Question",
+      "feedback.count": "{count} notes",
+      "feedback.countOne": "{count} note",
+      "feedback.lede": "Typecheck did not pass, so nothing ran. The feedback went back to the model to revise and resubmit.",
+      "feedback.lede.saved": "The saved workflow file did not pass typecheck, so nothing ran. The feedback went back to the model to fix the file or save a corrected version.",
+      "feedback.rule": "rule {code}",
+      "getRun.age": "{age} ago",
+      "getRun.fetched": "Workflow status",
+      "getRun.fetching": "Checking workflow status",
+      "getRun.health.cachedSteps": "{count} cached steps",
+      "getRun.health.cachedStepsOne": "{count} cached step",
+      "getRun.health.concurrency": "concurrency {effective}/{cap}",
+      "getRun.health.concurrencySince": "since {age} ago",
+      "getRun.health.failures": "{count} consecutive failures",
+      "getRun.health.failuresOne": "{count} consecutive failure",
+      "getRun.health.lastProgress": "last progress {age} ago",
+      "getRun.health.leftover": "The {count} steps below marked running are leftovers of the exited process, not live work.",
+      "getRun.health.leftoverOne": "The step below marked running is a leftover of the exited process, not live work.",
+      "getRun.health.notStalled": "not stalled",
+      "getRun.health.stalled": "stalled since {age} ago",
+      "getRun.health.stalledNoClock": "stalled",
+      "getRun.interruptedHint": "This session cannot confirm this run is still alive: it may have been interrupted.",
+      "getRun.logEmpty": "No logs yet",
+      "getRun.nodesLine": "{observed} nodes · {done} done · {running} running · {failed} failed",
+      "getRun.phase.rounds": "{count} rounds",
+      "getRun.phase.roundsOne": "{count} round",
+      "getRun.phase.running": "{count} running",
+      "getRun.phase.settled": "{count} settled",
+      "getRun.phase.soFar": "{duration} so far",
+      "getRun.phase.state.ahead": "ahead",
+      "getRun.phase.state.current": "current",
+      "getRun.phase.state.done": "done",
+      "getRun.phase.state.unfinished": "unfinished",
+      "getRun.phase.unfinished": "{count} unfinished",
+      "getRun.questionsUnknown": "This session cannot see this run's pending questions. Resuming the run re-asks whatever a subagent still needs.",
+      "getRun.runningNodes": "{count} running nodes",
+      "getRun.section.actors": "Subagents",
+      "getRun.section.error": "Error",
+      "getRun.section.logTail": "Logs",
+      "getRun.section.result": "Result",
+      "getRun.subagent.inFlightAtStop": "was in flight at the stop",
+      "getRun.subagent.lastTool": "last {name}",
+      "getRun.subagent.onStep": "{age} on this step",
+      "getRun.subagent.parkedOn": "on question {qid}",
+      "getRun.subagent.phase": "phase {name}",
+      "getRun.subagent.retryIn": "retry in {duration}",
+      "getRun.subagent.state.done": "done",
+      "getRun.subagent.state.executing": "executing",
+      "getRun.subagent.state.failed": "failed",
+      "getRun.subagent.state.idle": "idle",
+      "getRun.subagent.state.parked": "parked",
+      "getRun.subagent.state.unfinished": "unfinished",
+      "getRun.subagent.state.waiting": "waiting",
+      "getRun.subagent.steps": "{count} steps",
+      "getRun.subagent.stepsFailed": "{count} failed",
+      "getRun.subagent.stepsOne": "{count} step",
+      "getRun.subagent.task": "task: {task}",
+      "getRun.subagent.toolCalls": "{count} tool calls",
+      "getRun.subagent.toolCallsOne": "{count} tool call",
+      "getRun.subagent.turn": "turn {count}",
+      "getRun.subagent.waitedFor": "for {age}",
+      "getRun.subagent.waitingBackoff": "in backoff",
+      "getRun.subagent.waitingSlot": "waiting for a slot",
+      "getRun.truncated": "Some rows were left off this card.",
+      "graph.card.reads": "{count} reads",
+      "graph.card.tasks": "{count} tasks",
+      "graph.lane.anonymous": "Anonymous Subagent",
+      "graph.lane.anonymousIndexed": "Anonymous Subagent {index}",
+      "graph.lane.script": "Script",
+      "graph.lane.unresolved": "Unresolved",
+      "graph.phase.unphased": "Ungrouped",
+      "graph.phase.workflow": "Workflow",
+      "graph.status.done": "done",
+      "graph.status.failed": "failed",
+      "graph.status.pending": "pending",
+      "graph.status.running": "running",
+      "graph.truncated": "Graph too large — some participants were omitted.",
+      "hole.awaitingConfirmation": "Hole fill awaiting confirmation",
+      "hole.draft": "Hole draft",
+      "hole.draftPath": "Draft",
+      "hole.filled": "Hole filled",
+      "hole.head.title": "Hole “{name}” · filled by the agent · {time}",
+      "hole.head.title.untimed": "Hole “{name}” · filled by the agent",
+      "hole.open": "Open the fill of “{name}”",
+      "hole.phasesAdded": "{count} phases",
+      "hole.ran": "Hole fill",
+      "hole.revising": "Revising hole fill",
+      "hole.stands.after": "The hole stands after “{before}”;",
+      "hole.stands.before": "The hole stands before “{after}”;",
+      "hole.stands.between": "The hole stands after “{before}” and before “{after}”;",
+      "hole.waited": "Waiting · {time}",
+      "hole.waiting": "waiting",
+      "hole.writing": "Filling hole",
+      "list.count": "{count} workflows",
+      "list.countOne": "{count} workflow",
+      "list.empty": "No saved workflows in this project",
+      "list.invalid": "{count} files could not be read",
+      "list.invalidOne": "{count} file could not be read",
+      "list.listed": "Saved workflows",
+      "list.listing": "Listing saved workflows",
+      "listRuns.count": "{count} runs",
+      "listRuns.countOne": "{count} run",
+      "listRuns.empty": "No workflow runs yet",
+      "listRuns.interrupted": "possibly interrupted",
+      "listRuns.listed": "Workflow runs",
+      "listRuns.listing": "Listing workflow runs",
+      "listRuns.ownSession": "this session",
+      "listRuns.truncated": "Showing the most recent runs only",
+      "resolveQuestion.answer": "Answer",
+      "resolveQuestion.answered": "Answered question",
+      "resolveQuestion.answering": "Answering question",
+      "resolveQuestion.fallbackName": "Answer",
+      "resolveQuestion.outcome": "Outcome",
+      "resolveQuestion.questionId": "Question ID",
+      "resumeRun.hint": "The run continues under the same run ID: finished steps are replayed from the journal, unfinished ones are dispatched again. A completion notification with the final output will arrive.",
+      "resumeRun.inBackground": "Running in background",
+      "resumeRun.label": "Workflow run resumed",
+      "resumeRun.resuming": "Resuming workflow run",
+      "run.actor.notStarted.body": "This subagent has not been asked anything yet. The transcript appears here as soon as its first step is dispatched.",
+      "run.actor.notStarted.title": "Not started yet",
+      "run.amends": "Amends run",
+      "run.cancel": "Stop run",
+      "run.cancelDisabled": "Only a running workflow can be stopped.",
+      "run.cancelling": "Stopping…",
+      "run.concurrency.cooldown": "cooling down until {time}",
+      "run.concurrency.label": "Max concurrency {cap}",
+      "run.configure": "Configure",
+      "run.graph.unavailable": "The workflow graph is not in this conversation's visible history.",
+      "run.hole.filledAt": "Filled · {time}",
+      "run.hole.waitingFor": "Waiting for the agent to fill it",
+      "run.outcome.cancelled": "cancelled",
+      "run.outcome.failed": "failed",
+      "run.outcome.ok": "ok",
+      "run.phase.collapse": "Hide phase {name}",
+      "run.phase.expand": "Show phase {name}",
+      "run.questions.title": "Waiting on an answer",
+      "run.result.completedHint": "This run finished. Its result was delivered to the conversation as a background result message.",
+      "run.result.erroredTitle": "Run errored",
+      "run.result.noError": "No error detail was recorded.",
+      "run.result.stoppedTitle": "Run stopped",
+      "run.result.title": "Result",
+      "run.resumable": "resumable",
+      "run.resume": "Resume run",
+      "run.resumeHint": "Continue from where it stopped: finished steps are reused, interrupted steps run again.",
+      "run.status.completed": "Completed",
+      "run.status.errored": "Errored",
+      "run.status.pending": "Pending",
+      "run.status.running": "Running",
+      "run.status.stopped": "Stopped",
+      "run.stopHint": "You can resume later; finished steps are kept.",
+      "run.stopReason.interrupted": "process exited",
+      "run.stopReason.model": "by the agent",
+      "run.stopReason.provider": "model error",
+      "run.stopReason.superseded": "superseded",
+      "run.stopReason.user": "by you",
+      "run.subagentModel.label": "Subagents {model}",
+      "run.supersededBy": "Superseded by run",
+      "run.truncated": "Details shown for {shown} of {total} steps",
+      "run.usage.label": "Usage",
+      "run.usage.tokens": "{tokens} tokens",
+      "run.usage.value": "{tokens} tokens · {steps} steps",
+      "save.args.default": "Default",
+      "save.args.name": "Name",
+      "save.args.required": "Required",
+      "save.args.requiredNo": "Optional",
+      "save.args.requiredYes": "Required",
+      "save.args.showAll": "Show all {count} arguments",
+      "save.args.showFewer": "Show fewer arguments",
+      "save.args.title": "Arguments",
+      "save.args.type": "Type",
+      "save.overwrite": "overwrite",
+      "save.saved": "Saved workflow",
+      "save.saving": "Saving workflow",
+      "save.scope.global": "Global · visible from every project",
+      "save.scope.hiddenByProject": "This project already has a workflow with this name, which will hide this one here",
+      "save.scope.hidesGlobal": "A global workflow with this name will be hidden by this one",
+      "save.scope.label": "Scope",
+      "save.scope.project": "Project",
+      "save.whenToUse": "When to use",
+      "saveRun.action": "Save",
+      "saveRun.announce.global": "Saved as a global workflow",
+      "saveRun.announce.project": "Saved to the project",
+      "saveRun.chip": "Saved",
+      "saveRun.chip.hint": "View in the workflow hub",
+      "saveRun.consequence": "Writes {path}; afterwards it runs again by name from Automations › Workflows.",
+      "saveRun.description": "Description",
+      "saveRun.description.helper": "When-to-use and arguments can be added later in the workflow hub.",
+      "saveRun.error.compile_failed": "The script did not pass typecheck; nothing was written.",
+      "saveRun.error.generic": "Saving failed.",
+      "saveRun.error.invalid_name": "Only letters, digits and - _ .",
+      "saveRun.error.run_not_found": "This run has no record here, so it cannot be saved directly.",
+      "saveRun.error.script_missing": "This run did not keep its script, so use the path above.",
+      "saveRun.error.target_exists": "A workflow of this name exists; confirm the overwrite and save again.",
+      "saveRun.error.write_error": "Writing failed; nothing was saved.",
+      "saveRun.lead": "Let ZCode refine and save it",
+      "saveRun.lead.hint": "ZCode distills a reusable workflow for you, then asks you to confirm.",
+      "saveRun.lead.sending": "Handed to ZCode…",
+      "saveRun.lead.unsupported": "This agent cannot save directly.",
+      "saveRun.name": "Name",
+      "saveRun.name.helper": "Letters, digits, - _ . ; 64 characters at most",
+      "saveRun.name.invalid": "Only letters, digits and - _ .",
+      "saveRun.name.placeholder": "pr-layered-review",
+      "saveRun.or": "or save it as is",
+      "saveRun.overwrite": "This project already has a workflow of this name; saving overwrites it. Its run records stay.",
+      "saveRun.runAgain": "Run again",
+      "saveRun.scope.remoteOnly": "A remote project can only save into the project.",
+      "saveRun.shadowing": "{text}.",
+      "saveRun.starting": "Starting…",
+      "saveRun.submit": "Save as is",
+      "saveRun.submit.overwrite": "Overwrite and save as is",
+      "saveRun.submit.saving": "Saving…",
+      "saveRun.title": "Save workflow",
+      "script.hide": "Hide full script",
+      "script.show": "Show full script",
+      "settingsChange.kind": "Settings changed",
+      "settingsChange.limit": "at most {n} at once",
+      "settingsChange.limitDefault": "limit back to the default",
+      "settingsChange.model": "subagents on {model}",
+      "settingsChange.modelSession": "subagents back on the session model",
+      "snippet.logsEmpty": "No logs",
+      "snippet.passed": "PASS",
+      "snippet.ran": "Workflow snippet",
+      "snippet.section.code": "Code",
+      "snippet.section.logs": "Logs",
+      "snippet.section.response": "Return value",
+      "snippet.validating": "Running workflow snippet",
+      "status.failed": "Failed",
+      "subagentModel.tooltip": "Subagents run on {model}. The main agent stays on the session model.",
+      "subagentModel.withLevel": "{model} · thinking {level}",
+      "timeline.ledge.earlier": "{count} earlier phase(s), scrolled out of view",
+      "timeline.ledge.later": "{count} later phase(s), scrolled out of view",
+      "timeline.openAgent": "Open the transcript of {name}",
+      "timeline.openScript": "Open the script's steps at {phase}",
+      "timeline.roster.done": "{count} done",
+      "timeline.roster.door.fold": "{count} more subagents · fold",
+      "timeline.roster.door.list": "{count} more subagents · list them here",
+      "timeline.roster.failed": "{count} failed",
+      "timeline.roster.more": "{count} more",
+      "timeline.roster.moreTitle": "{count} more subagents · list everyone in the run pane",
+      "timeline.roster.pending": "{count} pending",
+      "timeline.roster.running": "{count} running",
+      "timeline.roster.unlisted.many": "{count} more agents not listed",
+      "timeline.roster.unlisted.one": "1 more agent not listed",
+      "timeline.rounds": "visited {count} times",
+      "timeline.scrollbar": "Timeline scroll position",
+      "workflow.awaitingConfirmation": "Awaiting workflow confirmation",
+      "workflow.compiled": "compiled",
+      "workflow.draft": "Workflow draft",
+      "workflow.draftOrdinal": "draft {ordinal}",
+      "workflow.fallbackName": "Workflow script",
+      "workflow.feedback": "Compiler feedback",
+      "workflow.noScript": "No workflow script provided.",
+      "workflow.notRun": "not run",
+      "workflow.openRunDetails": "Open run details",
+      "workflow.ran": "Workflow",
+      "workflow.revising": "Revising workflow",
+      "workflow.running": "Validating workflow",
+      "workflow.toFix": "{count} to fix",
+      "workflow.truncated": "Some diagnostics were omitted.",
+      "workflow.writing": "Writing workflow",
+      "launch.scope.global": "Global",
+      "launch.scope.project": "Project",
+      "launch.settings.defaultLimit": "default",
+      "launch.settings.defaultLimitValue": "default {n}",
+      "launch.settings.limit": "Max concurrency",
+      "launch.settings.model": "Subagent model",
+      "launch.settings.sessionModel": "session model",
+      "launch.settingsChangedByYou": "Settings changed by you",
+      "launch.startedByYou": "Started by you from the workflows hub",
+      "models.count": "{count} models",
+      "models.countOne": "{count} model",
+      "models.current": "current",
+      "models.empty": "No models are configured on this host",
+      "models.levels": "Thinking levels: {levels} (default {default})",
+      "models.levelsNoDefault": "Thinking levels: {levels}",
+      "models.listed": "Available models",
+      "models.listing": "Listing models",
+      "models.noLevels": "No thinking levels",
+      "models.provider": "Provider",
+      "models.truncated": "Not all models are shown",
+      "pane.actor": "Workflow subagent",
+      "pane.artifact": "Artifact",
+      "pane.directory": "Workflow runs",
+      "pane.run": "Workflow run",
+      "pane.runTab": "Workflow run",
+      "pane.script": "Script steps",
+      "run.artifacts.collapse": "Hide artifacts",
+      "run.artifacts.copied": "Copied",
+      "run.artifacts.copy": "Copy",
+      "run.artifacts.expand": "Show artifacts",
+      "run.artifacts.kind.board": "Board",
+      "run.artifacts.kind.chart": "Chart",
+      "run.artifacts.kind.file": "File",
+      "run.artifacts.kind.markdown": "Document",
+      "run.artifacts.kind.metrics": "Metrics",
+      "run.artifacts.kind.table": "Table",
+      "run.artifacts.loadError": "Failed to load this artifact.",
+      "run.artifacts.loading": "Loading artifact…",
+      "run.artifacts.localOnly": "Preview is only available in a local workspace.",
+      "run.artifacts.missing": "This artifact is no longer available.",
+      "run.artifacts.nextVersion": "Next version",
+      "run.artifacts.open": "Open artifact",
+      "run.artifacts.openAsFile": "Open as file",
+      "run.artifacts.openAsFileFailed": "Could not open this artifact as a file",
+      "run.artifacts.openInBrowser": "Open in browser",
+      "run.artifacts.openInBrowserNote": "Opens the copy in your workspace, not the bytes pinned to this version.",
+      "run.artifacts.preset.empty": "No data yet",
+      "run.artifacts.preset.items": "{count} items",
+      "run.artifacts.preset.otherColumn": "Other",
+      "run.artifacts.presetInvalid": "This dashboard definition cannot be rendered.",
+      "run.artifacts.previousVersion": "Previous version",
+      "run.artifacts.reveal": "Reveal in workspace",
+      "run.artifacts.title": "Artifacts",
+      "run.artifacts.unavailable": "Artifact details are not available for this conversation.",
+      "run.artifacts.unsupported": "No preview for this file type. It stays available in the workspace.",
+      "run.artifacts.version": "v{version}",
+      "run.artifacts.versionOf": "v{version} of {total}",
+      "run.artifacts.versionTail": "v{version}",
+      "run.event.actorCreated": "Subagent created",
+      "run.event.concurrencyChanged": "Concurrency {previous} → {next}",
+      "run.event.escalationRaised": "Asked main agent",
+      "run.event.escalationResolved": "Answered",
+      "run.event.importCacheClosed": "Cache closed by a workspace write",
+      "run.event.log": "Log",
+      "run.event.nodeDispatched": "Dispatched",
+      "run.event.nodeExecuting": "Request sent",
+      "run.event.nodeNudged": "Nudged",
+      "run.event.nodeQueued": "Queued",
+      "run.event.nodeRepairing": "Repairing (attempt {attempt})",
+      "run.event.nodeSettled": "Settled · {outcome}",
+      "run.event.nodeSettledCached": "Settled · {outcome} (cached)",
+      "run.event.nodeWaitingBackoff": "Waiting for provider ({reason}) · retry in {seconds}s",
+      "run.event.nodeWaitingSlot": "Waiting for a slot",
+      "run.event.phaseEntered": "Entered phase",
+      "run.event.report": "Reported",
+      "run.event.runCapsChanged": "Concurrency limit {previous} → {next}",
+      "run.event.runSettled": "Run settled · {status}",
+      "run.event.runStarted": "Run started",
+      "run.event.unknown": "{type}",
+      "run.event.usageUpdated": "Usage updated",
+      "run.rejection.cancel.cancel_not_supported": "This run cannot be stopped from here.",
+      "run.rejection.cancel.generic": "The run could not be stopped ({code}).",
+      "run.rejection.cancel.not_found": "This run is not running in this agent, so nothing was stopped.",
+      "run.rejection.cancel.not_running": "This run has already ended, so nothing was stopped.",
+      "run.rejection.cancel.unsupported": "This agent cannot stop workflow runs.",
+      "run.rejection.resume.already_running": "This run is already in flight.",
+      "run.rejection.resume.compile_failed": "The stored script no longer compiles with this version of the workflow facade. Ask the agent to amend the workflow instead of resuming it.",
+      "run.rejection.resume.generic": "The run could not be resumed ({code}).",
+      "run.rejection.resume.not_found": "This run is not in this session's journal.",
+      "run.rejection.resume.not_resumable": "Only a stopped run can be resumed.",
+      "run.rejection.resume.script_mismatch": "The stored script no longer matches its recorded hash.",
+      "run.rejection.resume.script_missing": "This run has no stored script to re-run.",
+      "run.rejection.resume.superseded": "An amended run has replaced this one; open the successor instead.",
+      "run.rejection.resume.unsupported": "This agent cannot resume workflow runs.",
+      "run.settings.apply": "Apply",
+      "run.settings.applying": "Applying…",
+      "run.settings.consequence.concurrencyLive": "Applies to this run right away; no new run is started.",
+      "run.settings.consequence.errored": "Retries as a new run with these settings; finished steps are kept.",
+      "run.settings.consequence.pending": "Starts a new run with these settings; this one has not begun any step yet.",
+      "run.settings.consequence.running": "Stops this run and starts a new one with these settings; finished steps are kept.",
+      "run.settings.consequence.stopped": "Continues as a new run with these settings; finished steps are kept.",
+      "run.settings.limit": "Max concurrency",
+      "run.settings.limit.atDefault": "= default",
+      "run.settings.limit.decrease": "Lower max concurrency",
+      "run.settings.limit.default": "default {n}",
+      "run.settings.limit.increase": "Raise max concurrency",
+      "run.settings.model": "Subagent model",
+      "run.settings.model.noCatalog": "This agent has no model catalog; subagents stay on the session model.",
+      "run.settings.model.session": "session model",
+      "run.settings.model.sessionFallback": "Session model",
+      "run.settings.model.unavailable": "unavailable",
+      "run.settings.rejection.compile_failed": "The stored script no longer compiles with this version of the workflow facade. Ask the agent to amend the workflow.",
+      "run.settings.rejection.generic": "The settings could not be changed ({code}).",
+      "run.settings.rejection.missing_boundaries": "This run's records are too old to carry its finished work over.",
+      "run.settings.rejection.model_unavailable": "That model is not available on this agent now.",
+      "run.settings.rejection.not_configurable": "This run can no longer be configured.",
+      "run.settings.rejection.not_found": "This run is not in this conversation's records.",
+      "run.settings.rejection.script_missing": "This run has no stored script, so its settings cannot be changed here.",
+      "run.settings.rejection.start_failed": "The new run could not be started ({message}).",
+      "run.settings.rejection.unchanged": "These are the run's current settings.",
+      "run.settings.rejection.unsupported": "This agent cannot change workflow settings from here.",
+      "run.settings.title": "Configure workflow",
+      "run.throttle.reason.offpeak": "off-peak queue",
+      "run.throttle.reason.overloaded": "overloaded",
+      "run.throttle.reason.rateLimited": "rate limited",
+      "run.throttle.reason.transient": "transient error",
+      "run.untracked.body": "This run is outside the most recent runs kept for live status. Its record is still complete.",
+      "run.untracked.title": "No longer tracked live",
+      "script.args.truncated": "Arguments were shortened before journaling.",
+      "script.kind.step": "Step",
+      "script.listTruncated": "Only the first {count} steps are shown.",
+      "script.loadFailed": "Could not load the script's steps: {error}",
+      "script.notStarted.body": "Reads, searches and commands appear here the moment the script touches the project.",
+      "script.notStarted.title": "The script has not run anything yet",
+      "script.now": "now",
+      "script.result.empty": "Nothing matched.",
+      "script.result.files": "{count} files",
+      "script.result.lines": "{count} lines",
+      "script.result.loadFailed": "Could not load the result: {error}",
+      "script.result.loading": "Loading…",
+      "script.result.matches": "{count} matches",
+      "script.result.more": "… {count} more",
+      "script.result.stderr": "stderr",
+      "script.result.truncated": "Showing the first {shown} of {total}; the full result stays in the journal.",
+      "script.search.in": "in",
+      "script.startedAgo": "started {ago} ago",
+      "script.status.exit": "exit {code}",
+      "script.status.replayed": "replayed",
+      "script.status.replayedHint": "Replayed from the journal of an earlier run; the command did not run again.",
+      "script.status.timedOut": "timed out",
+      "script.summary.phases": "{count} phases",
+      "script.summary.phases.one": "1 phase",
+      "script.summary.steps": "{count} steps",
+      "script.summary.steps.one": "1 step",
+      "script.title": "Script",
+      "script.unavailable": "This session cannot show the script's steps. Update the CLI to read them.",
+      "script.verb.read": "Read",
+      "script.verb.searched": "Searched",
+      "ui.collapse": "Hide",
+      "ui.copyFailed": "Could not copy",
+      "ui.copyRunId": "Copy run ID",
+      "ui.expand": "Show",
       "directory.panel": "Workflows",
       "directory.title": "Workflows",
       "directory.subtitle": "Saved workflows from your project. Fill in the arguments and run one again.",
@@ -317,6 +683,297 @@ window.__ModuleLoader__.load({
       "directory.prompt.create": "Help me design a workflow, then save it to this project once it works: ",
       "directory.prompt.run": "Run the saved workflow \"{name}\" with these arguments:\n{args}\nTell me the result when it finishes.",
       "directory.prompt.runNoArgs": "Run the saved workflow \"{name}\". Tell me the result when it finishes.",
+      "chat.permission.title": "Permission needed",
+      "chat.permission.awaitingApproval": "Waiting for your answer",
+      "chat.permission.approve": "Allow",
+      "chat.permission.allowOnce.description": "Allow this run only",
+      "chat.permission.deny": "Deny",
+      "chat.permission.deny.description": "Deny this time",
+      "chat.permission.keyboardHint": "Use Tab or the up and down keys to choose, Enter to confirm",
+      "chat.permission.confirm": "Confirm",
+      "chat.permission.close": "Close",
+      "chat.permission.loading": "Reading the confirmation…",
+      "chat.permission.notFound": "This run no longer needs a confirmation.",
+      "chat.permission.submitFailed": "Could not send the answer: {reason}",
+      "chat.permission.workflow.title": "Run this workflow?",
+      "chat.permission.workflow.amend.title": "Amend this workflow?",
+      "chat.permission.workflow.hole.title": "Fill this hole?",
+      "chat.permission.workflow.showScript": "Show full script",
+      "chat.permission.workflow.hideScript": "Hide full script",
+      "chat.permission.workflow.refine": "Refine",
+      "chat.permission.workflow.refine.placeholder": "Describe how the workflow should change…",
+      "chat.permission.workflow.allowForSession": "Always allow in this session",
+      "chat.permission.workflow.allowForSession.description": "Do not ask again for workflows in this session",
+      "chat.permission.workflow.allowOnce.adjusted": "Run once with the adjusted settings",
+      "chat.permission.workflow.allowForSession.adjusted": "This run with the adjusted settings; later runs are not asked and carry their own",
+      "chat.permission.workflow.amends": "Amends run",
+      "chat.permission.workflow.amends.running": "still running, will be stopped",
+      "chat.permission.workflow.amends.scriptUnchanged": "script unchanged",
+      "chat.permission.workflow.maxConcurrency": "At most {count} subagents at once",
+      "chat.permission.workflow.subagentModel": "Subagents run on {model}",
+      "chat.permission.workflow.subagentModelDefault": "By default, subagents run on {model}",
+      "chat.permission.workflow.settings.model.lead": "Subagents run on",
+      "chat.permission.workflow.settings.model.leadDefault": "By default, subagents run on",
+      "chat.permission.workflow.settings.model.effort": "Reasoning effort",
+      "chat.permission.workflow.settings.model.noCatalog": "Subagents stay on the session model",
+      "chat.permission.workflow.settings.model.noCatalogDefault": "By default, subagents stay on the session model",
+      "chat.permission.workflow.settings.model.noCatalogReason": "this agent has no model catalog",
+      "chat.permission.workflow.settings.model.unavailable": "unavailable",
+      "chat.permission.workflow.settings.limit.lead": "At most",
+      "chat.permission.workflow.settings.limit.trail": "subagents at once",
+      "chat.permission.workflow.settings.limit.none": "no limit of its own",
+      "chat.permission.workflow.settings.limit.atDefault": "= default",
+      "chat.permission.workflow.settings.limit.default": "default {n}",
+      "chat.permission.workflow.settings.limit.decrease": "Lower max concurrency",
+      "chat.permission.workflow.settings.limit.increase": "Raise max concurrency",
+      "chat.permission.workflow.settings.was": "was {value}",
+      "chat.permission.workflow.settings.reset": "Back to the proposed value",
+      "chat.permission.workflow.holes.label": "Holes",
+      "chat.permission.workflow.holes.note": "The run pauses at a hole until the agent fills it.",
+      "chat.permission.workflow.saved.badge": "Saved workflow",
+      "chat.permission.workflow.saved.scope.project": "project",
+      "chat.permission.workflow.saved.args": "Arguments",
+      "chat.permission.workflow.script": "Script",
+      "chat.permission.workflow.graph.truncated": "The graph is too large; some participants are left out.",
+      "chat.permission.workflow.holesCount": "{count} holes",
+      "chat.permission.workflow.stagesCount": "{count} phases",
+      "chat.toolCall.workflow.card.steps": "{done}/{total} steps",
+      "chat.toolCall.workflow.card.phases": "{count} phases",
+      "chat.toolCall.workflow.card.holes": "{count} holes",
+      "chat.toolCall.workflow.card.ended": "Workflow ended",
+      "chat.toolCall.workflow.script.title": "Script",
+      "chat.toolCall.workflow.openRunDetails": "Open run details",
+      "chat.toolCall.workflow.subagentModel.withLevel": "{model} · reasoning {level}",
+      "chat.toolCall.workflow.timeline.roster.running": "{count} running",
+      "chat.toolCall.workflow.run.status.pending": "Pending",
+      "chat.toolCall.workflow.run.status.running": "Running",
+      "chat.toolCall.workflow.run.status.completed": "Completed",
+      "chat.toolCall.workflow.run.status.errored": "Errored",
+      "chat.toolCall.workflow.run.status.stopped": "Stopped",
+      "chat.toolCall.workflow.run.stopReason.user": "stopped by you",
+      "chat.toolCall.workflow.run.stopReason.model": "stopped by the agent",
+      "chat.toolCall.workflow.run.stopReason.provider": "model-side error",
+      "chat.toolCall.workflow.run.stopReason.interrupted": "the process exited",
+      "chat.toolCall.workflow.run.stopReason.superseded": "superseded",
+      "chat.toolCall.workflow.run.cancel": "Stop run",
+      "chat.toolCall.workflow.run.cancelling": "Stopping…",
+      "chat.toolCall.workflow.run.cancelDisabled": "Only a running workflow can be stopped.",
+      "chat.toolCall.workflow.run.stopHint": "A stopped run can be resumed later; finished steps are kept.",
+      "chat.toolCall.workflow.run.resumable": "Resumable",
+      "chat.toolCall.workflow.run.resume": "Resume run",
+      "workflows.hub.sectionTitle": "Saved workflows",
+      "workflows.hub.description": "Workflows saved in your open projects. Fill in the arguments and run them again.",
+      "workflows.hub.refresh": "Refresh",
+      "workflows.hub.openSettings": "Workflow settings",
+      "workflows.hub.createViaChat": "Create in chat",
+      "workflows.hub.group.current": "Current",
+      "workflows.hub.global.title": "Global",
+      "workflows.hub.global.hint": "Visible from every project",
+      "workflows.hub.global.empty": "No global workflows yet. Good for flows that depend on no particular project, such as deep research.",
+      "workflows.hub.global.unsupported": "The current agent does not support global workflows.",
+      "workflows.hub.global.noLocalRuntime": "Could not reach the local agent; global workflows are unavailable.",
+      "workflows.hub.empty.title": "No saved workflows in your open projects yet",
+      "workflows.hub.empty.hint": "Design a workflow with ZCode in chat, then have it save the workflow to a project once it works. Projects that aren't open don't appear here.",
+      "workflows.hub.noWorkspace": "Open a workspace to see its workflows.",
+      "workflows.hub.loadError": "Could not read workflows: {error}",
+      "workflows.hub.invalid": "{count} files could not be read",
+      "workflows.hub.invalidOne": "{count} file could not be read",
+      "workflows.hub.card.run": "Run",
+      "workflows.hub.card.menu": "More actions",
+      "workflows.hub.card.open": "View details",
+      "workflows.hub.card.revise": "Revise in chat",
+      "workflows.hub.card.copyPath": "Copy path",
+      "workflows.hub.card.promoteToGlobal": "Promote to global",
+      "workflows.hub.card.moveToProject": "Move to project…",
+      "workflows.hub.card.delete": "Delete workflow",
+      "workflows.hub.card.argsMore": "+{count}",
+      "workflows.hub.lastRun.never": "Not run yet",
+      "workflows.hub.lastRun.completed": "Completed",
+      "workflows.hub.lastRun.errored": "Errored",
+      "workflows.hub.lastRun.running": "Running",
+      "workflows.hub.lastRun.stopped": "Stopped",
+      "workflows.hub.copied": "Path copied",
+      "workflows.hub.delete.title": "Delete workflow \"{name}\"?",
+      "workflows.hub.delete.description": "This removes {path} from the project. Existing run records are kept.",
+      "workflows.hub.delete.confirm": "Delete",
+      "workflows.hub.deleted": "Deleted workflow \"{name}\"",
+      "workflows.hub.deleteFailed": "Delete failed: {reason}",
+      "workflows.hub.promote.failed": "Promote failed: {reason}",
+      "workflows.hub.move.toast.project": "Moved to {project}",
+      "workflows.hub.move.targetExists": "A workflow with this name already exists there",
+      "workflows.hub.move.failed": "Move failed: {reason}",
+      "workflows.hub.moveDialog.title": "Move to project",
+      "workflows.hub.moveDialog.noLocalProject": "Open a local project to move this workflow",
+      "workflows.hub.moveDialog.submit": "Move",
+      "workflows.hub.launch.title": "Run {name}",
+      "workflows.hub.launch.target": "Run in",
+      "workflows.hub.launch.noLocalProject": "Open a local project to run this workflow",
+      "workflows.hub.launch.required": "Required",
+      "workflows.hub.launch.scope.project": "Project",
+      "workflows.hub.launch.scope.global": "Global",
+      "workflows.hub.launch.note": "Starts right away in a new session in {project}",
+      "workflows.hub.launch.cancel": "Cancel",
+      "workflows.hub.launch.submit": "Run",
+      "workflows.hub.launch.error.required": "Required",
+      "workflows.hub.launch.error.invalid_number": "Must be a number",
+      "workflows.hub.launch.error.invalid_json": "Not valid JSON",
+      "workflows.hub.launch.error.invalid_name": "Invalid workflow name",
+      "workflows.hub.launch.error.not_found": "This workflow could not be found",
+      "workflows.hub.launch.error.invalid_args": "Some arguments are invalid",
+      "workflows.hub.launch.error.compile_failed": "The workflow script did not compile",
+      "workflows.hub.launch.error.session_busy": "The session is busy; try again",
+      "workflows.hub.launch.error.start_failed": "The workflow could not be started",
+      "workflows.hub.launch.error.unsupported": "The current agent does not support running workflows directly",
+      "workflows.hub.launch.error.generic": "The workflow could not be started",
+      "workflows.hub.detail.tab.definition": "Definition",
+      "workflows.hub.detail.tab.history": "Run history",
+      "workflows.hub.detail.projectColumn": "Project",
+      "workflows.hub.detail.copyPath": "Copy path",
+      "workflows.hub.detail.run": "Run",
+      "workflows.hub.detail.basics": "Basics",
+      "workflows.hub.detail.description": "Description",
+      "workflows.hub.detail.whenToUse": "When to use",
+      "workflows.hub.detail.whenToUse.help": "A routing hint for ZCode: when this workflow is the right pick.",
+      "workflows.hub.detail.args": "Arguments",
+      "workflows.hub.detail.args.name": "Name",
+      "workflows.hub.detail.args.type": "Type",
+      "workflows.hub.detail.args.required": "Required",
+      "workflows.hub.detail.args.default": "Default",
+      "workflows.hub.detail.args.description": "Description",
+      "workflows.hub.detail.args.add": "Add argument",
+      "workflows.hub.detail.args.remove": "Remove argument",
+      "workflows.hub.detail.args.error.empty_name": "Argument needs a name",
+      "workflows.hub.detail.args.error.duplicate_name": "Duplicate argument name",
+      "workflows.hub.detail.args.error.invalid_default": "Default does not match the type",
+      "workflows.hub.detail.meta.note": "Only the metadata at the top of the file changes; the script body stays as is.",
+      "workflows.hub.detail.meta.discard": "Discard changes",
+      "workflows.hub.detail.meta.save": "Save metadata",
+      "workflows.hub.detail.meta.saved": "Metadata saved",
+      "workflows.hub.detail.meta.saveFailed": "Save failed: {reason}",
+      "workflows.hub.detail.meta.descriptionRequired": "Description is required",
+      "workflows.hub.detail.script": "Script",
+      "workflows.hub.detail.script.note": "The script is read-only. To change it, revise it with ZCode in chat and save a new version.",
+      "workflows.hub.detail.script.copy": "Copy script",
+      "workflows.hub.detail.loadError": "Could not read this workflow: {reason}",
+      "workflows.hub.detail.notFound": "This workflow is no longer in the project.",
+      "workflows.hub.history.empty": "No runs yet.",
+      "workflows.hub.history.open": "Open run",
+      "workflows.hub.history.note": "Run records come from this project's workflow journal and survive restarts. \"Open run\" returns to the chat that started it and opens the run details.",
+      "workflows.hub.history.tokens": "{tokens} tokens",
+      "workflows.hub.artifacts.latest": "Latest artifacts",
+      "workflows.hub.reason.invalid_name": "Invalid name",
+      "workflows.hub.reason.not_found": "File not found",
+      "workflows.hub.reason.parse_error": "The metadata at the top of the file could not be parsed",
+      "workflows.hub.reason.read_error": "File could not be read",
+      "workflows.hub.time.duration.seconds": "{seconds}s",
+      "workflows.hub.time.duration.minutes": "{minutes}m {seconds}s",
+      "workflows.hub.prompt.create": "Design a workflow for this project, then save it here once it works: ",
+      "workflows.hub.prompt.revise": "Revise the saved workflow \"{name}\" and save a new version once it works: ",
+      "workflows.hub.prompt.run": "Run the saved workflow \"{name}\" with these arguments:\n{args}\nTell me the result when it finishes.",
+      "workflows.hub.prompt.runNoArgs": "Run the saved workflow \"{name}\". Tell me the result when it finishes.",
+      "chat.toolCall.workflow.saveRun.action": "Save",
+      "chat.toolCall.workflow.saveRun.runAgain": "Run again",
+      "chat.toolCall.workflow.saveRun.starting": "Starting…",
+      "chat.toolCall.workflow.saveRun.chip": "Saved",
+      "chat.toolCall.workflow.saveRun.chip.hint": "View in the workflow hub",
+      "chat.toolCall.workflow.saveRun.announce.project": "Saved to the project",
+      "chat.toolCall.workflow.saveRun.announce.global": "Saved as a global workflow",
+      "chat.toolCall.workflow.saveRun.title": "Save workflow",
+      "chat.toolCall.workflow.saveRun.lead": "Let ZCode refine and save it",
+      "chat.toolCall.workflow.saveRun.lead.hint": "ZCode distills a reusable workflow for you, then asks you to confirm.",
+      "chat.toolCall.workflow.saveRun.lead.sending": "Handed to ZCode…",
+      "chat.toolCall.workflow.saveRun.lead.unsupported": "This agent cannot save directly.",
+      "chat.toolCall.workflow.saveRun.or": "or save it as is",
+      "chat.toolCall.workflow.saveRun.name": "Name",
+      "chat.toolCall.workflow.saveRun.name.placeholder": "pr-layered-review",
+      "chat.toolCall.workflow.saveRun.name.helper": "Letters, digits, - _ . ; 64 characters at most",
+      "chat.toolCall.workflow.saveRun.name.invalid": "Only letters, digits and - _ .",
+      "chat.toolCall.workflow.saveRun.scope.remoteOnly": "A remote project can only save into the project.",
+      "chat.toolCall.workflow.saveRun.description": "Description",
+      "chat.toolCall.workflow.saveRun.description.helper": "When-to-use and arguments can be added later in the workflow hub.",
+      "chat.toolCall.workflow.saveRun.consequence": "Writes {path}; afterwards it runs again by name from Automations › Workflows.",
+      "chat.toolCall.workflow.saveRun.overwrite": "This project already has a workflow of this name; saving overwrites it. Its run records stay.",
+      "chat.toolCall.workflow.saveRun.shadowing": "{text}.",
+      "chat.toolCall.workflow.saveRun.submit": "Save as is",
+      "chat.toolCall.workflow.saveRun.submit.overwrite": "Overwrite and save as is",
+      "chat.toolCall.workflow.saveRun.submit.saving": "Saving…",
+      "chat.toolCall.workflow.saveRun.error.invalid_name": "Only letters, digits and - _ .",
+      "chat.toolCall.workflow.saveRun.error.run_not_found": "This run has no record here, so it cannot be saved directly.",
+      "chat.toolCall.workflow.saveRun.error.script_missing": "This run did not keep its script, so use the path above.",
+      "chat.toolCall.workflow.saveRun.error.target_exists": "A workflow of this name exists; confirm the overwrite and save again.",
+      "chat.toolCall.workflow.saveRun.error.compile_failed": "The script did not pass typecheck; nothing was written.",
+      "chat.toolCall.workflow.saveRun.error.write_error": "Writing failed; nothing was saved.",
+      "chat.toolCall.workflow.saveRun.error.generic": "Saving failed.",
+      "chat.toolCall.workflow.save.scope.label": "Scope",
+      "chat.toolCall.workflow.save.scope.project": "Project",
+      "chat.toolCall.workflow.save.scope.global": "Global · visible from every project",
+      "chat.toolCall.workflow.save.scope.hidesGlobal": "A global workflow with this name will be hidden by this one",
+      "chat.toolCall.workflow.save.scope.hiddenByProject": "This project already has a workflow with this name, which will hide this one here",
+      "chat.workflowLaunch.scope.project": "Project",
+      "chat.workflowLaunch.scope.global": "Global",
+      "chat.workflowLaunch.startedByYou": "Started by you from the workflows hub",
+      "chat.workflowLaunch.settingsChangedByYou": "Settings changed by you",
+      "chat.workflowLaunch.settings.model": "Subagent model",
+      "chat.workflowLaunch.settings.limit": "Max concurrency",
+      "chat.workflowLaunch.settings.sessionModel": "session model",
+      "chat.workflowLaunch.settings.defaultLimit": "default",
+      "chat.workflowLaunch.settings.defaultLimitValue": "default {n}",
+      "chat.backgroundResult.workflow.asked": "Subagent asked a question",
+      "chat.backgroundResult.workflow.waiting": "Subagent is waiting for an answer",
+      "chat.backgroundResult.workflow.answered": "Subagent question answered",
+      "chat.backgroundResult.workflow.stall": "Workflow waiting on the model",
+      "chat.backgroundResult.workflow.stall.body": "No model request in this run has succeeded for {minutes} min. It is still running and retrying with backoff; stop it from the run card if you no longer need it.",
+      "chat.backgroundResult.workflow.stall.reason": "Retry reason",
+      "chat.backgroundResult.workflow.stall.cap": "Max concurrency",
+      "chat.backgroundResult.workflow.blocked": "Workflow waiting on the agent",
+      "chat.backgroundResult.workflow.blocked.openFor": "open for {minutes} min",
+      "chat.backgroundResult.workflow.completed": "Workflow completed",
+      "chat.backgroundResult.workflow.errored": "Workflow errored",
+      "chat.backgroundResult.workflow.stopped": "Workflow stopped",
+      "chat.backgroundResult.workflow.artifacts.more": "+{count}",
+      "chat.backgroundResult.workflow.hole.waiting": "Workflow waiting for code",
+      "chat.backgroundResult.workflow.hole.filled": "Hole filled",
+      "chat.backgroundResult.workflow.hole.left": "Workflow left a hole",
+      "chat.statusPanel.workflows": "Workflows",
+      "chat.statusPanel.endedWorkflows": "Ended workflows",
+      "chat.statusPanel.workflowsLive": "{count} running",
+      "taskList.workflowRun.ariaLabel": "Workflow run {name}: {status}",
+      "taskList.workflowRun.moreRuns": "+{count} more",
+      "taskList.workflowRun.moreStations": "+{count}",
+      "taskList.workflowRun.liveCount": "{count} workflows running",
+      "taskList.workflowRun.holeWaiting": "{name} · waiting",
+      "workflowDirectory.title": "Workflow runs",
+      "workflowDirectory.running": "Running",
+      "workflowDirectory.runningEmpty": "No workflows are running",
+      "workflowDirectory.ended": "Ended",
+      "workflowDirectory.endedEmpty": "No workflows have ended yet",
+      "workflowDirectory.empty": "No workflow has run in this conversation yet",
+      "workflowDirectory.truncated": "Showing the {count} most recent runs only",
+      "workflowDirectory.unavailable": "Workflow runs can't be listed for this conversation",
+      "settings.dynamicWorkflow": "Dynamic workflows",
+      "settings.dynamicWorkflowDescription": "Let the model orchestrate many subagents working in parallel, so it can take on complex tasks and deliver polished results.",
+      "settings.dynamicWorkflow.option.disabled": "Off",
+      "settings.dynamicWorkflow.option.disabled.description": "Turn workflows off. The model cannot start new ones, and the Workflows tab leaves the Automations page. Workflows already in your conversations stay readable.",
+      "settings.dynamicWorkflow.option.onDemand": "On command",
+      "settings.dynamicWorkflow.option.onDemand.description": "The model starts a workflow only when you type /workflow.",
+      "settings.dynamicWorkflow.option.alwaysOn": "Always on",
+      "settings.dynamicWorkflow.option.alwaysOn.description": "You can type /workflow, and the model can also start a workflow on its own when your request calls for one.",
+      "settings.dynamicWorkflow.defaultTag": "Default",
+      "settings.dynamicWorkflow.saveError": "Could not save the dynamic workflow setting",
+      "settings.dynamicWorkflow.loadError": "Could not read the current setting",
+      "settings.dynamicWorkflow.retry": "Retry",
+      "settings.dynamicWorkflow.saving": "Saving…",
+      "settings.dynamicWorkflow.restart": "Takes effect after the app restarts.",
+      "settings.dynamicWorkflow.readOnly": "This setting cannot be changed in the current environment.",
+      "hub.common.runsEmpty": "No runs yet",
+      "hub.common.holesLabel": "Holes",
+      "hub.common.scriptFallback": "Workflow script",
+      "chat.toolCall.workflow.digest.question": "{count} question to answer",
+      "chat.toolCall.workflow.digest.questions": "{count} questions to answer",
+      "chat.toolCall.workflow.hole.head.title": "Hole “{name}” · filled by the agent · {time}",
+      "chat.toolCall.workflow.hole.head.title.untimed": "Hole “{name}” · filled by the agent",
+      "chat.toolCall.workflow.hole.open": "Open the fill of “{name}”",
+      "chat.toolCall.workflow.hole.waited": "Waiting · {time}",
       "settingsRow.ariaLabel": "Dynamic workflow mode",
       "settingsRow.title": "Dynamic workflows",
       "settingsRow.description": "Let the model orchestrate many subagents working in parallel, so it can take on complex tasks and deliver polished results.",
@@ -365,7 +1022,7 @@ window.__ModuleLoader__.load({
       "ui.confirm": "确认",
       "ui.copy": "复制",
       "ui.copied": "已复制",
-      "ui.loading": "加载中…",
+      "ui.loading": "正在读取…",
       "ui.empty": "这里还没有内容",
       "ui.scope.project": "项目",
       "ui.scope.global": "全局",
@@ -381,111 +1038,477 @@ window.__ModuleLoader__.load({
       "ui.runs": "运行",
       "ui.openDetails": "查看实例详情",
       "ui.openDirectory": "打开工作流目录",
-      "detail.title": "工作流实例",
-      "detail.close": "关闭",
-      "detail.cancel": "取消",
-      "detail.copied": "已复制",
-      "detail.copyFailed": "无法复制",
-      "detail.copyRunId": "复制运行 ID",
-      "detail.refresh": "刷新",
-      "detail.stop": "停止运行",
-      "detail.stopPending": "正在停止…",
-      "detail.stopDisabled": "只有正在运行的工作流可以停止。",
-      "detail.stopHint": "停止后可以随时恢复，已完成的步骤会保留。",
-      "detail.stopConfirm.title": "停止这个运行？",
-      "detail.stopConfirm.body": "停止后已完成的步骤会保留，之后可以恢复。",
-      "detail.stopConfirm.confirm": "停止运行",
-      "detail.stopError": "没能停止这个运行。",
-      "detail.scriptOpen": "脚本文件",
-      "detail.scriptTitle": "脚本文件",
-      "detail.scriptBody": "这个运行使用的脚本保存在本机。",
-      "detail.scriptMissing": "这个运行没有记录脚本文件的位置。",
-      "detail.cwd": "工作目录",
-      "detail.copyPath": "复制路径",
-      "detail.duration": "耗时",
-      "detail.duration.seconds": "{seconds} 秒",
-      "detail.duration.minutes": "{minutes} 分 {seconds} 秒",
-      "detail.duration.hours": "{hours} 小时 {minutes} 分",
-      "detail.duration.days": "{days} 天 {hours} 小时",
-      "detail.createdAt": "创建时间",
-      "detail.finishedAt": "结束时间",
-      "detail.runId": "运行 ID",
-      "detail.modelShort": "子代理 {model}",
-      "detail.concurrency": "最大并发数 {cap}",
-      "detail.stepsValue": "{settled}/{started} 步",
-      "detail.stepsValueOne": "{settled}/{started} 步",
-      "detail.stepsRunning": "{count} 步运行中",
-      "detail.stepsFailed": "{count} 步失败",
-      "detail.resumedFrom": "调整自",
-      "detail.config.maxConcurrency": "最大并发数",
-      "detail.config.model": "子代理模型",
-      "detail.loading": "正在读取运行详情…",
-      "detail.loadError": "无法读取这个运行。",
-      "detail.notFound": "这个运行不在当前项目的记录里。",
-      "detail.retry": "重试",
-      "detail.missing.title": "无法显示这个运行",
-      "detail.missing.body": "打开方式缺少运行信息，请从运行列表重新打开。",
-      "detail.emptyBody": "这个运行还没有记录到细节。",
-      "detail.section.args": "运行参数",
-      "detail.section.holes": "留白",
-      "detail.section.phases": "阶段",
-      "detail.section.agents": "子代理",
-      "detail.section.artifacts": "产物",
-      "detail.section.reports": "报告",
-      "detail.section.log": "日志",
-      "detail.section.world": "命令",
-      "detail.section.result": "结果",
-      "detail.phase.current": "进行中",
-      "detail.phase.steps": "{count} 步",
-      "detail.phase.stepsOne": "{count} 步",
-      "detail.phase.failed": "{count} 步失败",
-      "detail.phase.startedAt": "开始于 {time}",
-      "detail.meta.phase": "阶段 {name}",
-      "detail.agent.anonymous": "未命名子代理",
-      "detail.agent.steps": "{count} 步",
-      "detail.agent.stepsOne": "{count} 步",
-      "detail.agent.settled": "{count} 步已结算",
-      "detail.agent.settledOne": "{count} 步已结算",
-      "detail.agent.failed": "{count} 步失败",
-      "detail.agent.lastAt": "更新于{time}",
-      "detail.artifact.version": "第 {version} 版",
-      "detail.artifact.versions": "共 {count} 版",
-      "detail.artifact.primary": "主产物",
-      "detail.artifact.kind.file": "文件",
-      "detail.artifact.kind.markdown": "文档",
-      "detail.artifact.kind.chart": "图表",
-      "detail.artifact.kind.table": "表格",
-      "detail.artifact.kind.metrics": "指标",
-      "detail.artifact.kind.board": "看板",
-      "detail.artifact.loading": "正在读取产物…",
-      "detail.artifact.loadError": "这个产物读取失败。",
-      "detail.artifact.unsupported": "这个文件类型没有内置预览，它仍然留在工作区里。",
-      "detail.artifact.file": "文件位置",
-      "detail.artifact.copyText": "复制内容",
-      "detail.artifact.truncated": "内容较长，仅显示第一部分。",
-      "detail.hole.waiting": "等待主代理补全",
-      "detail.world.exitCode": "退出码 {code}",
-      "detail.result.empty": "本实例已完成，结果以后台结果消息的形式投递到会话里。",
-      "detail.result.errored": "实例出错",
-      "detail.result.stopped": "实例已停止",
-      "detail.result.noError": "没有记录到错误详情。",
-      "detail.stopReason.user": "你停止的",
-      "detail.stopReason.model": "代理停止的",
-      "detail.stopReason.provider": "模型侧错误",
-      "detail.stopReason.interrupted": "进程已退出",
-      "detail.stopReason.superseded": "已被替代",
-      "detail.stopReason.other": "已停止",
-      "detail.status.pending": "待启动",
-      "detail.status.running": "运行中",
-      "detail.status.completed": "已完成",
-      "detail.status.errored": "出错",
-      "detail.status.stopped": "已停止",
-      "detail.status.superseded": "已被替代",
-      "detail.status.unknown": "状态未知",
-      "detail.relative.justNow": "刚刚",
-      "detail.relative.minutesAgo": "{count} 分钟前",
-      "detail.relative.hoursAgo": "{count} 小时前",
-      "detail.relative.daysAgo": "{count} 天前",
+      "amend.amended": "工作流已调整",
+      "amend.amends": "调整 run",
+      "amend.awaitingConfirmation": "等待调整确认",
+      "amend.draft": "工作流调整草稿",
+      "amend.ran": "工作流调整",
+      "amend.revising": "正在修改工作流调整",
+      "amend.scriptUnchanged": "脚本不变",
+      "amend.stopsRunning": "仍在运行，将被停止",
+      "amend.writing": "正在调整工作流",
+      "card.agent": "{count} 个子代理",
+      "card.agents": "{count} 个子代理",
+      "card.agentsWorking": "{count} 个子代理工作中",
+      "card.agentWorking": "{count} 个子代理工作中",
+      "card.artifact": "{count} 个产物",
+      "card.artifacts": "{count} 个产物",
+      "card.collapseDetails": "收起详情",
+      "card.completed": "工作流已完成",
+      "card.ended": "工作流已结束",
+      "card.errored": "工作流出错",
+      "card.expandDetails": "展开详情",
+      "card.hole": "{count} 处留白",
+      "card.holes": "{count} 处留白",
+      "card.phase": "{count} 个阶段",
+      "card.phases": "{count} 个阶段",
+      "card.round": "第 {count} 轮",
+      "card.rounds": "{count} 轮",
+      "card.running": "工作流运行中",
+      "card.started": "工作流已启动",
+      "card.steps": "{done}/{total} 步",
+      "card.stopped": "工作流已停止",
+      "card.superseded": "工作流已被替代",
+      "card.tokens": "{count} tokens",
+      "completion.moreArtifacts": "还有 {count} 个",
+      "completion.phases": "阶段",
+      "completion.subagents": "子代理",
+      "completion.time": "时间",
+      "completion.tokens": "tokens",
+      "completion.unavailable": "暂无数据",
+      "digest.hideAgents": "隐藏子代理",
+      "digest.hole": "{count} 处留白待补全",
+      "digest.holes": "{count} 处留白待补全",
+      "digest.question": "{count} 个待答问题",
+      "digest.questions": "{count} 个待答问题",
+      "digest.showAgents": "显示子代理",
+      "escalate.answer": "答复",
+      "escalate.asked": "已询问主代理",
+      "escalate.asking": "正在询问主代理",
+      "escalate.context": "背景",
+      "escalate.fallbackName": "问题",
+      "escalate.question": "问题",
+      "feedback.count": "{count} 条",
+      "feedback.countOne": "{count} 条",
+      "feedback.lede": "类型检查未通过，脚本未运行；反馈已交回模型，由它修改后重新提交。",
+      "feedback.lede.saved": "保存的工作流文件未通过类型检查，脚本未运行；反馈已交回模型，由它修改该文件或保存修正后的版本。",
+      "feedback.rule": "规则 {code}",
+      "getRun.age": "{age} 前",
+      "getRun.fetched": "工作流状态",
+      "getRun.fetching": "正在获取工作流状态",
+      "getRun.health.cachedSteps": "{count} 步命中缓存",
+      "getRun.health.cachedStepsOne": "{count} 步命中缓存",
+      "getRun.health.concurrency": "并发 {effective}/{cap}",
+      "getRun.health.concurrencySince": "{age} 前起",
+      "getRun.health.failures": "连续失败 {count} 次",
+      "getRun.health.failuresOne": "连续失败 {count} 次",
+      "getRun.health.lastProgress": "最近进展 {age} 前",
+      "getRun.health.leftover": "下面标着运行中的 {count} 步是已退出进程的残留，不是还在进行的工作。",
+      "getRun.health.leftoverOne": "下面标着运行中的那一步是已退出进程的残留，不是还在进行的工作。",
+      "getRun.health.notStalled": "未停滞",
+      "getRun.health.stalled": "已停滞，{age} 前起",
+      "getRun.health.stalledNoClock": "已停滞",
+      "getRun.interruptedHint": "本会话无法证实这个实例仍在运行：它可能已被中断。",
+      "getRun.logEmpty": "还没有日志",
+      "getRun.nodesLine": "{observed} 个节点 · {done} 已完成 · {running} 运行中 · {failed} 已失败",
+      "getRun.phase.rounds": "{count} 轮",
+      "getRun.phase.roundsOne": "{count} 轮",
+      "getRun.phase.running": "{count} 步运行中",
+      "getRun.phase.settled": "{count} 步已结算",
+      "getRun.phase.soFar": "已进行 {duration}",
+      "getRun.phase.state.ahead": "待开始",
+      "getRun.phase.state.current": "进行中",
+      "getRun.phase.state.done": "已完成",
+      "getRun.phase.state.unfinished": "未完结",
+      "getRun.phase.unfinished": "{count} 步未完结",
+      "getRun.questionsUnknown": "本会话看不到这个实例的待答问题；恢复实例会重新提出子代理仍然需要的问题。",
+      "getRun.runningNodes": "{count} 个节点运行中",
+      "getRun.section.actors": "子代理",
+      "getRun.section.error": "错误",
+      "getRun.section.logTail": "日志",
+      "getRun.section.result": "结果",
+      "getRun.subagent.inFlightAtStop": "停止时仍在执行",
+      "getRun.subagent.lastTool": "最后 {name}",
+      "getRun.subagent.onStep": "这一步已进行 {age}",
+      "getRun.subagent.parkedOn": "等待问题 {qid} 的答复",
+      "getRun.subagent.phase": "阶段 {name}",
+      "getRun.subagent.retryIn": "{duration} 后重试",
+      "getRun.subagent.state.done": "已完成",
+      "getRun.subagent.state.executing": "执行中",
+      "getRun.subagent.state.failed": "已失败",
+      "getRun.subagent.state.idle": "空闲",
+      "getRun.subagent.state.parked": "停驻",
+      "getRun.subagent.state.unfinished": "未完结",
+      "getRun.subagent.state.waiting": "等待中",
+      "getRun.subagent.steps": "{count} 步",
+      "getRun.subagent.stepsFailed": "{count} 步失败",
+      "getRun.subagent.stepsOne": "{count} 步",
+      "getRun.subagent.task": "任务：{task}",
+      "getRun.subagent.toolCalls": "{count} 次工具调用",
+      "getRun.subagent.toolCallsOne": "{count} 次工具调用",
+      "getRun.subagent.turn": "第 {count} 轮",
+      "getRun.subagent.waitedFor": "已等 {age}",
+      "getRun.subagent.waitingBackoff": "退避中",
+      "getRun.subagent.waitingSlot": "等待槽位",
+      "getRun.truncated": "卡上省略了部分行。",
+      "graph.card.reads": "{count} 次读取",
+      "graph.card.tasks": "{count} 个任务",
+      "graph.lane.anonymous": "未命名子代理",
+      "graph.lane.anonymousIndexed": "未命名子代理 {index}",
+      "graph.lane.script": "脚本",
+      "graph.lane.unresolved": "未解析",
+      "graph.phase.unphased": "未分组",
+      "graph.phase.workflow": "工作流",
+      "graph.status.done": "已完成",
+      "graph.status.failed": "已失败",
+      "graph.status.pending": "待开始",
+      "graph.status.running": "运行中",
+      "graph.truncated": "图过大，部分参与者已省略。",
+      "hole.awaitingConfirmation": "留白补全待确认",
+      "hole.draft": "留白补全草稿",
+      "hole.draftPath": "草稿",
+      "hole.filled": "留白已补全",
+      "hole.head.title": "留白「{name}」· 由主代理补全 · {time}",
+      "hole.head.title.untimed": "留白「{name}」· 由主代理补全",
+      "hole.open": "打开补全「{name}」",
+      "hole.phasesAdded": "{count} 个阶段",
+      "hole.ran": "留白补全",
+      "hole.revising": "正在修改留白补全",
+      "hole.stands.after": "留白位于「{before}」之后；",
+      "hole.stands.before": "留白位于「{after}」之前；",
+      "hole.stands.between": "留白位于「{before}」之后、「{after}」之前；",
+      "hole.waited": "等待中 · {time}",
+      "hole.waiting": "等待补全",
+      "hole.writing": "正在补全留白",
+      "list.count": "{count} 个工作流",
+      "list.countOne": "{count} 个工作流",
+      "list.empty": "这个项目里还没有保存过工作流",
+      "list.invalid": "{count} 个文件无法解析",
+      "list.invalidOne": "{count} 个文件无法解析",
+      "list.listed": "已保存的工作流",
+      "list.listing": "正在列出已保存的工作流",
+      "listRuns.count": "{count} 个实例",
+      "listRuns.countOne": "{count} 个实例",
+      "listRuns.empty": "还没有工作流实例",
+      "listRuns.interrupted": "可能已中断",
+      "listRuns.listed": "工作流实例",
+      "listRuns.listing": "正在列出工作流实例",
+      "listRuns.ownSession": "本会话",
+      "listRuns.truncated": "只显示最近的实例",
+      "resolveQuestion.answer": "答复",
+      "resolveQuestion.answered": "已回答问题",
+      "resolveQuestion.answering": "正在回答问题",
+      "resolveQuestion.fallbackName": "回答",
+      "resolveQuestion.outcome": "结果",
+      "resolveQuestion.questionId": "问题 ID",
+      "resumeRun.hint": "实例以同一 ID 继续：已完结步骤从 journal 重放、未完结步骤重新派发，完成时会收到携带最终结果的通知。",
+      "resumeRun.inBackground": "后台运行中",
+      "resumeRun.label": "工作流实例已恢复",
+      "resumeRun.resuming": "正在恢复工作流实例",
+      "run.actor.notStarted.body": "这个子代理还没有被问过任何问题。它的首个步骤一派发，会话记录就会出现在这里。",
+      "run.actor.notStarted.title": "尚未启动",
+      "run.amends": "调整自 run",
+      "run.cancel": "停止运行",
+      "run.cancelDisabled": "只有正在运行的工作流可以停止。",
+      "run.cancelling": "正在停止…",
+      "run.concurrency.cooldown": "冷却至 {time}",
+      "run.concurrency.label": "最大并发数 {cap}",
+      "run.configure": "配置",
+      "run.graph.unavailable": "当前会话的可见历史里没有这张工作流图。",
+      "run.hole.filledAt": "已补全 · {time}",
+      "run.hole.waitingFor": "等待主代理补全",
+      "run.outcome.cancelled": "取消",
+      "run.outcome.failed": "失败",
+      "run.outcome.ok": "成功",
+      "run.phase.collapse": "收起阶段 {name}",
+      "run.phase.expand": "展开阶段 {name}",
+      "run.questions.title": "待答问题",
+      "run.result.completedHint": "本实例已完成，结果以后台结果消息的形式投递到会话里。",
+      "run.result.erroredTitle": "实例出错",
+      "run.result.noError": "没有记录到错误详情。",
+      "run.result.stoppedTitle": "实例已停止",
+      "run.result.title": "结果",
+      "run.resumable": "可恢复",
+      "run.resume": "恢复运行",
+      "run.resumeHint": "从停下的地方继续：已完成的步骤直接复用，被打断的步骤重新执行。",
+      "run.status.completed": "已完成",
+      "run.status.errored": "出错",
+      "run.status.pending": "待启动",
+      "run.status.running": "运行中",
+      "run.status.stopped": "已停止",
+      "run.stopHint": "停止后可以随时恢复，已完成的步骤会保留。",
+      "run.stopReason.interrupted": "进程已退出",
+      "run.stopReason.model": "代理停止的",
+      "run.stopReason.provider": "模型侧错误",
+      "run.stopReason.superseded": "已被替代",
+      "run.stopReason.user": "你停止的",
+      "run.subagentModel.label": "子代理 {model}",
+      "run.supersededBy": "已被替代，后继 run",
+      "run.truncated": "仅展示 {shown}/{total} 步的详情",
+      "run.usage.label": "用量",
+      "run.usage.tokens": "{tokens} tokens",
+      "run.usage.value": "{tokens} tokens · {steps} 步",
+      "save.args.default": "默认值",
+      "save.args.name": "参数名",
+      "save.args.required": "必填",
+      "save.args.requiredNo": "可选",
+      "save.args.requiredYes": "必填",
+      "save.args.showAll": "显示全部 {count} 个参数",
+      "save.args.showFewer": "收起参数",
+      "save.args.title": "参数",
+      "save.args.type": "类型",
+      "save.overwrite": "覆盖",
+      "save.saved": "已保存工作流",
+      "save.saving": "正在保存工作流",
+      "save.scope.global": "全局 · 对所有项目可见",
+      "save.scope.hiddenByProject": "本项目里已有同名工作流，在这里会遮蔽它",
+      "save.scope.hidesGlobal": "同名的全局工作流将被这一份遮蔽",
+      "save.scope.label": "作用域",
+      "save.scope.project": "项目",
+      "save.whenToUse": "何时使用",
+      "saveRun.action": "保存",
+      "saveRun.announce.global": "已保存为全局工作流",
+      "saveRun.announce.project": "已保存到项目",
+      "saveRun.chip": "已保存",
+      "saveRun.chip.hint": "在工作流中枢查看",
+      "saveRun.consequence": "将写入 {path}；之后可在「自动化 › 工作流」按名字再次运行。",
+      "saveRun.description": "说明",
+      "saveRun.description.helper": "「何时使用」和参数可以之后在工作流中枢里补。",
+      "saveRun.error.compile_failed": "脚本没有通过类型检查，没有写入任何文件。",
+      "saveRun.error.generic": "保存失败。",
+      "saveRun.error.invalid_name": "名字只能用字母、数字和 - _ .。",
+      "saveRun.error.run_not_found": "找不到这次运行的记录，无法直接保存。",
+      "saveRun.error.script_missing": "这次运行没有留下脚本原文，请改用上面那条路。",
+      "saveRun.error.target_exists": "已有同名工作流，确认覆盖后再保存。",
+      "saveRun.error.write_error": "写入失败，没有保存。",
+      "saveRun.lead": "让 ZCode 帮我提炼保存",
+      "saveRun.lead.hint": "ZCode 会帮你提炼出可复用的工作流，再交你确认。",
+      "saveRun.lead.sending": "已交给 ZCode…",
+      "saveRun.lead.unsupported": "当前 agent 不支持直接保存。",
+      "saveRun.name": "名称",
+      "saveRun.name.helper": "字母、数字、- _ .，最多 64 个字符",
+      "saveRun.name.invalid": "名字只能用字母、数字和 - _ .",
+      "saveRun.name.placeholder": "pr-layered-review",
+      "saveRun.or": "或按原样直接保存",
+      "saveRun.overwrite": "本项目已有同名工作流，保存会覆盖它；已有的运行记录保留。",
+      "saveRun.runAgain": "再次运行",
+      "saveRun.scope.remoteOnly": "远程项目只能保存到项目里。",
+      "saveRun.shadowing": "{text}。",
+      "saveRun.starting": "启动中…",
+      "saveRun.submit": "直接保存",
+      "saveRun.submit.overwrite": "覆盖并直接保存",
+      "saveRun.submit.saving": "保存中…",
+      "saveRun.title": "保存工作流",
+      "script.hide": "收起完整脚本",
+      "script.show": "显示完整脚本",
+      "settingsChange.kind": "已调整设置",
+      "settingsChange.limit": "最多 {n} 个同时运行",
+      "settingsChange.limitDefault": "上限恢复为默认",
+      "settingsChange.model": "子代理改用 {model}",
+      "settingsChange.modelSession": "子代理改回会话模型",
+      "snippet.logsEmpty": "没有日志",
+      "snippet.passed": "通过",
+      "snippet.ran": "工作流片段",
+      "snippet.section.code": "代码",
+      "snippet.section.logs": "日志",
+      "snippet.section.response": "返回值",
+      "snippet.validating": "正在运行工作流片段",
+      "status.failed": "失败",
+      "subagentModel.tooltip": "子代理运行在 {model}。主代理仍使用会话模型。",
+      "subagentModel.withLevel": "{model} · 思考 {level}",
+      "timeline.ledge.earlier": "{count} 个更早的阶段已滚出视野",
+      "timeline.ledge.later": "{count} 个更晚的阶段已滚出视野",
+      "timeline.openAgent": "打开 {name} 的会话记录",
+      "timeline.openScript": "打开 {phase} 处的脚本步骤",
+      "timeline.roster.done": "{count} 个已完成",
+      "timeline.roster.door.fold": "还有 {count} 个子代理 · 收起",
+      "timeline.roster.door.list": "还有 {count} 个子代理 · 在这里列出",
+      "timeline.roster.failed": "{count} 个已失败",
+      "timeline.roster.more": "还有 {count} 个",
+      "timeline.roster.moreTitle": "还有 {count} 个子代理 · 在运行侧栏里列出全部",
+      "timeline.roster.pending": "{count} 个待开始",
+      "timeline.roster.running": "{count} 个运行中",
+      "timeline.roster.unlisted.many": "另有 {count} 个子代理未列出",
+      "timeline.roster.unlisted.one": "另有 1 个子代理未列出",
+      "timeline.rounds": "已到访 {count} 次",
+      "timeline.scrollbar": "时间线滚动位置",
+      "workflow.awaitingConfirmation": "工作流待确认",
+      "workflow.compiled": "已通过校验",
+      "workflow.draft": "工作流草稿",
+      "workflow.draftOrdinal": "第 {ordinal} 稿",
+      "workflow.fallbackName": "工作流脚本",
+      "workflow.feedback": "编译反馈",
+      "workflow.noScript": "未提供工作流脚本。",
+      "workflow.notRun": "未运行",
+      "workflow.openRunDetails": "查看实例详情",
+      "workflow.ran": "工作流",
+      "workflow.revising": "正在修改工作流",
+      "workflow.running": "正在校验工作流",
+      "workflow.toFix": "{count} 处待修正",
+      "workflow.truncated": "部分诊断已省略。",
+      "workflow.writing": "正在编写工作流",
+      "launch.scope.global": "全局",
+      "launch.scope.project": "项目",
+      "launch.settings.defaultLimit": "默认",
+      "launch.settings.defaultLimitValue": "默认 {n}",
+      "launch.settings.limit": "最大并发数",
+      "launch.settings.model": "子代理模型",
+      "launch.settings.sessionModel": "会话模型",
+      "launch.settingsChangedByYou": "由你调整设置",
+      "launch.startedByYou": "由你从工作流中枢启动",
+      "models.count": "{count} 个模型",
+      "models.countOne": "{count} 个模型",
+      "models.current": "当前",
+      "models.empty": "这台机器上没有配置模型",
+      "models.levels": "思考强度：{levels}（默认 {default}）",
+      "models.levelsNoDefault": "思考强度：{levels}",
+      "models.listed": "可用模型",
+      "models.listing": "正在列出模型",
+      "models.noLevels": "没有思考强度档位",
+      "models.provider": "模型供应商",
+      "models.truncated": "未显示全部模型",
+      "pane.actor": "工作流子代理",
+      "pane.artifact": "产物",
+      "pane.directory": "工作流目录",
+      "pane.run": "工作流实例",
+      "pane.runTab": "工作流实例",
+      "pane.script": "脚本步骤",
+      "run.artifacts.collapse": "收起产物",
+      "run.artifacts.copied": "已复制",
+      "run.artifacts.copy": "复制",
+      "run.artifacts.expand": "展开产物",
+      "run.artifacts.kind.board": "看板",
+      "run.artifacts.kind.chart": "图表",
+      "run.artifacts.kind.file": "文件",
+      "run.artifacts.kind.markdown": "文档",
+      "run.artifacts.kind.metrics": "指标",
+      "run.artifacts.kind.table": "表格",
+      "run.artifacts.loadError": "这个产物读取失败。",
+      "run.artifacts.loading": "正在读取产物…",
+      "run.artifacts.localOnly": "仅本地工作区可预览。",
+      "run.artifacts.missing": "这个产物已经不在了。",
+      "run.artifacts.nextVersion": "下一版",
+      "run.artifacts.open": "打开产物",
+      "run.artifacts.openAsFile": "作为文件打开",
+      "run.artifacts.openAsFileFailed": "无法作为文件打开此产物",
+      "run.artifacts.openInBrowser": "在浏览器中打开",
+      "run.artifacts.openInBrowserNote": "打开的是工作区里的那一份，不是这一版钉住的字节。",
+      "run.artifacts.preset.empty": "暂无数据",
+      "run.artifacts.preset.items": "{count} 条",
+      "run.artifacts.preset.otherColumn": "其他",
+      "run.artifacts.presetInvalid": "这个看板的定义无法渲染。",
+      "run.artifacts.previousVersion": "上一版",
+      "run.artifacts.reveal": "在工作区显示",
+      "run.artifacts.title": "产物",
+      "run.artifacts.unavailable": "当前会话读不到产物详情。",
+      "run.artifacts.unsupported": "这个文件类型没有内置预览，它仍然留在工作区里。",
+      "run.artifacts.version": "第 {version} 版",
+      "run.artifacts.versionOf": "第 {version} 版 / 共 {total} 版",
+      "run.artifacts.versionTail": "v{version}",
+      "run.event.actorCreated": "创建子代理",
+      "run.event.concurrencyChanged": "并发 {previous} → {next}",
+      "run.event.escalationRaised": "询问主代理",
+      "run.event.escalationResolved": "已回答",
+      "run.event.importCacheClosed": "工作区写入，前驱缓存已关闭",
+      "run.event.log": "日志",
+      "run.event.nodeDispatched": "已派发",
+      "run.event.nodeExecuting": "请求已发出",
+      "run.event.nodeNudged": "已催促",
+      "run.event.nodeQueued": "入队",
+      "run.event.nodeRepairing": "修复中（第 {attempt} 次）",
+      "run.event.nodeSettled": "结算 · {outcome}",
+      "run.event.nodeSettledCached": "结算 · {outcome}（命中缓存）",
+      "run.event.nodeWaitingBackoff": "等待 provider（{reason}）· {seconds}s 后重试",
+      "run.event.nodeWaitingSlot": "等待槽位",
+      "run.event.phaseEntered": "进入阶段",
+      "run.event.report": "报告",
+      "run.event.runCapsChanged": "并发上限 {previous} → {next}",
+      "run.event.runSettled": "实例结算 · {status}",
+      "run.event.runStarted": "实例启动",
+      "run.event.unknown": "{type}",
+      "run.event.usageUpdated": "用量更新",
+      "run.rejection.cancel.cancel_not_supported": "这个运行无法从这里停止。",
+      "run.rejection.cancel.generic": "未能停止运行（{code}）。",
+      "run.rejection.cancel.not_found": "这个运行并不在当前 agent 里执行，没有任何东西被停止。",
+      "run.rejection.cancel.not_running": "这个运行已经结束，没有任何东西被停止。",
+      "run.rejection.cancel.unsupported": "当前 agent 不支持停止工作流运行。",
+      "run.rejection.resume.already_running": "这个运行已经在执行中。",
+      "run.rejection.resume.compile_failed": "保存的脚本在当前版本的工作流 facade 下已无法编译。请让 agent 调整这个工作流，而不是恢复运行。",
+      "run.rejection.resume.generic": "未能恢复运行（{code}）。",
+      "run.rejection.resume.not_found": "本会话的日志里没有这个运行。",
+      "run.rejection.resume.not_resumable": "只有已停止的运行可以恢复。",
+      "run.rejection.resume.script_mismatch": "保存的脚本与记录的哈希不再一致。",
+      "run.rejection.resume.script_missing": "这个运行没有保存可重跑的脚本。",
+      "run.rejection.resume.superseded": "这个运行已被调整后的运行替代，请打开后继。",
+      "run.rejection.resume.unsupported": "当前 agent 不支持恢复工作流运行。",
+      "run.settings.apply": "应用",
+      "run.settings.applying": "应用中…",
+      "run.settings.consequence.concurrencyLive": "立即应用到当前运行，不会新起一次运行。",
+      "run.settings.consequence.errored": "将以新设置另起一次运行重试，已完成的步骤会保留。",
+      "run.settings.consequence.pending": "将以新设置另起一次运行，当前运行尚未开始任何步骤。",
+      "run.settings.consequence.running": "将停止当前运行，以新设置另起一次运行，已完成的步骤会保留。",
+      "run.settings.consequence.stopped": "将以新设置另起一次运行接着跑，已完成的步骤会保留。",
+      "run.settings.limit": "最大并发数",
+      "run.settings.limit.atDefault": "= 默认",
+      "run.settings.limit.decrease": "降低最大并发数",
+      "run.settings.limit.default": "默认 {n}",
+      "run.settings.limit.increase": "提高最大并发数",
+      "run.settings.model": "子代理模型",
+      "run.settings.model.noCatalog": "当前 agent 没有可选的模型目录，子代理沿用会话模型。",
+      "run.settings.model.session": "会话模型",
+      "run.settings.model.sessionFallback": "会话模型",
+      "run.settings.model.unavailable": "不可用",
+      "run.settings.rejection.compile_failed": "保存的脚本已无法在当前版本的工作流接口上编译。请让代理调整这个工作流。",
+      "run.settings.rejection.generic": "设置没能调整（{code}）。",
+      "run.settings.rejection.missing_boundaries": "这个运行的记录太旧，无法把已完成的工作带过去。",
+      "run.settings.rejection.model_unavailable": "这个模型现在在当前 agent 上不可用。",
+      "run.settings.rejection.not_configurable": "这个运行已不能再调整设置。",
+      "run.settings.rejection.not_found": "这个运行不在本对话的记录里。",
+      "run.settings.rejection.script_missing": "这个运行没有保存可重跑的脚本，无法在这里调整设置。",
+      "run.settings.rejection.start_failed": "新运行没能启动（{message}）。",
+      "run.settings.rejection.unchanged": "这就是这个运行当前的设置。",
+      "run.settings.rejection.unsupported": "当前 agent 不支持从这里调整工作流设置。",
+      "run.settings.title": "配置工作流",
+      "run.throttle.reason.offpeak": "闲时排队",
+      "run.throttle.reason.overloaded": "过载",
+      "run.throttle.reason.rateLimited": "限流",
+      "run.throttle.reason.transient": "瞬态错误",
+      "run.untracked.body": "这个实例不在保留实时状态的最近若干实例之内，但它的运行记录仍然完整。",
+      "run.untracked.title": "已不在实时跟踪范围内",
+      "script.args.truncated": "实参在落库前被缩短过。",
+      "script.kind.step": "步骤",
+      "script.listTruncated": "只显示前 {count} 步。",
+      "script.loadFailed": "脚本步骤读取失败：{error}",
+      "script.notStarted.body": "脚本一碰到项目，读取、搜索与命令就会出现在这里。",
+      "script.notStarted.title": "脚本还没执行任何步骤",
+      "script.now": "现在",
+      "script.result.empty": "没有匹配。",
+      "script.result.files": "{count} 个文件",
+      "script.result.lines": "{count} 行",
+      "script.result.loadFailed": "结果读取失败：{error}",
+      "script.result.loading": "读取中…",
+      "script.result.matches": "{count} 处命中",
+      "script.result.more": "… 还有 {count} 条",
+      "script.result.stderr": "stderr",
+      "script.result.truncated": "只显示前 {shown}（共 {total}）；完整结果仍在 journal 里。",
+      "script.search.in": "于",
+      "script.startedAgo": "{ago} 前开始",
+      "script.status.exit": "退出码 {code}",
+      "script.status.replayed": "重放",
+      "script.status.replayedHint": "从上一次 run 的 journal 重放，命令没有再跑一遍。",
+      "script.status.timedOut": "超时",
+      "script.summary.phases": "{count} 个阶段",
+      "script.summary.phases.one": "1 个阶段",
+      "script.summary.steps": "{count} 步",
+      "script.summary.steps.one": "1 步",
+      "script.title": "脚本",
+      "script.unavailable": "这个会话读不到脚本步骤，请更新 CLI。",
+      "script.verb.read": "读取",
+      "script.verb.searched": "搜索",
+      "ui.collapse": "收起",
+      "ui.copyFailed": "未能复制",
+      "ui.copyRunId": "复制运行 ID",
+      "ui.expand": "展开",
       "directory.panel": "工作流",
       "directory.title": "工作流",
       "directory.subtitle": "保存在项目里的工作流，填好参数就能再跑一次。",
@@ -544,6 +1567,297 @@ window.__ModuleLoader__.load({
       "directory.prompt.create": "帮我设计一个工作流，跑通之后保存到这个项目：",
       "directory.prompt.run": "运行已保存的工作流「{name}」，参数如下：\n{args}\n完成后把结果告诉我。",
       "directory.prompt.runNoArgs": "运行已保存的工作流「{name}」。完成后把结果告诉我。",
+      "chat.permission.title": "需要权限",
+      "chat.permission.awaitingApproval": "等待确认",
+      "chat.permission.approve": "允许",
+      "chat.permission.allowOnce.description": "仅允许这一次",
+      "chat.permission.deny": "拒绝",
+      "chat.permission.deny.description": "这次先拒绝",
+      "chat.permission.keyboardHint": "使用 Tab / 上下键选择，回车确认",
+      "chat.permission.confirm": "确认",
+      "chat.permission.close": "关闭",
+      "chat.permission.loading": "正在读取确认内容…",
+      "chat.permission.notFound": "这个运行已经不需要确认了。",
+      "chat.permission.submitFailed": "未能提交选择：{reason}",
+      "chat.permission.workflow.title": "运行此工作流？",
+      "chat.permission.workflow.amend.title": "调整此工作流？",
+      "chat.permission.workflow.hole.title": "补全此留白？",
+      "chat.permission.workflow.showScript": "显示完整脚本",
+      "chat.permission.workflow.hideScript": "收起完整脚本",
+      "chat.permission.workflow.refine": "提出修改",
+      "chat.permission.workflow.refine.placeholder": "描述这个工作流应该怎么改…",
+      "chat.permission.workflow.allowForSession": "本会话内始终允许",
+      "chat.permission.workflow.allowForSession.description": "本会话内运行工作流不再询问",
+      "chat.permission.workflow.allowOnce.adjusted": "按调整后的设置运行一次",
+      "chat.permission.workflow.allowForSession.adjusted": "本次按调整后的设置运行；之后的工作流不再询问，各用各的设置",
+      "chat.permission.workflow.amends": "调整 run",
+      "chat.permission.workflow.amends.running": "仍在运行，将被停止",
+      "chat.permission.workflow.amends.scriptUnchanged": "脚本不变",
+      "chat.permission.workflow.maxConcurrency": "最多 {count} 个子代理同时运行",
+      "chat.permission.workflow.subagentModel": "子代理运行在 {model}",
+      "chat.permission.workflow.subagentModelDefault": "子代理默认运行在 {model}",
+      "chat.permission.workflow.settings.model.lead": "子代理运行在",
+      "chat.permission.workflow.settings.model.leadDefault": "子代理默认运行在",
+      "chat.permission.workflow.settings.model.effort": "思考强度",
+      "chat.permission.workflow.settings.model.noCatalog": "子代理沿用会话模型",
+      "chat.permission.workflow.settings.model.noCatalogDefault": "子代理默认沿用会话模型",
+      "chat.permission.workflow.settings.model.noCatalogReason": "当前 agent 没有模型目录",
+      "chat.permission.workflow.settings.model.unavailable": "不可用",
+      "chat.permission.workflow.settings.limit.lead": "最多",
+      "chat.permission.workflow.settings.limit.trail": "个子代理同时运行",
+      "chat.permission.workflow.settings.limit.none": "不设上限",
+      "chat.permission.workflow.settings.limit.atDefault": "= 默认",
+      "chat.permission.workflow.settings.limit.default": "默认 {n}",
+      "chat.permission.workflow.settings.limit.decrease": "降低最大并发数",
+      "chat.permission.workflow.settings.limit.increase": "提高最大并发数",
+      "chat.permission.workflow.settings.was": "原为 {value}",
+      "chat.permission.workflow.settings.reset": "恢复原值",
+      "chat.permission.workflow.holes.label": "留白",
+      "chat.permission.workflow.holes.note": "运行到留白处会暂停，等主代理补全后继续。",
+      "chat.permission.workflow.saved.badge": "已保存的工作流",
+      "chat.permission.workflow.saved.scope.project": "project",
+      "chat.permission.workflow.saved.args": "实参",
+      "chat.permission.workflow.script": "脚本",
+      "chat.permission.workflow.graph.truncated": "图过大，部分参与者已省略。",
+      "chat.permission.workflow.holesCount": "{count} 处留白",
+      "chat.permission.workflow.stagesCount": "{count} 个阶段",
+      "chat.toolCall.workflow.card.steps": "{done}/{total} 步",
+      "chat.toolCall.workflow.card.phases": "{count} 个阶段",
+      "chat.toolCall.workflow.card.holes": "{count} 处留白",
+      "chat.toolCall.workflow.card.ended": "工作流已结束",
+      "chat.toolCall.workflow.script.title": "脚本",
+      "chat.toolCall.workflow.openRunDetails": "查看实例详情",
+      "chat.toolCall.workflow.subagentModel.withLevel": "{model} · 思考 {level}",
+      "chat.toolCall.workflow.timeline.roster.running": "{count} 个运行中",
+      "chat.toolCall.workflow.run.status.pending": "待启动",
+      "chat.toolCall.workflow.run.status.running": "运行中",
+      "chat.toolCall.workflow.run.status.completed": "已完成",
+      "chat.toolCall.workflow.run.status.errored": "出错",
+      "chat.toolCall.workflow.run.status.stopped": "已停止",
+      "chat.toolCall.workflow.run.stopReason.user": "你停止的",
+      "chat.toolCall.workflow.run.stopReason.model": "代理停止的",
+      "chat.toolCall.workflow.run.stopReason.provider": "模型侧错误",
+      "chat.toolCall.workflow.run.stopReason.interrupted": "进程已退出",
+      "chat.toolCall.workflow.run.stopReason.superseded": "已被替代",
+      "chat.toolCall.workflow.run.cancel": "停止运行",
+      "chat.toolCall.workflow.run.cancelling": "正在停止…",
+      "chat.toolCall.workflow.run.cancelDisabled": "只有正在运行的工作流可以停止。",
+      "chat.toolCall.workflow.run.stopHint": "停止后可以随时恢复，已完成的步骤会保留。",
+      "chat.toolCall.workflow.run.resumable": "可恢复",
+      "chat.toolCall.workflow.run.resume": "恢复运行",
+      "workflows.hub.sectionTitle": "已保存的工作流",
+      "workflows.hub.description": "保存在已打开项目里的工作流，填好参数就能再跑一次。",
+      "workflows.hub.refresh": "刷新",
+      "workflows.hub.openSettings": "工作流设置",
+      "workflows.hub.createViaChat": "通过对话创建",
+      "workflows.hub.group.current": "当前",
+      "workflows.hub.global.title": "全局",
+      "workflows.hub.global.hint": "对所有项目可见",
+      "workflows.hub.global.empty": "还没有全局工作流。适合放不依赖某个项目的流程，例如深度调研。",
+      "workflows.hub.global.unsupported": "当前 agent 不支持全局工作流。",
+      "workflows.hub.global.noLocalRuntime": "无法连接本地 agent，全局工作流暂不可用。",
+      "workflows.hub.empty.title": "已打开的项目里还没有保存的工作流",
+      "workflows.hub.empty.hint": "在对话里让 ZCode 设计工作流，跑通之后再让它保存到项目里。未打开的项目不会出现在这里。",
+      "workflows.hub.noWorkspace": "打开一个项目以查看它的工作流。",
+      "workflows.hub.loadError": "读取工作流失败：{error}",
+      "workflows.hub.invalid": "{count} 个文件无法读取",
+      "workflows.hub.invalidOne": "{count} 个文件无法读取",
+      "workflows.hub.card.run": "运行",
+      "workflows.hub.card.menu": "更多操作",
+      "workflows.hub.card.open": "查看详情",
+      "workflows.hub.card.revise": "在对话里修订",
+      "workflows.hub.card.copyPath": "复制路径",
+      "workflows.hub.card.promoteToGlobal": "提升为全局",
+      "workflows.hub.card.moveToProject": "移到项目…",
+      "workflows.hub.card.delete": "删除工作流",
+      "workflows.hub.card.argsMore": "+{count}",
+      "workflows.hub.lastRun.never": "尚未运行",
+      "workflows.hub.lastRun.completed": "已完成",
+      "workflows.hub.lastRun.errored": "出错",
+      "workflows.hub.lastRun.running": "运行中",
+      "workflows.hub.lastRun.stopped": "已停止",
+      "workflows.hub.copied": "已复制路径",
+      "workflows.hub.delete.title": "删除工作流「{name}」？",
+      "workflows.hub.delete.description": "会从项目里删除 {path}。已有的运行记录会保留。",
+      "workflows.hub.delete.confirm": "删除",
+      "workflows.hub.deleted": "已删除工作流「{name}」",
+      "workflows.hub.deleteFailed": "删除失败：{reason}",
+      "workflows.hub.promote.failed": "提升失败：{reason}",
+      "workflows.hub.move.toast.project": "已移到 {project}",
+      "workflows.hub.move.targetExists": "目标位置已有同名工作流",
+      "workflows.hub.move.failed": "移动失败：{reason}",
+      "workflows.hub.moveDialog.title": "移到项目",
+      "workflows.hub.moveDialog.noLocalProject": "打开一个本地项目以移动",
+      "workflows.hub.moveDialog.submit": "移动",
+      "workflows.hub.launch.title": "运行 {name}",
+      "workflows.hub.launch.target": "运行于",
+      "workflows.hub.launch.noLocalProject": "打开一个本地项目以运行",
+      "workflows.hub.launch.required": "必填",
+      "workflows.hub.launch.scope.project": "项目",
+      "workflows.hub.launch.scope.global": "全局",
+      "workflows.hub.launch.note": "将立即在 {project} 的新会话中运行",
+      "workflows.hub.launch.cancel": "取消",
+      "workflows.hub.launch.submit": "运行",
+      "workflows.hub.launch.error.required": "必填",
+      "workflows.hub.launch.error.invalid_number": "需要一个数字",
+      "workflows.hub.launch.error.invalid_json": "不是合法的 JSON",
+      "workflows.hub.launch.error.invalid_name": "工作流名无效",
+      "workflows.hub.launch.error.not_found": "找不到这个工作流",
+      "workflows.hub.launch.error.invalid_args": "部分实参不合法",
+      "workflows.hub.launch.error.compile_failed": "工作流脚本编译失败",
+      "workflows.hub.launch.error.session_busy": "会话忙，请重试",
+      "workflows.hub.launch.error.start_failed": "工作流启动失败",
+      "workflows.hub.launch.error.unsupported": "当前 agent 不支持直接启动工作流",
+      "workflows.hub.launch.error.generic": "工作流启动失败",
+      "workflows.hub.detail.tab.definition": "定义",
+      "workflows.hub.detail.tab.history": "运行历史",
+      "workflows.hub.detail.projectColumn": "项目",
+      "workflows.hub.detail.copyPath": "复制路径",
+      "workflows.hub.detail.run": "运行",
+      "workflows.hub.detail.basics": "基本信息",
+      "workflows.hub.detail.description": "说明",
+      "workflows.hub.detail.whenToUse": "使用时机",
+      "workflows.hub.detail.whenToUse.help": "给 ZCode 的路由提示：什么场景该选这个工作流。",
+      "workflows.hub.detail.args": "参数",
+      "workflows.hub.detail.args.name": "名称",
+      "workflows.hub.detail.args.type": "类型",
+      "workflows.hub.detail.args.required": "必填",
+      "workflows.hub.detail.args.default": "默认值",
+      "workflows.hub.detail.args.description": "说明",
+      "workflows.hub.detail.args.add": "添加参数",
+      "workflows.hub.detail.args.remove": "删除参数",
+      "workflows.hub.detail.args.error.empty_name": "参数需要名字",
+      "workflows.hub.detail.args.error.duplicate_name": "参数名重复",
+      "workflows.hub.detail.args.error.invalid_default": "默认值与类型不符",
+      "workflows.hub.detail.meta.note": "只改写文件顶部的元数据，脚本正文保持原样。",
+      "workflows.hub.detail.meta.discard": "放弃更改",
+      "workflows.hub.detail.meta.save": "保存元数据",
+      "workflows.hub.detail.meta.saved": "已保存元数据",
+      "workflows.hub.detail.meta.saveFailed": "保存失败：{reason}",
+      "workflows.hub.detail.meta.descriptionRequired": "说明不能为空",
+      "workflows.hub.detail.script": "脚本",
+      "workflows.hub.detail.script.note": "脚本只读。要改脚本，在对话里让 ZCode 修订后另存一版。",
+      "workflows.hub.detail.script.copy": "复制脚本",
+      "workflows.hub.detail.loadError": "无法读取这个工作流：{reason}",
+      "workflows.hub.detail.notFound": "这个工作流已不在项目里。",
+      "workflows.hub.history.empty": "还没有运行记录。",
+      "workflows.hub.history.open": "查看实例",
+      "workflows.hub.history.note": "运行记录来自本项目的工作流日志，重启后仍然保留；「查看实例」会回到发起它的对话并打开实例详情。",
+      "workflows.hub.history.tokens": "{tokens} tokens",
+      "workflows.hub.artifacts.latest": "最近产物",
+      "workflows.hub.reason.invalid_name": "名字不合法",
+      "workflows.hub.reason.not_found": "文件不存在",
+      "workflows.hub.reason.parse_error": "文件顶部的元数据无法解析",
+      "workflows.hub.reason.read_error": "文件无法读取",
+      "workflows.hub.time.duration.seconds": "{seconds} 秒",
+      "workflows.hub.time.duration.minutes": "{minutes} 分 {seconds} 秒",
+      "workflows.hub.prompt.create": "帮我为这个项目设计一个工作流，跑通之后保存到这里：",
+      "workflows.hub.prompt.revise": "修订已保存的工作流「{name}」，改完之后另存一版：",
+      "workflows.hub.prompt.run": "运行已保存的工作流「{name}」，参数如下：\n{args}\n完成后把结果告诉我。",
+      "workflows.hub.prompt.runNoArgs": "运行已保存的工作流「{name}」。完成后把结果告诉我。",
+      "chat.toolCall.workflow.saveRun.action": "保存",
+      "chat.toolCall.workflow.saveRun.runAgain": "再次运行",
+      "chat.toolCall.workflow.saveRun.starting": "启动中…",
+      "chat.toolCall.workflow.saveRun.chip": "已保存",
+      "chat.toolCall.workflow.saveRun.chip.hint": "在工作流中枢查看",
+      "chat.toolCall.workflow.saveRun.announce.project": "已保存到项目",
+      "chat.toolCall.workflow.saveRun.announce.global": "已保存为全局工作流",
+      "chat.toolCall.workflow.saveRun.title": "保存工作流",
+      "chat.toolCall.workflow.saveRun.lead": "让 ZCode 帮我提炼保存",
+      "chat.toolCall.workflow.saveRun.lead.hint": "ZCode 会帮你提炼出可复用的工作流，再交你确认。",
+      "chat.toolCall.workflow.saveRun.lead.sending": "已交给 ZCode…",
+      "chat.toolCall.workflow.saveRun.lead.unsupported": "当前 agent 不支持直接保存。",
+      "chat.toolCall.workflow.saveRun.or": "或按原样直接保存",
+      "chat.toolCall.workflow.saveRun.name": "名称",
+      "chat.toolCall.workflow.saveRun.name.placeholder": "pr-layered-review",
+      "chat.toolCall.workflow.saveRun.name.helper": "字母、数字、- _ .，最多 64 个字符",
+      "chat.toolCall.workflow.saveRun.name.invalid": "名字只能用字母、数字和 - _ .",
+      "chat.toolCall.workflow.saveRun.scope.remoteOnly": "远程项目只能保存到项目里。",
+      "chat.toolCall.workflow.saveRun.description": "说明",
+      "chat.toolCall.workflow.saveRun.description.helper": "「何时使用」和参数可以之后在工作流中枢里补。",
+      "chat.toolCall.workflow.saveRun.consequence": "将写入 {path}；之后可在「自动化 › 工作流」按名字再次运行。",
+      "chat.toolCall.workflow.saveRun.overwrite": "本项目已有同名工作流，保存会覆盖它；已有的运行记录保留。",
+      "chat.toolCall.workflow.saveRun.shadowing": "{text}。",
+      "chat.toolCall.workflow.saveRun.submit": "直接保存",
+      "chat.toolCall.workflow.saveRun.submit.overwrite": "覆盖并直接保存",
+      "chat.toolCall.workflow.saveRun.submit.saving": "保存中…",
+      "chat.toolCall.workflow.saveRun.error.invalid_name": "名字只能用字母、数字和 - _ .。",
+      "chat.toolCall.workflow.saveRun.error.run_not_found": "找不到这次运行的记录，无法直接保存。",
+      "chat.toolCall.workflow.saveRun.error.script_missing": "这次运行没有留下脚本原文，请改用上面那条路。",
+      "chat.toolCall.workflow.saveRun.error.target_exists": "已有同名工作流，确认覆盖后再保存。",
+      "chat.toolCall.workflow.saveRun.error.compile_failed": "脚本没有通过类型检查，没有写入任何文件。",
+      "chat.toolCall.workflow.saveRun.error.write_error": "写入失败，没有保存。",
+      "chat.toolCall.workflow.saveRun.error.generic": "保存失败。",
+      "chat.toolCall.workflow.save.scope.label": "作用域",
+      "chat.toolCall.workflow.save.scope.project": "项目",
+      "chat.toolCall.workflow.save.scope.global": "全局 · 对所有项目可见",
+      "chat.toolCall.workflow.save.scope.hidesGlobal": "同名的全局工作流将被这一份遮蔽",
+      "chat.toolCall.workflow.save.scope.hiddenByProject": "本项目里已有同名工作流，在这里会遮蔽它",
+      "chat.workflowLaunch.scope.project": "项目",
+      "chat.workflowLaunch.scope.global": "全局",
+      "chat.workflowLaunch.startedByYou": "由你从工作流中枢启动",
+      "chat.workflowLaunch.settingsChangedByYou": "由你调整设置",
+      "chat.workflowLaunch.settings.model": "子代理模型",
+      "chat.workflowLaunch.settings.limit": "最大并发数",
+      "chat.workflowLaunch.settings.sessionModel": "会话模型",
+      "chat.workflowLaunch.settings.defaultLimit": "默认",
+      "chat.workflowLaunch.settings.defaultLimitValue": "默认 {n}",
+      "chat.backgroundResult.workflow.asked": "子代理提出了问题",
+      "chat.backgroundResult.workflow.waiting": "子代理正在等待回答",
+      "chat.backgroundResult.workflow.answered": "子代理的问题已回答",
+      "chat.backgroundResult.workflow.stall": "工作流等待模型",
+      "chat.backgroundResult.workflow.stall.body": "本实例已有 {minutes} 分钟没有一次成功的模型请求。它仍在运行并按退避重试；不再需要时可在运行卡上停止。",
+      "chat.backgroundResult.workflow.stall.reason": "重试原因",
+      "chat.backgroundResult.workflow.stall.cap": "最大并发数",
+      "chat.backgroundResult.workflow.blocked": "工作流等待主代理",
+      "chat.backgroundResult.workflow.blocked.openFor": "已等待 {minutes} 分钟",
+      "chat.backgroundResult.workflow.completed": "工作流已完成",
+      "chat.backgroundResult.workflow.errored": "工作流出错",
+      "chat.backgroundResult.workflow.stopped": "工作流已停止",
+      "chat.backgroundResult.workflow.artifacts.more": "+{count}",
+      "chat.backgroundResult.workflow.hole.waiting": "工作流留白 · 等待补全",
+      "chat.backgroundResult.workflow.hole.filled": "留白已补全",
+      "chat.backgroundResult.workflow.hole.left": "工作流留白",
+      "chat.statusPanel.workflows": "工作流",
+      "chat.statusPanel.endedWorkflows": "已结束的工作流",
+      "chat.statusPanel.workflowsLive": "{count} 个运行中",
+      "taskList.workflowRun.ariaLabel": "工作流实例 {name}：{status}",
+      "taskList.workflowRun.moreRuns": "+{count} 个实例",
+      "taskList.workflowRun.moreStations": "+{count}",
+      "taskList.workflowRun.liveCount": "{count} 个工作流在跑",
+      "taskList.workflowRun.holeWaiting": "{name} · 等待补全",
+      "workflowDirectory.title": "工作流实例",
+      "workflowDirectory.running": "正在运行",
+      "workflowDirectory.runningEmpty": "没有正在运行的工作流",
+      "workflowDirectory.ended": "已结束",
+      "workflowDirectory.endedEmpty": "还没有结束的工作流",
+      "workflowDirectory.empty": "这条对话里还没有工作流实例",
+      "workflowDirectory.truncated": "仅显示最近 {count} 条实例",
+      "workflowDirectory.unavailable": "无法列出这条对话的工作流实例",
+      "settings.dynamicWorkflow": "动态工作流",
+      "settings.dynamicWorkflowDescription": "让模型用脚本编排大量子代理并行工作，处理复杂任务、交付专业结果。",
+      "settings.dynamicWorkflow.option.disabled": "关闭",
+      "settings.dynamicWorkflow.option.disabled.description": "禁用动态工作流。不能创建新的工作流，自动化页也不再显示「工作流」；对话历史中已有的工作流仍可正常查看。",
+      "settings.dynamicWorkflow.option.onDemand": "通过命令启用",
+      "settings.dynamicWorkflow.option.onDemand.description": "只有输入 /workflow 命令才会运行新的工作流。",
+      "settings.dynamicWorkflow.option.alwaysOn": "始终开启",
+      "settings.dynamicWorkflow.option.alwaysOn.description": "除了 /workflow 命令，模型也会根据你的意图主动运行工作流。",
+      "settings.dynamicWorkflow.defaultTag": "默认",
+      "settings.dynamicWorkflow.saveError": "保存动态工作流设置失败",
+      "settings.dynamicWorkflow.loadError": "无法读取当前设置",
+      "settings.dynamicWorkflow.retry": "重试",
+      "settings.dynamicWorkflow.saving": "保存中…",
+      "settings.dynamicWorkflow.restart": "重启应用后生效。",
+      "settings.dynamicWorkflow.readOnly": "当前环境不允许修改这个设置。",
+      "hub.common.runsEmpty": "还没有运行记录",
+      "hub.common.holesLabel": "留白",
+      "hub.common.scriptFallback": "工作流脚本",
+      "chat.toolCall.workflow.digest.question": "{count} 个待答问题",
+      "chat.toolCall.workflow.digest.questions": "{count} 个待答问题",
+      "chat.toolCall.workflow.hole.head.title": "留白「{name}」· 由主代理补全 · {time}",
+      "chat.toolCall.workflow.hole.head.title.untimed": "留白「{name}」· 由主代理补全",
+      "chat.toolCall.workflow.hole.open": "打开补全「{name}」",
+      "chat.toolCall.workflow.hole.waited": "等待中 · {time}",
       "settingsRow.ariaLabel": "动态工作流模式",
       "settingsRow.title": "动态工作流",
       "settingsRow.description": "让模型用脚本编排大量子代理并行工作，处理复杂任务、交付专业结果。",
@@ -1528,909 +2842,6498 @@ const WF_UI = {
 };
 
 /* ---- client-src/30-cards.js ---- */
-/* Workflow tool cards: moved verbatim from the pre-scaffold client.js. */
-
-    /** Longest text pinned into one body block, and how many result rows a list card shows. */
-    const MAX_SECTION_CHARS = 120000;
-    const MAX_LIST_ROWS = 8;
-    /** Longest text a single row slot carries; the full text stays in the expandable body. */
-    const MAX_ROW_CHARS = 300;
-
-    /** Scoped stylesheet: host theme tokens only, one class per row element. */
-    const CSS = [
-      '.zwf-root{flex-direction:column;display:flex;min-width:0}',
-      '.zwf-row{box-sizing:border-box;align-items:center;display:flex;min-width:0;min-height:calc(24px + var(--dsh-content-font-delta,0px));border-radius:var(--dsw-radius-sm,6px);padding:0 2px}',
-      '.zwf-row[data-expandable=true]{cursor:pointer}',
-      '.zwf-row[data-expandable=true]:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08))}',
-      '.zwf-row:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}',
-      '.zwf-icon{color:var(--dsw-alias-state-business-primary);flex:none;width:calc(16px + var(--dsh-content-font-delta,0px));height:calc(16px + var(--dsh-content-font-delta,0px));align-items:center;justify-content:center;display:inline-flex;margin-right:6px}',
-      '.zwf-title{color:var(--dsw-alias-state-business-primary);flex:none;font-size:var(--dsh-content-font-size-secondary,13px);font-weight:500;line-height:calc(24px + var(--dsh-content-font-delta,0px));white-space:nowrap}',
-      '.zwf-sep{background:var(--dsw-alias-label-caption);border-radius:50%;flex:none;width:2px;height:2px;margin:0 8px}',
-      '.zwf-summary{min-width:0;flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:var(--dsw-alias-label-secondary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(24px + var(--dsh-content-font-delta,0px))}',
-      '.zwf-detail{min-width:0;flex:none;max-width:38%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:var(--dsw-alias-label-caption);font-size:12px;line-height:calc(24px + var(--dsh-content-font-delta,0px));margin-left:8px}',
-      '.zwf-status{flex:none;max-width:40%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:var(--dsw-alias-label-caption);font-size:12px;line-height:calc(24px + var(--dsh-content-font-delta,0px));margin-left:8px}',
-      '.zwf-mono{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace)}',
-      '.zwf-root[data-state=running] .zwf-status{color:var(--dsw-alias-state-success-primary)}',
-      '.zwf-root[data-state=error] .zwf-summary,.zwf-root[data-state=error] .zwf-detail,.zwf-root[data-state=error] .zwf-status{color:var(--dsw-alias-state-error-primary)}',
-      '.zwf-chevron{color:var(--dsw-alias-label-tertiary);flex:none;width:16px;height:16px;align-items:center;justify-content:center;display:inline-flex;margin-left:4px;transition:transform .12s}',
-      '.zwf-chevron[data-open=true]{transform:rotate(90deg)}',
-      '.zwf-detail-action{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;width:calc(20px + var(--dsh-content-font-delta,0px));height:calc(20px + var(--dsh-content-font-delta,0px));margin-left:4px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}',
-      '.zwf-detail-action:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08));color:var(--dsw-alias-label-secondary)}',
-      '.zwf-detail-action:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}',
-      '.zwf-body{flex-direction:column;gap:8px;display:flex;min-width:0;padding:2px 0 4px 22px}',
-      '.zwf-section{flex-direction:column;gap:4px;display:flex;min-width:0}',
-      '.zwf-label{color:var(--dsw-alias-label-caption);font-size:11px;line-height:16px}',
-      '.zwf-card-code,.zwf-output{margin:0;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-markdown-code-block);color:var(--dsw-alias-label-secondary);max-height:260px;overflow:auto;padding:8px 12px;font:var(--dsw-font-markdown-code-block-small,12px/18px ui-monospace,SFMono-Regular,Menlo,monospace);white-space:pre-wrap;word-break:break-word}',
-      '.zwf-rows{flex-direction:column;gap:2px;display:flex;min-width:0;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-markdown-code-block);padding:8px 12px}',
-      '.zwf-rowitem{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;white-space:pre-wrap;word-break:break-word}',
-    ].join('');
-
-    /** Class names used by the markup above. */
-    const CLASS = {
-      root: 'zwf-root',
-      row: 'zwf-row',
-      icon: 'zwf-icon',
-      title: 'zwf-title',
-      sep: 'zwf-sep',
-      summary: 'zwf-summary',
-      detail: 'zwf-detail',
-      status: 'zwf-status',
-      mono: 'zwf-mono',
-      chevron: 'zwf-chevron',
-      detailAction: 'zwf-detail-action',
-      body: 'zwf-body',
-      section: 'zwf-section',
-      label: 'zwf-label',
-      code: 'zwf-card-code',
-      output: 'zwf-output',
-      rows: 'zwf-rows',
-      rowItem: 'zwf-rowitem',
-    };
-
-    /* --------------------------------- readers -------------------------------- */
-
-    function isObject(value) {
-      return typeof value === 'object' && value !== null && !Array.isArray(value);
-    }
-
-    function asText(value) {
-      return typeof value === 'string' ? value : '';
-    }
-
-    function linesOf(text) {
-      const value = asText(text);
-      return value === '' ? [] : value.split('\n');
-    }
-
-    function firstLine(text) {
-      const value = asText(text);
-      const index = value.indexOf('\n');
-      return (index === -1 ? value : value.slice(0, index)).trim();
-    }
-
-    function parseText(text, pattern) {
-      const match = pattern.exec(asText(text));
-      if (match === null || typeof match[1] !== 'string' || match[1] === '') return undefined;
-      return match[1];
-    }
-
-    /** The call slice of a preparing/start/result block, whichever shape carries it. */
-    function callOf(block) {
-      if (!isObject(block)) return undefined;
-      return isObject(block.call) ? block.call : block;
-    }
-
-    const PARSED_ARGS = new WeakMap();
-
-    /** Parse one call's raw argument JSON once; a still-streaming payload parses to `{}`. */
-    function parsedArgs(block) {
-      const call = callOf(block);
-      if (!isObject(call)) return {};
-      const cached = PARSED_ARGS.get(call);
-      if (cached !== undefined) return cached;
-      let parsed = {};
-      const raw = typeof call.argsRaw === 'string' ? call.argsRaw : '';
-      if (raw !== '') {
-        try {
-          const value = JSON.parse(raw);
-          if (isObject(value)) parsed = value;
-        } catch {
-          // Still streaming: the lazy view below serves the fields that already arrived.
-        }
-      }
-      PARSED_ARGS.set(call, parsed);
-      return parsed;
-    }
-
-    /**
-     * Read one field from a block's lazy argument view.
-     * The shipped view exposes `text`/`complete`/`value`; a partial or foreign shape may expose a
-     * getter (`read`, `get`, `value`) or be the arguments object itself.
-     * @param {unknown} view candidate argument view
-     * @param {string} key argument name
-     * @returns {unknown} the field value, or undefined when this shape cannot answer
-     */
-    function viewField(view, key) {
-      if (view === undefined || view === null) return undefined;
-      try {
-        if (typeof view.text === 'function') {
-          const value = view.text(key);
-          if (value !== undefined) return value;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view.complete === 'function' && view.complete(key) && typeof view.value === 'function') {
-          const value = view.value(key);
-          if (value !== undefined) return value;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view === 'function') {
-          const all = view();
-          return isObject(all) ? all[key] : undefined;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view.read === 'function') {
-          const all = view.read();
-          return isObject(all) ? all[key] : undefined;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view.get === 'function') {
-          const value = view.get(key);
-          if (value !== undefined) return value;
-        }
-      } catch {
-        // fall through
-      }
-      return isObject(view) && Object.prototype.hasOwnProperty.call(view, key) ? view[key] : undefined;
-    }
-
-    /**
-     * Read one call argument at any lifecycle stage.
-     * @param {unknown} block preparing, started, or settled block
-     * @param {string} key argument name
-     * @returns {unknown} the value, or undefined
-     */
-    function argValue(block, key) {
-      if (!isObject(block)) return undefined;
-      const direct = viewField(block.args, key);
-      if (direct !== undefined) return direct;
-      const call = callOf(block);
-      if (call !== undefined && call !== block) {
-        const nested = viewField(call.args, key);
-        if (nested !== undefined) return nested;
-      }
-      const parsed = parsedArgs(block);
-      return Object.prototype.hasOwnProperty.call(parsed, key) ? parsed[key] : undefined;
-    }
-
-    /**
-     * Read one string argument.
-     * @param {unknown} block preparing, started, or settled block
-     * @param {string} key argument name
-     * @returns {string | undefined} the non-empty string value
-     */
-    function argText(block, key) {
-      const value = argValue(block, key);
-      return typeof value === 'string' && value !== '' ? value : undefined;
-    }
-
-    /** The `saved` object of a CreateWorkflow call, when it is an object. */
-    function savedArg(block) {
-      const value = argValue(block, 'saved');
-      return isObject(value) ? value : undefined;
-    }
-
-    /**
-     * Flatten a settled block's content to display text, falling back to its structured error.
-     * @param {unknown} block settled result block
-     * @returns {string} the result text, or ''
-     */
-    function resultText(block) {
-      if (!isObject(block)) return '';
-      const sources = [
-        block.content,
-        isObject(block.result) ? block.result.content : undefined,
-        isObject(block.call) ? block.call.content : undefined,
-        isObject(block.call) && isObject(block.call.result) ? block.call.result.content : undefined,
-        isObject(block.output) ? block.output.content : undefined,
-      ];
-      for (const content of sources) {
-        if (!Array.isArray(content) || content.length === 0) continue;
-        const parts = [];
-        for (const item of content) {
-          if (typeof item === 'string') {
-            if (item !== '') parts.push(item);
-            continue;
-          }
-          if (isObject(item) && item.type === 'text' && typeof item.text === 'string') {
-            if (item.text !== '') parts.push(item.text);
-            continue;
-          }
-          if (item === undefined || item === null) continue;
-          try {
-            parts.push(JSON.stringify(item, null, 2));
-          } catch {
-            // unprintable block: keep the rest
-          }
-        }
-        if (parts.length > 0) return parts.join('\n');
-      }
-      const error = [block.error, isObject(block.call) ? block.call.error : undefined].find(isObject);
-      if (error === undefined) return '';
-      const name = typeof error.name === 'string' && error.name !== '' ? error.name : 'Error';
-      const code = typeof error.code === 'string' && error.code !== '' ? error.code : '';
-      return code === '' ? name : `${name}: ${code}`;
-    }
-
-    /** A tool-owned structured value, when the block records one beside its text. */
-    function structuredValue(block) {
-      if (!isObject(block)) return undefined;
-      const candidates = [block.meta, block.value, isObject(block.output) ? block.output.value : undefined, isObject(block.result) ? block.result.value : undefined];
-      for (const candidate of candidates) if (isObject(candidate)) return candidate;
-      return undefined;
-    }
-
-    /**
-     * Read the phases a run declares: the structured value first, then the result headline.
-     * @param {unknown} block settled result block
-     * @param {string} text its result text
-     * @returns {string[]} phase names
-     */
-    function phasesOf(block, text) {
-      const value = structuredValue(block);
-      if (value !== undefined && Array.isArray(value.phases)) {
-        const phases = value.phases.filter((phase) => typeof phase === 'string' && phase !== '');
-        if (phases.length > 0) return phases;
-      }
-      const line = parseText(text, /^Phases:\s*(.+)$/m);
-      if (line === undefined) return [];
-      return line.split(/\s*(?:→|->)\s*/).map((part) => part.trim()).filter((part) => part !== '');
-    }
-
-    /** Compiler diagnostics rendered as `path:Lline:Ccolumn message` lines. */
-    function diagnosticLines(text) {
-      const rows = [];
-      for (const line of linesOf(text)) {
-        const trimmed = line.trim();
-        if (trimmed !== '' && /:[LC]\d+:[LC]\d+\b/.test(trimmed)) rows.push(trimmed);
-      }
-      return rows;
-    }
-
-    /** The first two meaningful lines of a block of text. */
-    function secondMeaningfulLine(text) {
-      const rows = linesOf(text).map((line) => line.trim()).filter((line) => line !== '');
-      if (rows.length > 1) return rows[1];
-      return rows.length === 1 ? rows[0] : '';
-    }
-
-    /** The `- ` rows of a result list, capped. */
-    function bulletRows(text, limit) {
-      const rows = [];
-      for (const line of linesOf(text)) {
-        if (!line.startsWith('- ')) continue;
-        const row = line.slice(2).trim();
-        if (row === '') continue;
-        rows.push(row);
-        if (rows.length >= limit) break;
-      }
-      return rows;
-    }
-
-    /** The leading number of a result headline (`3 runs`, `2 saved workflows`). */
-    function leadingCount(text) {
-      const match = /^(\d+)\b/.exec(firstLine(text));
-      return match === null ? undefined : Number(match[1]);
-    }
-
-    /** The localized status word of a `Run <id> "<name>" — <status>` headline. */
-    function runStatusWord(text, say) {
-      const match = /\b(pending|running|completed|errored|stopped|superseded)\b/.exec(firstLine(text));
-      return match === null ? '' : say(`run.status.${match[1]}`);
-    }
-
-    /** The lifecycle phase a card renders: preparing, start (running), or result. */
-    function phaseOf(props) {
-      const phase = isObject(props) ? props.phase : undefined;
-      if (phase === 'preparing' || phase === 'start' || phase === 'result') return phase;
-      const block = isObject(props) ? props.block : undefined;
-      if (isObject(block)) {
-        if ('kind' in block) return 'result';
-        if (block.phase === 'preparing') return 'preparing';
-        if (block.phase === 'start') return 'start';
-      }
-      return 'preparing';
-    }
-
-    /** Run id named by a settled result, when the tool reports one there. */
-    function cardResultRunId(toolName, text) {
-      switch (toolName) {
-        case 'CreateWorkflow':
-          return parseText(text, /^Run ID:\s*(\S+)/m);
-        case 'AmendWorkflow':
-          return parseText(text, /^Started revised run\s+(\S+)/m);
-        case 'GetWorkflowRun':
-        case 'TaskOutput':
-          return parseText(text, /^Run\s+(\S+)\s/m);
-        case 'StopWorkflowRun':
-          return parseText(text, /^Stopped run\s+(\S+?)\./m);
-        case 'ResumeWorkflowRun':
-          return parseText(text, /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m);
-        case 'FillWorkflowHole':
-          return parseText(text, /on run\s+(\S+?);/m);
-        default:
-          return undefined;
-      }
-    }
-
-    /**
-     * The run one settled tool call acted on, for the card's detail entry.
-     * Every successful workflow tool result names its run in the result text, so a call that only
-     * carries `run_id` in its arguments (a failure or a draft) is left without an entry.
-     * @param {string} toolName wire tool name
-     * @param {unknown} block settled block
-     * @param {string} phase lifecycle phase
-     * @param {boolean} failed structured failure
-     * @returns {string | undefined} run id
-     */
-    function cardRunIdOf(toolName, block, phase, failed) {
-      if (phase !== 'result' || failed === true) return undefined;
-      return cardResultRunId(toolName, resultText(block));
-    }
-
-    /** The session a card renders in, taken from the slot's standard props. */
-    function cardSessionId(props) {
-      if (!isObject(props)) return undefined;
-      if (typeof props.sessionId === 'string' && props.sessionId !== '') return props.sessionId;
-      if (isObject(props.session) && typeof props.session.id === 'string' && props.session.id !== '') return props.session.id;
-      return undefined;
-    }
-
-    /** Open one run's detail from a card; the detail surface may not be composed yet. */
-    function cardOpenDetail(runId, sessionId) {
-      if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return;
-      try {
-        WF_DETAIL.open({ runId, sessionId });
-      } catch (error) {
-        console.warn('zcode-workflow: run detail failed to open', error);
-      }
-    }
-
-    /* -------------------------------- wording -------------------------------- */
-
-    function interpolate(text, params) {
-      if (!isObject(params)) return text;
-      return text.replace(/\{(\w+)\}/g, (match, name) => (Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match));
-    }
-
-    /**
-     * Build the translate function a card uses.
-     * A namespace lookup that misses (returns the key, an empty string, or throws) falls back to
-     * the English string, so a missing dictionary never shows a raw key.
-     * @param {unknown} translate slot-injected `t`
-     * @returns {(key: string, params?: Record<string, unknown>) => string} translator
-     */
-    function makeSay(translate) {
-      return function say(key, params) {
-        let text;
-        if (typeof translate === 'function') {
-          try {
-            text = translate(key, params);
-          } catch {
-            text = undefined;
-          }
-        }
-        const resolved = typeof text === 'string' && text !== '' && text !== key ? text : (EN[key] ?? key);
-        return interpolate(resolved, params);
-      };
-    }
-
-    /* ------------------------------- card models ------------------------------ */
-
-    function sourceOf(block) {
-      if (argText(block, 'script') !== undefined) return 'inline';
-      if (argText(block, 'path') !== undefined) return 'path';
-      if (savedArg(block) !== undefined) return 'saved';
-      return undefined;
-    }
-
-    function sourceSection(block, say) {
-      const script = argText(block, 'script');
-      if (script !== undefined) return { kind: 'code', label: say('body.script'), text: script };
-      const filePath = argText(block, 'path');
-      if (filePath !== undefined) return { kind: 'text', label: say('body.script'), text: filePath };
-      const saved = savedArg(block);
-      if (saved !== undefined && typeof saved.name === 'string' && saved.name !== '') {
-        return { kind: 'text', label: say('create.source.saved'), text: saved.name };
-      }
-      return undefined;
-    }
-
-    function createModel({ block, phase, say, failed }) {
-      const saved = savedArg(block);
-      const name = argText(block, 'name') ?? (saved !== undefined && typeof saved.name === 'string' ? saved.name : '');
-      const text = resultText(block);
-      const runId = phase === 'result' ? parseText(text, /^Run ID:\s*(\S+)/m) : undefined;
-      const isDraft = phase === 'result' && (failed || (text !== '' && runId === undefined));
-      const phases = phasesOf(block, text);
-      const diagnostics = diagnosticLines(text);
-      const source = sourceOf(block);
-
-      let title = say('create.title');
-      let summary = name;
-      let detail = '';
-      let status = '';
-      let tone = phase === 'preparing' ? 'preparing' : phase === 'start' ? 'running' : 'ok';
-      let statusSuffix = '';
-
-      if (phase === 'preparing') {
-        status = say('create.writing');
-      } else if (phase === 'start') {
-        status = say('create.validating');
-      } else if (isDraft) {
-        status = say('create.draft');
-        detail = diagnostics.length > 0 ? diagnostics[0] : secondMeaningfulLine(text);
-        tone = 'error';
-      } else {
-        status = say('create.ran');
-        statusSuffix = runId ?? '';
-        detail = phases.length > 0 ? say('card.phases', { count: phases.length }) : '';
-      }
-      if (detail === '' && source !== undefined) detail = say(`create.source.${source}`);
-      if (detail === '' && diagnostics.length > 0 && phase === 'result') detail = diagnostics[0];
-
-      const sections = [];
-      const scriptSection = sourceSection(block, say);
-      if (scriptSection !== undefined) sections.push(scriptSection);
-      sections.push({ kind: 'text', label: say('body.output'), text });
-
-      return { title, summary, detail, status, statusSuffix, tone, sections };
-    }
-
-    function amendModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const started = parseText(text, /^Started revised run\s+(\S+)/m);
-      const runId = argText(block, 'run_id') ?? '';
-      const pending = phase !== 'result';
-      const bad = phase === 'result' && (failed || (text !== '' && started === undefined));
-      const sections = [];
-      const scriptSection = sourceSection(block, say);
-      if (scriptSection !== undefined) sections.push(scriptSection);
-      sections.push({ kind: 'text', label: say('body.output'), text });
-      return {
-        title: started !== undefined ? say('amend.amended') : say('amend.title'),
-        summary: started ?? runId,
-        monoSummary: true,
-        detail: started !== undefined && runId !== '' ? runId : (argText(block, 'name') ?? ''),
-        status: pending ? say(phase === 'preparing' ? 'amend.writing' : 'amend.validating') : bad ? say('amend.draft') : '',
-        tone: bad ? 'error' : pending ? 'running' : 'ok',
-        sections,
-      };
-    }
-
-    function runStatusModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const notFound = /^run_not_found\b/m.test(text);
-      const bad = failed || notFound;
-      const runId = argText(block, 'run_id') ?? parseText(text, /^Run\s+(\S+)\s/m) ?? '';
-      return {
-        title: say('getRun.title'),
-        summary: runId,
-        monoSummary: true,
-        detail: '',
-        status: phase === 'result' ? (bad ? say('status.failed') : runStatusWord(text, say)) : say('getRun.fetching'),
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
-
-    function runListModel({ block, phase, say, failed }, keys) {
-      const text = resultText(block);
-      const rows = bulletRows(text, MAX_LIST_ROWS);
-      const count = leadingCount(text);
-      const total = count ?? rows.length;
-      const empty = rows.length === 0 && new RegExp(`^${keys.emptyPattern}`, 'm').test(text);
-      const settled = phase === 'result';
-      let summary = '';
-      if (settled) {
-        if (empty) summary = say(keys.empty);
-        else if (total !== undefined) summary = say(total === 1 ? keys.countOne : keys.count, { count: total });
-      }
-      const truncated = settled && !failed && rows.length > 0 && (total === undefined || total > rows.length);
-      return {
-        title: say(keys.title),
-        summary,
-        detail: truncated ? say(keys.truncated) : '',
-        status: settled ? (failed ? say('status.failed') : '') : say(keys.listing),
-        tone: failed ? 'error' : settled ? 'ok' : 'running',
-        sections: failed ? [{ kind: 'text', label: say('body.output'), text }] : [{ kind: 'rows', rows }],
-      };
-    }
-
-    function saveModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /Nothing was saved|^The workflow script has errors/m.test(text);
-      const scope = argText(block, 'scope');
-      return {
-        title: phase === 'result' && !bad ? say('save.saved') : say('save.saving'),
-        summary: argText(block, 'name') ?? '',
-        monoSummary: true,
-        detail: scope === 'global' || scope === 'project' ? say(`save.scope.${scope}`) : '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
-
-    function holeModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /^hole_not_waiting\b/m.test(text);
-      return {
-        title: say('hole.title'),
-        summary: argText(block, 'hole_id') ?? '',
-        monoSummary: true,
-        detail: argText(block, 'run_id') ?? '',
-        status: phase === 'result' ? (bad ? say('status.failed') : '') : say('hole.running'),
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
-
-    function stopModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /^run_not_found\b/m.test(text);
-      const runId = argText(block, 'run_id') ?? parseText(text, /^Stopped run\s+(\S+?)\./m) ?? '';
-      return {
-        title: phase === 'result' && !bad ? say('stop.stopped') : phase === 'result' ? say('stop.title') : say('stop.running'),
-        summary: runId,
-        monoSummary: true,
-        detail: '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
-
-    function resumeModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /^run_not_found\b|Nothing was resumed|only a stopped run can be resumed|no longer compiles/m.test(text);
-      const resumed = parseText(text, /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m);
-      const previous = argText(block, 'run_id') ?? '';
-      return {
-        title: phase === 'result' && !bad ? say('resume.title') : phase === 'result' ? say('resume.action') : say('resume.running'),
-        summary: resumed ?? previous,
-        monoSummary: true,
-        detail: resumed !== undefined && previous !== '' ? previous : '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
-
-    function snippetModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const code = argText(block, 'code');
-      const filePath = argText(block, 'path');
-      const bad = failed || /^The snippet (?:has errors|failed)\b/m.test(text);
-      const snippetSection = code !== undefined
-        ? { kind: 'code', label: say('body.script'), text: code }
-        : filePath !== undefined
-          ? { kind: 'text', label: say('body.script'), text: filePath }
-          : undefined;
-      const sections = [];
-      if (snippetSection !== undefined) sections.push(snippetSection);
-      sections.push({ kind: 'text', label: say('body.output'), text });
-      return {
-        title: phase === 'result' ? say('snippet.title') : say('snippet.running'),
-        summary: phase === 'result' ? firstLine(text) : (code !== undefined ? firstLine(code) : (filePath ?? '')),
-        detail: '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections,
-      };
-    }
-
-    /** Dispatch one tool name to its card model. */
-    function buildModel(toolName, phase, block, say) {
-      const shared = { block, phase, say, failed: isObject(block) && block.isError === true };
-      switch (toolName) {
-        case 'CreateWorkflow':
-          return createModel(shared);
-        case 'AmendWorkflow':
-          return amendModel(shared);
-        case 'GetWorkflowRun':
-        case 'TaskOutput':
-          return runStatusModel(shared);
-        case 'ListWorkflowRuns':
-          return runListModel(shared, {
-            title: 'listRuns.title',
-            listing: 'listRuns.listing',
-            count: 'listRuns.count',
-            countOne: 'listRuns.countOne',
-            empty: 'listRuns.empty',
-            truncated: 'listRuns.truncated',
-            emptyPattern: 'No workflow runs\\b',
-          });
-        case 'ListSavedWorkflows':
-          return runListModel(shared, {
-            title: 'list.title',
-            listing: 'list.listing',
-            count: 'list.count',
-            countOne: 'list.countOne',
-            empty: 'list.empty',
-            truncated: 'list.truncated',
-            emptyPattern: 'No saved workflows\\b',
-          });
-        case 'SaveWorkflow':
-          return saveModel(shared);
-        case 'FillWorkflowHole':
-          return holeModel(shared);
-        case 'StopWorkflowRun':
-          return stopModel(shared);
-        case 'ResumeWorkflowRun':
-          return resumeModel(shared);
-        case 'EvalWorkflowSnippet':
-          return snippetModel(shared);
-        default:
-          return {
-            title: say('card.title'),
-            status: phase === 'result' ? '' : say('getRun.fetching'),
-            tone: phase === 'result' ? 'ok' : 'running',
-            sections: [{ kind: 'text', label: say('body.output'), text: resultText(block) }],
-          };
-      }
-    }
-
-    /** Keep one row slot short enough to render and to expose as a tooltip. */
-    function clipRow(value) {
-      const text = typeof value === 'string' ? value : '';
-      if (text.length <= MAX_ROW_CHARS) return text;
-      return `${text.slice(0, MAX_ROW_CHARS - 1)}…`;
-    }
-
-    /**
-     * Normalize a model to the exact shape the renderer consumes.
-     * Empty sections drop out, labels disappear when a body holds a single section, and every
-     * field lands as a string so one malformed model cannot throw during render.
-     * @param {object} model raw card model
-     * @param {(key: string, params?: Record<string, unknown>) => string} say translator
-     * @returns {object} render-ready model
-     */
-    function totalize(model, say) {
-      const sections = [];
-      for (const section of Array.isArray(model.sections) ? model.sections : []) {
-        if (!isObject(section)) continue;
-        const label = typeof section.label === 'string' ? section.label : '';
-        if (section.kind === 'rows') {
-          const rows = Array.isArray(section.rows) ? section.rows.filter((row) => typeof row === 'string' && row !== '') : [];
-          if (rows.length === 0) continue;
-          sections.push({ kind: 'rows', label, rows });
-          continue;
-        }
-        const text = typeof section.text === 'string' ? section.text : '';
-        if (text.trim() === '') continue;
-        const clipped = text.length > MAX_SECTION_CHARS ? `${text.slice(0, MAX_SECTION_CHARS)}\n…` : text;
-        sections.push({ kind: section.kind === 'code' ? 'code' : 'text', label, text: clipped });
-      }
-      if (sections.length < 2) for (const section of sections) section.label = '';
-      const tone = model.tone === 'error' || model.tone === 'running' || model.tone === 'preparing' ? model.tone : 'ok';
-      return {
-        title: clipRow(model.title) || say('card.title'),
-        summary: clipRow(model.summary),
-        detail: clipRow(model.detail),
-        status: clipRow(model.status),
-        statusSuffix: clipRow(model.statusSuffix),
-        monoSummary: model.monoSummary === true,
-        tone,
-        sections,
-      };
-    }
-
-    /* -------------------------------- rendering ------------------------------- */
-
-    /** The workflow glyph: three stations joined by two lanes. */
-    function WorkflowIcon() {
-      return React.createElement('svg', {
-        width: 14,
-        height: 14,
-        viewBox: '0 0 16 16',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 1.3,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        'aria-hidden': true,
-        focusable: 'false',
-      }, React.createElement('circle', { cx: 3.2, cy: 3.6, r: 1.5, key: 'a' }),
-      React.createElement('circle', { cx: 3.2, cy: 12.4, r: 1.5, key: 'b' }),
-      React.createElement('circle', { cx: 12.8, cy: 8, r: 1.5, key: 'c' }),
-      React.createElement('path', { d: 'M4.7 3.6h2.6a2 2 0 0 1 2 2v.9M4.7 12.4h2.6a2 2 0 0 0 2-2v-.9', key: 'd' }));
-    }
-
-    function Chevron({ open }) {
-      return React.createElement('span', { className: CLASS.chevron, 'data-open': open ? 'true' : 'false', 'aria-hidden': true },
-        React.createElement('svg', {
-          width: 12,
-          height: 12,
-          viewBox: '0 0 16 16',
-          fill: 'none',
-          stroke: 'currentColor',
-          strokeWidth: 1.5,
-          strokeLinecap: 'round',
-          strokeLinejoin: 'round',
-        }, React.createElement('path', { d: 'M6 3.5 10.5 8 6 12.5' })));
-    }
-
-    /** The expanded body: one labeled block per section. */
-    function CardBody({ sections }) {
-      return React.createElement('div', { className: CLASS.body },
-        sections.map((section, index) => React.createElement('div', { className: CLASS.section, key: `section-${index}` },
-          section.label === '' ? null : React.createElement('div', { className: CLASS.label }, section.label),
-          section.kind === 'rows'
-            ? React.createElement('div', { className: CLASS.rows },
-              (Array.isArray(section.rows) ? section.rows : []).map((row, rowIndex) => React.createElement('div', { className: CLASS.rowItem, key: `row-${rowIndex}` }, row)))
-            : React.createElement('pre', { className: section.kind === 'code' ? CLASS.code : CLASS.output }, section.text))));
-    }
-
-    /**
-     * Expansion state owned by this card.
-     * Chat forwards a stable `useDisclosure`; without one the card keeps its own state, so the
-     * body still opens in a host that does not provide the hook.
-     */
-    function useExpansion(useDisclosure) {
-      const local = React.useState(false);
-      let expanded = local[0] === true;
-      let toggle = () => local[1]((previous) => previous !== true);
-      if (typeof useDisclosure === 'function') {
-        let state;
-        try {
-          state = useDisclosure();
-        } catch {
-          state = undefined;
-        }
-        if (isObject(state)) {
-          expanded = state.expanded === true;
-          if (typeof state.toggle === 'function') toggle = state.toggle;
-        }
-      }
-      return { expanded, toggle };
-    }
-
-    /**
-     * One workflow tool card.
-     * @param {object} props slot owner payload: `toolName`, `phase`, `block`, `useDisclosure`, `t`
-     */
-    function WorkflowCard(props) {
-      const translate = isObject(props) ? props.t : undefined;
-      const say = React.useMemo(() => makeSay(translate), [translate]);
-      const { expanded, toggle } = useExpansion(isObject(props) ? props.useDisclosure : undefined);
-      const toolName = isObject(props) && typeof props.toolName === 'string' ? props.toolName : '';
-      const phase = phaseOf(props);
-      const block = isObject(props) ? props.block : undefined;
-      const failed = isObject(block) && block.isError === true;
-      const sessionId = cardSessionId(props);
-      const detailRunId = React.useMemo(
-        () => (typeof WF_DETAIL === 'object' && WF_DETAIL !== null && typeof WF_DETAIL.open === 'function'
-          ? cardRunIdOf(toolName, block, phase, failed)
-          : undefined),
-        [toolName, block, phase, failed],
-      );
-      const detailLabel = wfUiCopy('card.detailAction');
-      const model = React.useMemo(
-        () => totalize(buildModel(toolName, phase, block, say), say),
-        [toolName, phase, block, say],
-      );
-
-      const expandable = model.sections.length > 0;
-      const open = expandable && expanded;
-      const onToggle = () => {
-        if (typeof toggle === 'function') toggle();
-      };
-      const onRowKeyDown = (event) => {
-        if (!isObject(event)) return;
-        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
-        if (typeof event.preventDefault === 'function') event.preventDefault();
-        onToggle();
-      };
-
-      const row = [];
-      row.push(React.createElement('span', { className: CLASS.icon, key: 'icon' }, React.createElement(WorkflowIcon)));
-      row.push(React.createElement('span', { className: CLASS.title, key: 'title' }, model.title));
-      if (model.summary !== '') {
-        row.push(React.createElement('span', { className: CLASS.sep, 'aria-hidden': true, key: 'sep' }));
-        row.push(React.createElement('span', {
-          className: model.monoSummary ? `${CLASS.summary} ${CLASS.mono}` : CLASS.summary,
-          title: model.summary,
-          key: 'summary',
-        }, model.summary));
-      }
-      if (model.detail !== '') {
-        row.push(React.createElement('span', { className: CLASS.detail, title: model.detail, key: 'detail' }, model.detail));
-      }
-      if (model.status !== '') {
-        row.push(React.createElement('span', { className: CLASS.status, key: 'status' }, model.status));
-      }
-      if (model.statusSuffix !== '') {
-        row.push(React.createElement('span', { className: `${CLASS.status} ${CLASS.mono}`, title: model.statusSuffix, key: 'suffix' }, model.statusSuffix));
-      }
-      if (detailRunId !== undefined) {
-        row.push(React.createElement('button', {
-          type: 'button',
-          className: CLASS.detailAction,
-          title: detailLabel,
-          'aria-label': detailLabel,
-          'data-workflow-run-id': detailRunId,
-          key: 'detail-action',
-          onClick: (event) => {
-            if (isObject(event) && typeof event.stopPropagation === 'function') event.stopPropagation();
-            cardOpenDetail(detailRunId, sessionId);
-          },
-          onKeyDown: (event) => {
-            if (isObject(event) && typeof event.stopPropagation === 'function') event.stopPropagation();
-          },
-        }, React.createElement(WF_UI.icons.external, { size: 14 })));
-      }
-      if (expandable) row.push(React.createElement(Chevron, { open, key: 'chevron' }));
-
-      const rowProps = { className: CLASS.row, 'data-expandable': expandable ? 'true' : 'false', key: 'row' };
-      if (expandable) {
-        rowProps.role = 'button';
-        rowProps.tabIndex = 0;
-        rowProps['aria-expanded'] = open ? 'true' : 'false';
-        rowProps.title = say(open ? 'row.collapse' : 'row.expand');
-        rowProps.onClick = onToggle;
-        rowProps.onKeyDown = onRowKeyDown;
-      }
-
-      const children = [React.createElement('div', rowProps, row)];
-      if (open) children.push(React.createElement(CardBody, { sections: model.sections, key: 'body' }));
-
-      return React.createElement('div', {
-        className: CLASS.root,
-        'data-tool': toolName,
-        'data-state': model.tone,
-      }, children);
-    }
-
-
-/* ---- client-src/40-detail.js ---- */
-/* Right-Sidebar workflow run detail. */
-
-/** Registered by `register` and used by other parts to open one run. */
-const WF_DETAIL = {};
-
-/** Tab type identity: the registry id and the key both Sidebar seats render under. */
-const WF_DETAIL_ID = 'zcode-workflow/run';
-/** The page kind callers pass to `ctx.sidebarRight.openTab`. */
-const WF_DETAIL_KIND = 'zcode-workflow/run';
-/** A visible run in flight refreshes on this cadence. */
-const WF_DETAIL_POLL_MS = 2000;
-/** How long a copy confirmation stays on screen. */
-const WF_DETAIL_COPY_MS = 1500;
-/** Longest artifact text one preview keeps before the tail is cut. */
-const WF_DETAIL_PREVIEW_CHARS = 400000;
-
-/** Sidebar services, captured once the profile provides them. */
-const WF_DETAIL_SERVICES = { sidebar: undefined };
+/* Workflow tool cards — shared core.
+ *
+ * `WorkflowCard` is the single component on the `tool.call.toolview` slot; the slot keys of
+ * `TOOL_NAMES` all land here and it dispatches per tool. This part owns what every card shares:
+ *
+ *   props    the slot payload, normalized by `wfCardModel`. Hosts deliver either the broker shape
+ *            (`toolName` / `arguments` / `result` / `status` / `session`) or the scaffold block
+ *            shape (`phase` / `block` / `t`), so both are read and either one may be partial:
+ *            a streaming call has arguments but no result, a settled call both.
+ *   copy     the UI_NS dictionary (`locale/ui/cards.json`); bound in `WF_CARDS.register` because a
+ *            card cannot bind a namespace by itself. `props.t` covers the tool-namespace keys.
+ *   data     `31-cache.js` owns the only timers in the card layer; a card subscribes.
+ *   layout   `WfCardShell` (one header row + body) and the run card in `32-run-card.js`.
+ */
+
+/** Tool-card surface: the client entry calls `WF_CARDS.register(ctx, effect)` when present. */
+const WF_CARDS = {};
+
+/** Renderers by canonical tool name; each part contributes `WF_CARDS.render[key]`. */
+WF_CARDS.render = {};
+
+/** UI_NS translator, bound once per registration pass. */
+var WF_CARDS_UI = undefined;
 
 /**
- * The one detail target held when no sidebar can host it.
+ * Bind the card dictionary and start the shared run channel.
+ * The slot itself is registered by the client entry; this only wires what a card cannot reach on
+ * its own (the UI namespace) and the one timer the card layer is allowed to own.
+ */
+WF_CARDS.register = function registerCards(ctx, effect) {
+  if (ctx !== undefined && ctx !== null && ctx.locale !== undefined && typeof ctx.locale.bind === 'function') {
+    try {
+      WF_CARDS_UI = ctx.locale.bind(UI_NS);
+    } catch (error) {
+      WF_CARDS_UI = undefined;
+      console.warn('zcode-workflow: card dictionary failed to bind', error);
+    }
+  }
+  if (typeof effect === 'function') effect(() => wfRunChannelStart(), 'zcode-workflow: card run channel');
+  else wfRunChannelStart();
+};
+
+/** How many result rows a list card shows. */
+const WF_CARD_MAX_ROWS = 8;
+
+/* ---------------------------------- styles --------------------------------- */
+
+/** Base card stylesheet: host theme tokens only, one class per row element. */
+const CSS = [
+  '.zwf-card{display:flex;box-sizing:border-box;flex-direction:column;gap:8px;width:100%;min-width:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}',
+  '.zwf-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;box-sizing:border-box;min-width:0;font-size:13px;line-height:20px}',
+  '.zwf-card-glyph{display:inline-flex;flex:none;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-card-kind{flex:none;white-space:nowrap;font-weight:500;color:var(--dsw-alias-label-primary)}',
+  '.zwf-card-kind[data-live="true"]{background:linear-gradient(90deg,var(--dsw-alias-brand-primary),var(--dsw-alias-label-primary),var(--dsw-alias-brand-primary));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:zwf-card-shimmer 2.4s linear infinite}',
+  '@keyframes zwf-card-shimmer{from{background-position:0 0}to{background-position:200% 0}}',
+  '.zwf-card-name{flex:1 1 80px;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-card-cluster{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;margin-left:auto}',
+  '.zwf-card-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption)}',
+  '.zwf-card-body{display:flex;box-sizing:border-box;flex-direction:column;gap:8px;min-width:0}',
+  '.zwf-card-foot{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-card-parts{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-variant-numeric:tabular-nums}',
+  '.zwf-card-sep{color:var(--dsw-alias-label-caption)}',
+  '.zwf-card-trail{margin-left:auto;display:inline-flex;align-items:center;gap:6px}',
+  '.zwf-lamp{display:inline-block;flex:none;width:6px;height:6px;border-radius:999px;background:transparent}',
+  '.zwf-lamp[data-status="pending"],.zwf-lamp[data-status="stopped"]{border:1.5px solid var(--dsw-alias-label-caption)}',
+  '.zwf-lamp[data-status="running"]{background:var(--dsw-alias-state-warn-primary);animation:zwf-card-pulse 1.4s ease-in-out infinite}',
+  '.zwf-lamp[data-status="completed"]{background:var(--dsw-alias-state-success-primary)}',
+  '.zwf-lamp[data-status="errored"]{background:var(--dsw-alias-state-error-primary);box-shadow:0 0 0 2px color-mix(in oklab,var(--dsw-alias-state-error-primary) 30%,transparent)}',
+  '.zwf-lamp[data-status="superseded"],.zwf-lamp[data-status="idle"]{background:var(--dsw-alias-state-idle-primary)}',
+  '@keyframes zwf-card-pulse{0%,100%{opacity:1}50%{opacity:.35}}',
+  '.zwf-state{display:inline-flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-state[data-status="running"]{color:var(--dsw-alias-state-warn-primary)}',
+  '.zwf-state[data-status="completed"]{color:var(--dsw-alias-state-success-primary)}',
+  '.zwf-state[data-status="errored"]{color:var(--dsw-alias-state-error-primary)}',
+  '.zwf-state-note{color:var(--dsw-alias-label-caption)}',
+  '.zwf-icon-btn{display:inline-flex;box-sizing:border-box;flex:none;align-items:center;justify-content:center;width:24px;height:24px;margin:0;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}',
+  '.zwf-icon-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}',
+  '.zwf-icon-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}',
+  '.zwf-icon-btn:disabled{opacity:.5;cursor:default}',
+  '.zwf-chev{display:inline-flex;flex:none;transition:transform .12s}',
+  '.zwf-chev[data-open="true"]{transform:rotate(90deg)}',
+  '.zwf-chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}',
+  '.zwf-chip{display:inline-flex;box-sizing:border-box;align-items:center;gap:5px;min-width:0;max-width:240px;height:22px;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}',
+  '.zwf-chip:hover{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
+  '.zwf-chip:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}',
+  '.zwf-chip[data-static="true"]{cursor:default}',
+  '.zwf-chip[data-static="true"]:hover{border-color:var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary)}',
+  '.zwf-chip-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.zwf-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-caption)}',
+  '.zwf-note[data-tone="warn"]{color:var(--dsw-alias-state-warn-primary)}',
+  '.zwf-note[data-tone="error"]{color:var(--dsw-alias-state-error-primary)}',
+  '.zwf-rows{display:flex;flex-direction:column;gap:2px;box-sizing:border-box;min-width:0;padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1)}',
+  '.zwf-row-item{font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary);white-space:pre-wrap;overflow-wrap:anywhere}',
+  '.zwf-pre{margin:0;box-sizing:border-box;max-height:240px;overflow:auto;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-markdown-code-block,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}',
+  '.zwf-section{display:flex;flex-direction:column;gap:4px;min-width:0}',
+  '.zwf-section-label{font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-caption)}',
+  '@media (prefers-reduced-motion:reduce){.zwf-card-kind[data-live="true"]{animation:none}.zwf-lamp[data-status="running"]{animation:none}.zwf-chev{transition:none}}',
+].join('');
+
+/* ---------------------------------- readers -------------------------------- */
+
+/** @returns {boolean} true for a plain record (not null, not an array). */
+function wfCardRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** @returns {string} the value when it is a non-empty string, else ''. */
+function wfCardTextOf(value) {
+  return typeof value === 'string' ? value : '';
+}
+
+/** @returns {number | undefined} a finite number from a number or numeric string. */
+function wfCardNum(value) {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+/** First argument that is neither undefined nor null. */
+function wfCardFirst(...values) {
+  for (const value of values) if (value !== undefined && value !== null) return value;
+  return undefined;
+}
+
+/** First non-empty string among the candidates. */
+function wfCardFirstText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return '';
+}
+
+/** The call slice of a preparing/start/result block, whichever shape carries it. */
+function wfCardCall(block) {
+  if (!wfCardRecord(block)) return undefined;
+  return wfCardRecord(block.call) ? block.call : block;
+}
+
+const WF_CARD_ARGS_CACHE = new WeakMap();
+
+/** Parse one call's raw argument JSON once; a still-streaming payload parses to `{}`. */
+function wfCardParsedArgs(block) {
+  const call = wfCardCall(block);
+  if (!wfCardRecord(call)) return {};
+  const cached = WF_CARD_ARGS_CACHE.get(call);
+  if (cached !== undefined) return cached;
+  let parsed = {};
+  const raw = typeof call.argsRaw === 'string' ? call.argsRaw : '';
+  if (raw !== '') {
+    try {
+      const value = JSON.parse(raw);
+      if (wfCardRecord(value)) parsed = value;
+    } catch {
+      // Still streaming: the lazy view below serves the fields that already arrived.
+    }
+  }
+  WF_CARD_ARGS_CACHE.set(call, parsed);
+  return parsed;
+}
+
+/**
+ * Read one field from a block's lazy argument view.
+ * The broker view exposes `text`/`complete`/`value`; a partial or foreign shape may expose a
+ * getter (`read`, `get`) or be the arguments object itself.
+ */
+function wfCardViewField(view, key) {
+  if (view === undefined || view === null) return undefined;
+  try {
+    if (typeof view.text === 'function') {
+      const value = view.text(key);
+      if (value !== undefined) return value;
+    }
+  } catch {
+    // fall through to the next shape
+  }
+  try {
+    if (typeof view.complete === 'function' && view.complete(key) && typeof view.value === 'function') {
+      const value = view.value(key);
+      if (value !== undefined) return value;
+    }
+  } catch {
+    // fall through
+  }
+  try {
+    if (typeof view === 'function') {
+      const all = view();
+      return wfCardRecord(all) ? all[key] : undefined;
+    }
+  } catch {
+    // fall through
+  }
+  try {
+    if (typeof view.read === 'function') {
+      const all = view.read();
+      return wfCardRecord(all) ? all[key] : undefined;
+    }
+  } catch {
+    // fall through
+  }
+  try {
+    if (typeof view.get === 'function') {
+      const value = view.get(key);
+      if (value !== undefined) return value;
+    }
+  } catch {
+    // fall through
+  }
+  return wfCardRecord(view) && Object.prototype.hasOwnProperty.call(view, key) ? view[key] : undefined;
+}
+
+/** Read one call argument at any lifecycle stage. */
+function wfCardArgValue(block, key) {
+  if (!wfCardRecord(block)) return undefined;
+  const direct = wfCardViewField(block.args, key);
+  if (direct !== undefined) return direct;
+  const call = wfCardCall(block);
+  if (call !== undefined && call !== block) {
+    const nested = wfCardViewField(call.args, key);
+    if (nested !== undefined) return nested;
+  }
+  const parsed = wfCardParsedArgs(block);
+  return Object.prototype.hasOwnProperty.call(parsed, key) ? parsed[key] : undefined;
+}
+
+/** Read one string argument. */
+function wfCardArgText(block, key) {
+  const value = wfCardArgValue(block, key);
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+/**
+ * Flatten a settled block's content to display text, falling back to its structured error.
+ * @returns {string} the result text, or ''.
+ */
+function wfCardResultText(block) {
+  if (!wfCardRecord(block)) return '';
+  const sources = [
+    block.content,
+    wfCardRecord(block.result) ? block.result.content : undefined,
+    wfCardRecord(block.call) ? block.call.content : undefined,
+    wfCardRecord(block.call) && wfCardRecord(block.call.result) ? block.call.result.content : undefined,
+    wfCardRecord(block.output) ? block.output.content : undefined,
+    block.text,
+    typeof block.result === 'string' ? block.result : undefined,
+    typeof block.output === 'string' ? block.output : undefined,
+  ];
+  for (const content of sources) {
+    if (typeof content === 'string') {
+      if (content !== '') return content;
+      continue;
+    }
+    if (!Array.isArray(content) || content.length === 0) continue;
+    const parts = [];
+    for (const item of content) {
+      if (typeof item === 'string') {
+        if (item !== '') parts.push(item);
+        continue;
+      }
+      if (wfCardRecord(item) && item.type === 'text' && typeof item.text === 'string') {
+        if (item.text !== '') parts.push(item.text);
+        continue;
+      }
+      if (item === undefined || item === null) continue;
+      try {
+        parts.push(JSON.stringify(item, null, 2));
+      } catch {
+        // unprintable block: keep the rest
+      }
+    }
+    if (parts.length > 0) return parts.join('\n');
+  }
+  const error = [block.error, wfCardRecord(block.call) ? block.call.error : undefined].find(wfCardRecord);
+  if (error === undefined) return '';
+  const name = typeof error.name === 'string' && error.name !== '' ? error.name : 'Error';
+  const code = typeof error.code === 'string' && error.code !== '' ? error.code : '';
+  return code === '' ? name : `${name}: ${code}`;
+}
+
+/** The tool-owned structured value a broker block records beside its text. */
+function wfCardStructured(block) {
+  if (!wfCardRecord(block)) return undefined;
+  const candidates = [
+    block.value,
+    block.meta,
+    wfCardRecord(block.output) ? block.output.value : undefined,
+    wfCardRecord(block.result) ? block.result.value : undefined,
+    wfCardRecord(block.output) && wfCardRecord(block.output.meta) ? block.output.meta : undefined,
+  ];
+  for (const candidate of candidates) if (wfCardRecord(candidate)) return candidate;
+  return undefined;
+}
+
+/* ------------------------------ props normalizing --------------------------- */
+
+/** Tool names compare without punctuation so `AmendWorkflow`/`amend_workflow` agree. */
+function wfCardNormalizeName(value) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/gu, '') : '';
+}
+
+const WF_CARD_BY_NORMALIZED = (() => {
+  const table = {};
+  for (const name of TOOL_NAMES) table[wfCardNormalizeName(name)] = name;
+  return table;
+})();
+
+/** The canonical tool name of a card, or ''. */
+function wfCardToolName(props) {
+  const candidates = [
+    props.toolName,
+    props.tool,
+    props.name,
+    props.key,
+    wfCardRecord(props.block) ? props.block.toolName : undefined,
+    wfCardRecord(props.block) && wfCardRecord(props.block.call) ? props.block.call.toolName : undefined,
+    wfCardRecord(props.result) ? props.result.toolName : undefined,
+  ];
+  for (const candidate of candidates) {
+    const canonical = WF_CARD_BY_NORMALIZED[wfCardNormalizeName(candidate)];
+    if (canonical !== undefined) return canonical;
+  }
+  return '';
+}
+
+/** The lifecycle phase a card renders: preparing, start (in flight), or result. */
+function wfCardPhase(props) {
+  const raw = wfCardFirstText(props.phase, props.status, wfCardRecord(props.block) ? props.block.phase : undefined);
+  if (raw === 'preparing' || raw === 'writing') return 'preparing';
+  if (raw === 'start' || raw === 'running' || raw === 'streaming' || raw === 'executing') return 'start';
+  if (raw === 'result' || raw === 'complete' || raw === 'completed' || raw === 'error' || raw === 'failed' || raw === 'cancelled') return 'result';
+  const block = props.block;
+  if (wfCardRecord(block)) {
+    if ('kind' in block) return 'result';
+    if (block.phase === 'preparing') return 'preparing';
+    if (block.phase === 'start') return 'start';
+  }
+  if (props.result !== undefined) return 'result';
+  return 'preparing';
+}
+
+/**
+ * One block carrying arguments and result in the shape the readers above understand.
+ * A broker payload keeps its lazy argument view; a scaffold block already is one.
+ */
+function wfCardBlock(props) {
+  const given = wfCardRecord(props.block) ? props.block : undefined;
+  const synth = {};
+  const args = wfCardFirst(props.arguments, props.input, props.args);
+  if (args !== undefined && args !== null) {
+    if (typeof args === 'string') synth.argsRaw = args;
+    else synth.args = args;
+  }
+  const result = props.result;
+  if (typeof result === 'string') synth.text = result;
+  else if (wfCardRecord(result)) {
+    if (Array.isArray(result.content)) synth.content = result.content;
+    else if (typeof result.content === 'string') synth.content = [result.content];
+    if (typeof result.isError === 'boolean') synth.isError = result.isError;
+    if (result.value !== undefined) synth.value = result.value;
+  }
+  if (props.error !== undefined) synth.error = props.error;
+  if (given === undefined) return synth;
+  const merged = { ...given };
+  if (merged.args === undefined && synth.args !== undefined) merged.args = synth.args;
+  if (merged.argsRaw === undefined && synth.argsRaw !== undefined) merged.argsRaw = synth.argsRaw;
+  if (merged.content === undefined && synth.content !== undefined) merged.content = synth.content;
+  if (merged.text === undefined && synth.text !== undefined) merged.text = synth.text;
+  if (merged.error === undefined && synth.error !== undefined) merged.error = synth.error;
+  if (merged.value === undefined && synth.value !== undefined) merged.value = synth.value;
+  return merged;
+}
+
+/** Session id from the slot payload, whichever shape carries it. */
+function wfCardSessionId(props) {
+  const direct = wfCardFirstText(props.sessionId, wfCardRecord(props.session) ? props.session.id : undefined, props.session);
+  if (direct !== '') return direct;
+  return undefined;
+}
+
+/** Whether the settled call failed. */
+function wfCardFailed(props, phase) {
+  if (props.isError === true) return true;
+  if (wfCardRecord(props.result) && props.result.isError === true) return true;
+  if (wfCardRecord(props.block) && props.block.isError === true) return true;
+  if (props.error !== undefined && props.error !== null && props.error !== false) return phase === 'result';
+  return false;
+}
+
+/** Tool-call identity, used to correlate a card with the run it launched. */
+function wfCardToolCallId(props) {
+  return wfCardFirstText(
+    props.toolId,
+    props.toolCallId,
+    props.id,
+    wfCardRecord(props.block) ? props.block.toolCallId : undefined,
+    wfCardRecord(props.block) ? props.block.id : undefined,
+  ) || undefined;
+}
+
+/**
+ * Normalize the slot payload the whole card layer renders from.
+ * The result is a plain record so a card can memoize on it: every reader below closes over it.
+ */
+function wfCardModel(props) {
+  const source = wfCardRecord(props) ? props : {};
+  const key = wfCardToolName(source);
+  const phase = wfCardPhase(source);
+  const block = wfCardBlock(source);
+  const failed = wfCardFailed(source, phase);
+  return {
+    key,
+    rawName: wfCardFirstText(source.toolName, source.tool, source.name),
+    toolId: wfCardToolCallId(source),
+    phase,
+    block,
+    failed,
+    sessionId: wfCardSessionId(source),
+    args: (name) => wfCardArgValue(block, name),
+    argText: (name) => wfCardArgText(block, name),
+    resultText: wfCardResultText(block),
+    structured: wfCardStructured(block),
+    forceOpen: source.forceOpen === true,
+    canToggle: source.canToggle !== false,
+    approval: source.approval ?? source.gate ?? source.pendingApproval,
+  };
+}
+
+/* --------------------------------- wording -------------------------------- */
+
+/** Copy from the card dictionary; the English table keeps a missing key readable. */
+function wfCardSay(key, params) {
+  return WF_UI.say(WF_CARDS_UI, UI_EN, key, params);
+}
+
+/**
+ * Plural pick: `key` for a count of one, `pluralKey` otherwise.
+ * The dictionaries carry both forms because Chinese often repeats the same wording.
+ */
+function wfCardSayCount(key, pluralKey, count, params) {
+  return wfCardSay(count === 1 ? key : pluralKey, { count, ...(params ?? {}) });
+}
+
+/* --------------------------------- shared UI ------------------------------- */
+
+/** A card-level icon button (open details, toggle). */
+function WfCardIconButton(props) {
+  return React.createElement('button', {
+    type: 'button',
+    className: `zwf-icon-btn${props.className === undefined ? '' : ` ${props.className}`}`,
+    title: props.title,
+    'aria-label': props.label,
+    'aria-expanded': props.expanded,
+    'data-testid': props.testId,
+    onClick: props.onClick,
+    onKeyDown: (event) => {
+      if (event !== null && typeof event === 'object' && typeof event.stopPropagation === 'function') event.stopPropagation();
+    },
+  }, props.icon);
+}
+
+/** The disclosure chevron; rotates when open. */
+function WfCardChevron(props) {
+  return React.createElement('span', {
+    className: 'zwf-chev',
+    'data-open': props.open === true ? 'true' : 'false',
+    'aria-hidden': 'true',
+  }, React.createElement(WF_UI.icons.chevronRight, { size: 13 }));
+}
+
+/** A labelled card action (resume, retry); the shared button has no test id hook. */
+function WfCardAction(props) {
+  return React.createElement('button', {
+    type: 'button',
+    className: `zwf-btn zwf-btn-sm${props.variant === undefined ? '' : ` zwf-btn-${props.variant}`}`,
+    'data-testid': props.testId,
+    title: props.title,
+    disabled: props.disabled === true,
+    onClick: props.onClick,
+  },
+  props.icon === undefined ? null : React.createElement('span', { className: 'zwf-btn-glyph' }, props.icon),
+  React.createElement('span', { className: 'zwf-btn-label' }, props.children));
+}
+
+/** Status lamp: one dot per lifecycle status. */
+function WfCardLamp(props) {
+  return React.createElement('span', { className: 'zwf-lamp', 'data-status': props.status ?? 'idle', 'aria-hidden': 'true' });
+}
+
+/** Stop reasons the dictionary covers; anything else is dropped rather than shown as a key. */
+const WF_CARD_STOP_REASONS = new Set(['user', 'model', 'provider', 'interrupted', 'superseded']);
+
+/** Status word of a lifecycle status; an unknown status says the run ended. */
+function wfCardStatusText(status) {
+  switch (status) {
+    case 'pending':
+    case 'running':
+    case 'completed':
+    case 'errored':
+    case 'stopped':
+      return wfCardSay(`run.status.${status}`);
+    default:
+      return wfCardSay('card.ended');
+  }
+}
+
+/**
+ * Lamp + status word + stop reason + resumability, the `workflow-run-lamp` family.
+ * @param {{status?: string, stopReason?: string, resumable?: boolean, testId?: string}} props
+ */
+function WfCardState(props) {
+  const status = typeof props.status === 'string' && props.status !== '' ? props.status : 'idle';
+  const text = props.text ?? wfCardStatusText(status);
+  const parts = React.createElement('span', {
+    className: 'zwf-state',
+    'data-status': status,
+    'data-testid': props.testId,
+    'data-workflow-run-lamp': status,
+  }, React.createElement(WfCardLamp, { status }),
+  React.createElement('span', null, text),
+  typeof props.stopReason === 'string' && WF_CARD_STOP_REASONS.has(props.stopReason)
+    ? React.createElement('span', { className: 'zwf-state-note', 'data-testid': props.stopReasonTestId }, ` · ${wfCardSay(`run.stopReason.${props.stopReason}`)}`)
+    : null,
+  props.resumable === true
+    ? React.createElement('span', { className: 'zwf-state-note' }, ` · ${wfCardSay('run.resumable')}`)
+    : null);
+  return parts;
+}
+
+/**
+ * One card frame: header row, optional body, optional footer.
+ * Every card renders through this so the row rhythm and the disclosure behaviour match.
+ */
+function WfCardShell(props) {
+  const t = typeof props.t === 'function' ? props.t : wfCardSay;
+  const toggleLabel = t(props.open === true ? 'card.collapseDetails' : 'card.expandDetails');
+  const chevron = props.expandable === true
+    ? React.createElement(WfCardIconButton, {
+      testId: props.toggleTestId,
+      icon: React.createElement(WfCardChevron, { open: props.open === true }),
+      label: toggleLabel,
+      title: toggleLabel,
+      expanded: props.open === true,
+      onClick: (event) => {
+        if (event !== null && typeof event === 'object' && typeof event.stopPropagation === 'function') event.stopPropagation();
+        props.onToggle?.();
+      },
+    })
+    : null;
+  const head = React.createElement('div', { className: 'zwf-card-head', 'data-testid': props.headTestId },
+    React.createElement('span', { className: 'zwf-card-glyph' }, props.icon ?? React.createElement(WF_UI.icons.workflow, { size: 15 })),
+    React.createElement('span', {
+      className: 'zwf-card-kind',
+      'data-live': props.live === true ? 'true' : 'false',
+      'data-testid': props.kindTestId,
+    }, props.kind),
+    props.separator === true && props.summary !== undefined && props.summary !== ''
+      ? React.createElement('span', { className: 'zwf-card-sep' }, '·')
+      : null,
+    props.summary === undefined || props.summary === ''
+      ? null
+      : React.createElement('span', {
+        className: `zwf-card-name${props.summaryMono === true ? ' zwf-mono-tab' : ''}`,
+        title: props.summary,
+        'data-testid': props.nameTestId,
+      }, props.summary),
+    React.createElement('span', { className: 'zwf-card-cluster' },
+      props.status ?? null,
+      props.detail === undefined || props.detail === ''
+        ? null
+        : React.createElement('span', { className: 'zwf-card-detail', title: props.detail, 'data-testid': props.detailTestId }, props.detail),
+      props.actions ?? null,
+      chevron));
+  const children = [head];
+  if (props.expandable === true && props.open === true && props.body !== undefined) {
+    children.push(React.createElement('div', { className: 'zwf-card-body', key: 'body', 'data-testid': props.bodyTestId }, props.body));
+  }
+  if (props.footer !== undefined) children.push(props.footer);
+  return React.createElement('section', {
+    className: 'zwf-card',
+    'data-tool': props.tool,
+    'data-state': props.state,
+    'data-testid': props.testId,
+  }, children);
+}
+
+/* ------------------------------- expansion state --------------------------- */
+
+/**
+ * Expansion remembered per tool call, so a transcript re-render keeps a card open.
+ * `forceOpen` pins it open and drops the toggle.
+ */
+const WF_CARD_OPEN = new Map();
+
+function useWfCardOpen(toolId, defaultOpen, forceOpen, canToggle) {
+  const [open, setOpen] = React.useState(() => {
+    if (toolId !== undefined && WF_CARD_OPEN.has(toolId)) return WF_CARD_OPEN.get(toolId) === true;
+    return defaultOpen === true;
+  });
+  const toggle = React.useCallback(() => {
+    setOpen((previous) => {
+      const next = previous !== true;
+      if (toolId !== undefined) WF_CARD_OPEN.set(toolId, next);
+      return next;
+    });
+  }, [toolId]);
+  if (forceOpen === true) return { open: true, toggle, expandable: false };
+  return { open: open === true, toggle, expandable: canToggle !== false };
+}
+
+/* ---------------------------------- dispatch ------------------------------- */
+
+/** The run id a card's arguments already name, before the result arrives. */
+function wfCardArgRunId(model) {
+  return wfCardFirstText(model.args('run_id'), model.args('runId'), model.args('run')) || undefined;
+}
+
+/** The run id a settled result names for the given tool. */
+function wfCardResultRunId(model) {
+  if (model.failed) return wfCardArgRunId(model);
+  const text = model.resultText;
+  const structured = model.structured;
+  const fromValue = structured === undefined
+    ? ''
+    : wfCardFirstText(structured.runId, structured.run_id, wfCardRecord(structured.run) ? structured.run.id : undefined, structured.id);
+  if (fromValue !== '') return fromValue;
+  const patterns = {
+    CreateWorkflow: /^Run ID:\s*(\S+)/m,
+    AmendWorkflow: /^Started revised run\s+(\S+)/m,
+    GetWorkflowRun: /^Run\s+(\S+)\s/m,
+    TaskOutput: /^Run\s+(\S+)\s/m,
+    StopWorkflowRun: /^Stopped run\s+(\S+?)\./m,
+    ResumeWorkflowRun: /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m,
+    FillWorkflowHole: /on run\s+(\S+?);/m,
+  };
+  const pattern = patterns[model.key];
+  if (pattern !== undefined) {
+    const match = pattern.exec(text);
+    if (match !== null && typeof match[1] === 'string' && match[1] !== '') return match[1];
+  }
+  return wfCardArgRunId(model);
+}
+
+/** Open one run (or its script steps) in the right Sidebar; false when unavailable. */
+function wfCardOpenDetail(params) {
+  if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return false;
+  try {
+    WF_DETAIL.open(params);
+    return true;
+  } catch (error) {
+    console.warn('zcode-workflow: run detail failed to open', error);
+    return false;
+  }
+}
+
+/** Read a late-loaded surface (`WF_PERMISSION`) without tripping its temporal dead zone. */
+function wfCardSurface(name) {
+  try {
+    const surface = name === 'permission' ? WF_PERMISSION : undefined;
+    return wfCardRecord(surface) || typeof surface === 'function' ? surface : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * One workflow tool card.
+ * @param {object} props slot payload (see the header comment)
+ */
+function WorkflowCard(props) {
+  const model = React.useMemo(() => wfCardModel(props), [props]);
+  const live = useWfCardRun(model); // eslint-disable-line no-undef -- 31-cache.js
+  const openState = useWfCardOpen(model.toolId, wfCardDefaultOpen(model), model.forceOpen, model.canToggle);
+  const render = Object.prototype.hasOwnProperty.call(WF_CARDS.render, model.key)
+    ? WF_CARDS.render[model.key]
+    : WF_CARDS.render.default;
+  return React.createElement(render, {
+    model,
+    live,
+    open: openState.open,
+    toggle: openState.toggle,
+    expandable: openState.expandable,
+    t: wfCardSay,
+  });
+}
+
+/** Cards arrive expanded, as the product's per-call memory defaults to open. */
+function wfCardDefaultOpen() {
+  return true;
+}
+
+/* ---- client-src/31-cache.js ---- */
+/* Shared run channel for the tool cards.
  *
- * A static Client module cannot mount a panel on its own, so a profile without the right
- * Sidebar still shows the detail through `shell.overlay`; the pane component is shared.
+ * Every workflow card needs the run it launched, and a transcript can hold many of them. Polling
+ * per card would multiply requests by the number of visible cards, so this part owns the only
+ * timers in the card layer:
+ *
+ *   one tick    every `WF_CARDS_POLL_MS` (never faster), coalescing every subscriber into
+ *               one `/runs` request per Session and one `/run` request per live run;
+ *   one cache   a snapshot object per (Session, run) that a card re-renders from; an unchanged
+ *               payload keeps the previous snapshot, so a quiet run does not re-render a card;
+ *   one pause   a hidden page issues no requests at all and refreshes right after it returns.
+ *
+ * The run shapes of the four data sources differ (ZCode run snapshot, Host run snapshot, Host run
+ * summary, resume/stop reply), so the readers below accept all of them and never invent a field.
+ */
+
+/** Minimum poll interval; the cards never ask faster than this. */
+const WF_CARDS_POLL_MS = 1500;
+/** How many runs one Session listing asks for; one card never needs more. */
+const WF_CARD_RUN_LIMIT = 20;
+/** A settled run is fetched once, then only on demand. */
+const WF_CARD_TERMINAL = new Set(['completed', 'errored', 'stopped', 'superseded', 'cancelled']);
+
+/** Subscribers, cache and the single timer of the run channel. */
+const WF_RUN_CHANNEL = {
+  /** @type {Map<string, Set<(snapshot: object) => void>>} key -> listeners */
+  listeners: new Map(),
+  /** @type {Map<string, object>} key -> snapshot */
+  snapshots: new Map(),
+  /** @type {Map<string, object>} Session id -> last listing */
+  sessions: new Map(),
+  /** @type {Map<string, object>} run key -> last run fetch bookkeeping */
+  runs: new Map(),
+  timer: 0,
+  busy: false,
+  wanted: false,
+};
+
+/** The cache key of one run, or of a Session when no run is known yet. */
+function wfRunKey(sessionId, runId) {
+  return `${sessionId ?? ''}\u0000${runId ?? ''}`;
+}
+
+/** A snapshot the subscribers can compare by identity. */
+function wfRunSnapshot(sessionId, runId, patch) {
+  const key = wfRunKey(sessionId, runId);
+  const previous = WF_RUN_CHANNEL.snapshots.get(key) ?? {
+    sessionId,
+    runId,
+    run: undefined,
+    summary: undefined,
+    runs: [],
+    truncated: false,
+    error: undefined,
+  };
+  const next = { ...previous, ...patch };
+  WF_RUN_CHANNEL.snapshots.set(key, next);
+  return next;
+}
+
+/** Tell every subscriber of one key what the channel now holds. */
+function wfRunNotify(sessionId, runId) {
+  const exact = WF_RUN_CHANNEL.listeners.get(wfRunKey(sessionId, runId));
+  const snapshot = WF_RUN_CHANNEL.snapshots.get(wfRunKey(sessionId, runId));
+  if (exact !== undefined && snapshot !== undefined) {
+    for (const listener of exact) {
+      try {
+        listener(snapshot);
+      } catch (error) {
+        console.warn('zcode-workflow: card subscriber failed', error);
+      }
+    }
+  }
+  const session = WF_RUN_CHANNEL.listeners.get(wfRunKey(sessionId, undefined));
+  const sessionSnapshot = WF_RUN_CHANNEL.snapshots.get(wfRunKey(sessionId, undefined));
+  if (session !== undefined && sessionSnapshot !== undefined) {
+    for (const listener of session) {
+      try {
+        listener(sessionSnapshot);
+      } catch (error) {
+        console.warn('zcode-workflow: card subscriber failed', error);
+      }
+    }
+  }
+}
+
+/** Stable comparison for a fetched payload; a quiet run must not re-render its card. */
+function wfRunSame(a, b) {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+/* --------------------------------- the tick -------------------------------- */
+
+/** Ask the Host for one Session's run catalog. */
+async function wfRunFetchList(sessionId) {
+  if (typeof sessionId !== 'string' || sessionId === '') return;
+  const state = WF_RUN_CHANNEL.sessions.get(sessionId) ?? { at: 0, busy: false };
+  if (state.busy === true) return;
+  WF_RUN_CHANNEL.sessions.set(sessionId, { ...state, busy: true });
+  try {
+    const payload = await WF_API.runs({ sessionId, limit: WF_CARD_RUN_LIMIT });
+    const runs = Array.isArray(payload?.runs) ? payload.runs : Array.isArray(payload) ? payload : [];
+    const truncated = payload?.truncated === true;
+    WF_RUN_CHANNEL.sessions.set(sessionId, { at: Date.now(), busy: false, runs });
+    const before = WF_RUN_CHANNEL.snapshots.get(wfRunKey(sessionId, undefined));
+    if (before === undefined || !wfRunSame(runs, before.runs) || before.truncated !== truncated || before.error !== undefined) {
+      wfRunSnapshot(sessionId, undefined, { runs, truncated, error: undefined });
+      wfRunNotify(sessionId, undefined);
+    }
+    // Every run-keyed subscriber of this Session also sees the listing.
+    for (const [key, entry] of WF_RUN_CHANNEL.runs) {
+      if (entry.sessionId !== sessionId) continue;
+      const summary = runs.find((row) => wfRunId(row) === entry.runId);
+      if (summary === undefined) continue;
+      const before = WF_RUN_CHANNEL.snapshots.get(key);
+      if (before === undefined || !wfRunSame(summary, before.summary)) {
+        wfRunSnapshot(sessionId, entry.runId, { summary });
+        wfRunNotify(sessionId, entry.runId);
+      }
+    }
+  } catch (error) {
+    WF_RUN_CHANNEL.sessions.set(sessionId, { at: Date.now(), busy: false, runs: state.runs });
+    wfRunSnapshot(sessionId, undefined, { error: wfRunErrorText(error) });
+    wfRunNotify(sessionId, undefined);
+  }
+}
+
+/** Ask the Host for one run snapshot. */
+async function wfRunFetchRun(sessionId, runId) {
+  const key = wfRunKey(sessionId, runId);
+  const entry = WF_RUN_CHANNEL.runs.get(key) ?? { sessionId, runId, at: 0, busy: false };
+  if (entry.busy === true) return;
+  WF_RUN_CHANNEL.runs.set(key, { ...entry, busy: true });
+  try {
+    const run = await wfRunRequest(sessionId, runId);
+    WF_RUN_CHANNEL.runs.set(key, { sessionId, runId, at: Date.now(), busy: false, terminal: WF_CARD_TERMINAL.has(wfRunStatus(run)) });
+    const before = WF_RUN_CHANNEL.snapshots.get(key);
+    if (before === undefined || !wfRunSame(run, before.run)) {
+      wfRunSnapshot(sessionId, runId, { run, error: undefined });
+      wfRunNotify(sessionId, runId);
+    } else if (before.error !== undefined) {
+      wfRunSnapshot(sessionId, runId, { error: undefined });
+      wfRunNotify(sessionId, runId);
+    }
+  } catch (error) {
+    WF_RUN_CHANNEL.runs.set(key, { sessionId, runId, at: Date.now(), busy: false });
+    const before = WF_RUN_CHANNEL.snapshots.get(key);
+    // A 404 before the run is registered is normal for a card that is still streaming.
+    const message = wfRunErrorText(error);
+    if (before === undefined || before.error !== message) {
+      wfRunSnapshot(sessionId, runId, { error: message });
+      wfRunNotify(sessionId, runId);
+    }
+  }
+}
+
+/** One run snapshot request, tolerant of the route set the Host currently registers. */
+async function wfRunRequest(sessionId, runId) {
+  if (typeof WF_API !== 'object' || WF_API === null) throw new Error('workflow data channel unavailable');
+  if (typeof WF_API.run === 'function') {
+    const payload = await WF_API.run({ sessionId, runId });
+    return payload?.run ?? payload;
+  }
+  if (typeof WF_API.get === 'function') {
+    const payload = await WF_API.get('/run', { sessionId, runId });
+    return payload?.run ?? payload;
+  }
+  throw new Error('workflow data channel unavailable');
+}
+
+/** One console-safe failure line; the card shows nothing for a transient miss. */
+function wfRunErrorText(error) {
+  if (error !== null && typeof error === 'object' && typeof error.message === 'string' && error.message !== '') {
+    return error.message;
+  }
+  return String(error);
+}
+
+/* ------------------------------ scheduling --------------------------------- */
+
+/** The page is hidden: polling pauses and resumes on return. */
+function wfRunVisible() {
+  if (typeof document === 'undefined') return true;
+  return document.hidden !== true && document.visibilityState !== 'hidden';
+}
+
+/** One scheduling pass over every subscriber; at most one request per target. */
+function wfRunChannelPass() {
+  if (WF_RUN_CHANNEL.wanted !== true || WF_RUN_CHANNEL.busy === true) return;
+  if (!wfRunVisible()) return;
+  const now = Date.now();
+  const sessions = new Set();
+  const runs = new Map();
+  for (const key of WF_RUN_CHANNEL.listeners.keys()) {
+    const snapshot = WF_RUN_CHANNEL.snapshots.get(key);
+    const sessionId = snapshot?.sessionId;
+    if (typeof sessionId !== 'string' || sessionId === '') continue;
+    sessions.add(sessionId);
+    if (typeof snapshot.runId === 'string' && snapshot.runId !== '') runs.set(key, snapshot);
+  }
+  for (const sessionId of sessions) {
+    const state = WF_RUN_CHANNEL.sessions.get(sessionId);
+    if (state !== undefined && state.busy === true) continue;
+    if (state === undefined || now - (state.at ?? 0) >= WF_CARDS_POLL_MS) wfRunFetchList(sessionId);
+  }
+  for (const [key, snapshot] of runs) {
+    const entry = WF_RUN_CHANNEL.runs.get(key);
+    if (entry !== undefined && entry.busy === true) continue;
+    const terminal = entry?.terminal === true && snapshot.run !== undefined;
+    if (terminal) continue;
+    if (entry === undefined || now - (entry.at ?? 0) >= WF_CARDS_POLL_MS) wfRunFetchRun(snapshot.sessionId, snapshot.runId);
+  }
+}
+
+/** Start the timer; the client entry disposes it with the registration. */
+function wfRunChannelStart() {
+  if (WF_RUN_CHANNEL.timer !== 0) return () => {};
+  const tick = () => {
+    wfRunChannelPass();
+    WF_RUN_CHANNEL.timer = setTimeout(tick, WF_CARDS_POLL_MS);
+  };
+  WF_RUN_CHANNEL.timer = setTimeout(tick, WF_CARDS_POLL_MS);
+  if (typeof document !== 'undefined') {
+    const onVisible = () => {
+      if (!wfRunVisible()) return;
+      for (const entry of WF_RUN_CHANNEL.sessions.values()) entry.at = 0;
+      for (const entry of WF_RUN_CHANNEL.runs.values()) entry.at = 0;
+      wfRunChannelPass();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (WF_RUN_CHANNEL.timer !== 0) clearTimeout(WF_RUN_CHANNEL.timer);
+      WF_RUN_CHANNEL.timer = 0;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }
+  return () => {
+    if (WF_RUN_CHANNEL.timer !== 0) clearTimeout(WF_RUN_CHANNEL.timer);
+    WF_RUN_CHANNEL.timer = 0;
+  };
+}
+
+/** Look one snapshot up without subscribing. */
+function wfRunChannelSnapshot(sessionId, runId) {
+  const key = wfRunKey(sessionId, runId);
+  const existing = WF_RUN_CHANNEL.snapshots.get(key);
+  if (existing !== undefined) return existing;
+  return wfRunSnapshot(sessionId, runId, {});
+}
+
+/**
+ * Subscribe one card to its run (or to its Session when the card has no run yet).
+ * @returns {() => void} unsubscribe
+ */
+function wfRunChannelSubscribe(sessionId, runId, listener) {
+  if (typeof sessionId !== 'string' || sessionId === '') return () => {};
+  const key = wfRunKey(sessionId, runId);
+  wfRunChannelSnapshot(sessionId, runId);
+  const set = WF_RUN_CHANNEL.listeners.get(key) ?? new Set();
+  set.add(listener);
+  WF_RUN_CHANNEL.listeners.set(key, set);
+  WF_RUN_CHANNEL.wanted = true;
+  // The first tick of a fresh subscriber is immediate, and independent of the poll interval.
+  setTimeout(() => {
+    if (!wfRunVisible()) return;
+    if (typeof runId === 'string' && runId !== '') wfRunFetchRun(sessionId, runId);
+    else wfRunFetchList(sessionId);
+  }, 0);
+  return () => {
+    const current = WF_RUN_CHANNEL.listeners.get(key);
+    if (current === undefined) return;
+    current.delete(listener);
+    if (current.size === 0) WF_RUN_CHANNEL.listeners.delete(key);
+  };
+}
+
+/** Re-render a card when its run snapshot changes. */
+function useWfCardRun(model) {
+  return useWfCardRunById(model?.sessionId, React.useMemo(() => wfCardResultRunId(model), [model]));
+}
+
+/** Subscribe one specific run (or Session) without knowing the card model. */
+function useWfCardRunById(sessionId, runId) {
+  const [snapshot, setSnapshot] = React.useState(() => wfRunChannelSnapshot(sessionId, runId));
+  React.useEffect(() => {
+    setSnapshot(wfRunChannelSnapshot(sessionId, runId));
+    return wfRunChannelSubscribe(sessionId, runId, setSnapshot);
+  }, [sessionId, runId]);
+  return snapshot;
+}
+
+/** Drop the throttle of one run so the next pass re-reads it right away. */
+function wfRunChannelRefresh(sessionId, runId) {
+  if (typeof sessionId !== 'string' || sessionId === '') return;
+  if (typeof runId === 'string' && runId !== '') {
+    const key = wfRunKey(sessionId, runId);
+    const entry = WF_RUN_CHANNEL.runs.get(key);
+    if (entry !== undefined) WF_RUN_CHANNEL.runs.set(key, { ...entry, at: 0, terminal: false });
+    wfRunFetchRun(sessionId, runId);
+    return;
+  }
+  wfRunFetchList(sessionId);
+}
+
+/* ------------------------------- run readers ------------------------------- */
+
+/** First present field of a run-shaped record. */
+function wfRunField(run, ...names) {
+  if (!wfCardRecord(run)) return undefined;
+  for (const name of names) {
+    if (run[name] !== undefined && run[name] !== null) return run[name];
+  }
+  return undefined;
+}
+
+/** Run id of any run shape. */
+function wfRunId(run) {
+  const value = wfRunField(run, 'id', 'runId', 'run_id');
+  return typeof value === 'string' ? value : '';
+}
+
+/** Tool call that launched this run, when the Host exposes it. */
+function wfRunToolCallId(run) {
+  const value = wfRunField(run, 'toolCallId', 'tool_call_id', 'toolId');
+  return typeof value === 'string' ? value : '';
+}
+
+/** Lifecycle status, with a superseded run reported as such. */
+function wfRunStatus(run) {
+  const status = wfRunField(run, 'status');
+  if (typeof status === 'string' && status !== '') {
+    if (status === 'stopped' && typeof wfRunField(run, 'stopReason', 'stop_reason') === 'string'
+      && wfRunField(run, 'stopReason', 'stop_reason') === 'superseded') return 'superseded';
+    return status;
+  }
+  return 'unknown';
+}
+
+/** Whether the run can still produce work. */
+function wfRunIsActive(run) {
+  const status = wfRunStatus(run);
+  return status === 'pending' || status === 'running';
+}
+
+/** Display name; the run id is the last resort so a card never shows an empty name. */
+function wfRunName(run) {
+  const name = wfCardFirstText(wfRunField(run, 'name', 'label'), wfRunId(run));
+  return name;
+}
+
+/** The subagent model the run reports. */
+function wfRunSubagentModel(run) {
+  const value = wfRunField(run, 'subagentModel', 'subagent_model', 'model');
+  return typeof value === 'string' ? value : '';
+}
+
+/** Phase names in declared order, tolerating both the shape families. */
+function wfRunPhaseNames(run) {
+  const declared = wfRunField(run, 'phaseNames');
+  if (Array.isArray(declared) && declared.length > 0) {
+    return declared.filter((name) => typeof name === 'string' && name !== '');
+  }
+  const phases = wfRunField(run, 'phases', 'phasesDetail');
+  if (!Array.isArray(phases)) return [];
+  const names = [];
+  for (const phase of phases) {
+    const name = typeof phase === 'string' ? phase : wfCardFirstText(phase?.name, phase?.id);
+    if (name !== '' && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+/** Per-phase declared rounds, when the run records them. */
+function wfRunPhaseRounds(run) {
+  const phases = wfRunField(run, 'phases');
+  const table = {};
+  if (!Array.isArray(phases)) return table;
+  for (const phase of phases) {
+    if (!wfCardRecord(phase)) continue;
+    const name = wfCardFirstText(phase.name, phase.id);
+    const rounds = wfCardNum(phase.rounds ?? phase.visits);
+    if (name !== '' && rounds !== undefined) table[name] = rounds;
+  }
+  return table;
+}
+
+/** Waiting holes by phase name. */
+function wfRunHoles(run) {
+  const holes = wfRunField(run, 'holes');
+  if (!Array.isArray(holes)) return [];
+  return holes.filter(wfCardRecord);
+}
+
+/** The phase the run is currently in. */
+function wfRunCurrentPhase(run) {
+  const current = wfRunField(run, 'currentPhase', 'current_phase');
+  if (typeof current === 'string' && current !== '') return current;
+  const active = wfRunField(run, 'phasesDetail');
+  if (Array.isArray(active)) {
+    for (let index = active.length - 1; index >= 0; index -= 1) {
+      const phase = active[index];
+      if (wfCardRecord(phase) && phase.endedAt === undefined && typeof phase.name === 'string') return phase.name;
+    }
+  }
+  return '';
+}
+
+/**
+ * Station list for the timeline: one entry per declared phase with a derived status.
+ * This is the client-side equivalent of the run detail's phase derivation, limited to the fields
+ * the card actually receives.
+ */
+function wfRunStations(run) {
+  const names = wfRunPhaseNames(run);
+  const entered = new Set();
+  const phases = wfRunField(run, 'phases', 'phasesDetail');
+  if (Array.isArray(phases)) {
+    for (const phase of phases) {
+      if (typeof phase === 'string') entered.add(phase);
+      else if (wfCardRecord(phase) && typeof phase.name === 'string') entered.add(phase.name);
+    }
+  }
+  const current = wfRunCurrentPhase(run);
+  const status = wfRunStatus(run);
+  const active = wfRunIsActive(run);
+  const waitingHoles = new Set(wfRunHoles(run).filter((hole) => hole.state !== 'filled').map((hole) => wfCardFirstText(hole.phase, hole.phaseName, hole.name)));
+  const rounds = wfRunPhaseRounds(run);
+  return names.map((name) => {
+    const isCurrent = name === current;
+    let state;
+    if (active) state = isCurrent ? 'running' : entered.has(name) ? 'done' : 'pending';
+    else if (status === 'completed') state = entered.has(name) ? 'done' : 'pending';
+    else if (status === 'errored') state = isCurrent ? 'failed' : entered.has(name) ? 'done' : 'pending';
+    else state = isCurrent ? 'pending' : entered.has(name) ? 'done' : 'pending';
+    return {
+      name,
+      status: state,
+      current: isCurrent,
+      rounds: rounds[name],
+      hole: waitingHoles.has(name) ? 'waiting' : undefined,
+    };
+  });
+}
+
+/** Subagents of a run, normalized from either the actor list or the Host agent tally. */
+function wfRunAgents(run) {
+  const actors = wfRunField(run, 'actors');
+  if (Array.isArray(actors) && actors.length > 0) {
+    return actors.filter(wfCardRecord).map((actor, index) => ({
+      name: wfCardFirstText(actor.name, actor.actorName, `${wfCardFirstText(actor.siteId)}@${wfCardNum(actor.ordinal) ?? index}`),
+      status: wfCardFirstText(actor.status) || 'waiting',
+      phaseName: wfCardFirstText(actor.phaseName),
+      model: wfCardFirstText(actor.model),
+      ordinal: wfCardNum(actor.ordinal) ?? index,
+      siteId: wfCardFirstText(actor.siteId),
+      sessionId: wfCardFirstText(actor.sessionId),
+    }));
+  }
+  const agents = wfRunField(run, 'agents');
+  if (!Array.isArray(agents)) return [];
+  return agents.filter(wfCardRecord).map((agent, index) => {
+    const asks = wfCardNum(agent.asks) ?? 0;
+    const settled = wfCardNum(agent.settled) ?? 0;
+    const failed = wfCardNum(agent.failed) ?? 0;
+    const status = asks > settled + failed ? 'running' : 'completed';
+    return {
+      name: wfCardFirstText(agent.name, `#${index + 1}`),
+      status,
+      phaseName: wfCardFirstText(agent.phaseName),
+      model: wfCardFirstText(agent.model),
+      ordinal: index,
+      siteId: wfCardFirstText(agent.siteId),
+      sessionId: wfCardFirstText(agent.sessionId),
+    };
+  });
+}
+
+/** Artifact chips of a run. */
+function wfRunArtifacts(run) {
+  const artifacts = wfRunField(run, 'artifacts');
+  if (!Array.isArray(artifacts)) return [];
+  return artifacts.filter(wfCardRecord).map((artifact) => {
+    const title = wfCardFirstText(artifact.title, artifact.name, artifact.id, artifact.artifactId);
+    return {
+      id: wfCardFirstText(artifact.id, artifact.artifactId, artifact.artifact_id),
+      title,
+      kind: wfCardFirstText(artifact.kind, artifact.type) || 'file',
+      version: wfCardNum(artifact.version) ?? 1,
+    };
+  });
+}
+
+/** Step tallies for the card footer. */
+function wfRunSteps(run) {
+  const steps = wfRunField(run, 'steps');
+  if (wfCardRecord(steps)) {
+    const started = wfCardNum(steps.started) ?? 0;
+    const settled = wfCardNum(steps.settled) ?? 0;
+    const failed = wfCardNum(steps.failed) ?? 0;
+    const running = wfCardNum(steps.running) ?? 0;
+    return { total: started, done: settled + failed, failed, running };
+  }
+  const nodes = wfRunField(run, 'nodes');
+  if (!Array.isArray(nodes)) return { total: 0, done: 0, failed: 0, running: 0 };
+  let done = 0;
+  let failed = 0;
+  let running = 0;
+  for (const node of nodes) {
+    if (!wfCardRecord(node)) continue;
+    if (node.phase === 'settled') {
+      if (node.outcome === 'failed') failed += 1;
+      else done += 1;
+    } else {
+      running += 1;
+    }
+  }
+  return { total: nodes.length, done: done + failed, failed, running };
+}
+
+/** Tokens spent by the run, from the run snapshot or its summary. */
+function wfRunTokens(run, summary) {
+  const direct = wfCardNum(wfRunField(run, 'spentTokens', 'spent_tokens'));
+  if (direct !== undefined) return direct;
+  const usage = wfRunField(run, 'usage');
+  const nested = wfCardNum(wfCardRecord(usage) ? usage.spentTokens ?? usage.spent_tokens ?? usage.tokens : undefined);
+  if (nested !== undefined) return nested;
+  const fromSummary = wfCardNum(wfRunField(summary, 'spentTokens', 'spent_tokens'));
+  return fromSummary ?? 0;
+}
+
+/** Highest phase round the run reached; the card only shows it past the first round. */
+function wfRunMaxRound(run) {
+  const rounds = wfRunPhaseRounds(run);
+  let max = 0;
+  for (const value of Object.values(rounds)) if (value > max) max = value;
+  const direct = wfCardNum(wfRunField(run, 'rounds', 'round'));
+  if (direct !== undefined && direct > max) max = direct;
+  return max;
+}
+
+/** Run duration in the detail's wording, for the card footer when both clocks exist. */
+function wfRunElapsed(run) {
+  const from = wfCardNum(wfRunField(run, 'createdAt', 'startedAt', 'created_at'));
+  const to = wfCardNum(wfRunField(run, 'finishedAt', 'endedAt', 'finished_at')) ?? Date.now();
+  if (from === undefined) return '';
+  return WF_UI.duration(from, to);
+}
+
+/**
+ * The run this card is waiting on a launch decision for, when one exists.
+ * A card only offers the inline confirmation while its call is still in flight, and only for the
+ * tools that launch a run.
+ */
+function wfCardPendingRun(model, live) {
+  if (model === undefined || live === undefined) return undefined;
+  if (model.key !== 'CreateWorkflow' && model.key !== 'AmendWorkflow' && model.key !== 'FillWorkflowHole') return undefined;
+  if (model.phase === 'result' && model.failed === true) return undefined;
+  const surface = wfCardSurface('permission');
+  if (surface === undefined || typeof surface.Block !== 'function') return undefined;
+  const sessionId = typeof model.sessionId === 'string' ? model.sessionId : undefined;
+  if (sessionId === undefined) return undefined;
+  const candidates = [];
+  if (wfRunStatus(live.run) === 'pending') candidates.push(live.run);
+  if (wfRunStatus(live.summary) === 'pending') candidates.push(live.summary);
+  const runs = Array.isArray(live.runs) ? live.runs : [];
+  if (model.toolId !== undefined) {
+    for (const row of runs) {
+      if (wfRunToolCallId(row) === model.toolId && wfRunStatus(row) === 'pending') candidates.push(row);
+    }
+  }
+  if (candidates.length === 0 && model.approval !== undefined && model.approval !== false && model.approval !== null) {
+    for (const row of runs) if (wfRunStatus(row) === 'pending') candidates.push(row);
+  }
+  const found = candidates.find((row) => wfRunId(row) !== '');
+  if (found === undefined) return undefined;
+  return { sessionId, run: found };
+}
+
+/* ---- client-src/32-run-card.js ---- */
+/* The session-inline workflow run card (ZCode `lsn`).
+ *
+ * One card per CreateWorkflow / AmendWorkflow / FillWorkflowHole call. Three mutually exclusive
+ * renderings, in this order:
+ *
+ *   1. a launch waiting for a decision — the run exists with `status: 'pending'`; the body is the
+ *      shared confirmation block (`WF_PERMISSION.Block`, owned by 45-permission.js) and nothing
+ *      else, because every field it needs comes from the run being approved;
+ *   2. a run exists — header (kind, name, status, three-part detail), body (amend/saved source
+ *      rows, phase timeline with agent pills, artifact chips, diagnostics) and footer (step,
+ *      token, round and artifact tallies plus the resume action);
+ *   3. no run yet — the draft states (writing / revising / draft / awaiting confirmation /
+ *      validating), where the card keeps the source row, the script disclosure and the output.
+ */
+
+/** Status keys of the card header kind, in the order the run card resolves them. */
+const WF_RUN_KIND_KEYS = {
+  pending: 'card.started',
+  running: 'card.running',
+  completed: 'card.completed',
+  errored: 'card.errored',
+  stopped: 'card.stopped',
+  superseded: 'card.superseded',
+  unknown: 'card.ended',
+};
+
+/** How many agent pills one station shows before collapsing the rest into a counter. */
+const WF_RUN_PILL_LIMIT = 6;
+/** How many artifact chips the card shows. */
+const WF_RUN_CHIP_LIMIT = 4;
+
+/** The `已通过校验` static status of a call that compiled but produced no run. */
+function WfRunStaticStatus(props) {
+  return React.createElement('span', {
+    className: 'zwf-state',
+    'data-testid': 'workflow-card-static-status',
+  }, props.failed === true
+    ? React.createElement('span', { className: 'zwf-state-note' }, wfCardSay('run.status.errored'))
+    : React.createElement(WF_ICON.check, { size: 12 }),
+  props.failed === true ? null : React.createElement('span', null, wfCardSay('workflow.compiled')));
+}
+
+/** Kind wording of the card header. */
+function wfRunCardKind(model, run, status) {
+  if (run !== undefined) {
+    if (status === 'superseded') return wfCardSay('card.superseded');
+    if (model.key === 'AmendWorkflow') {
+      if (status === 'pending' || status === 'running') return wfCardSay(WF_RUN_KIND_KEYS[status]);
+      return wfCardSay('amend.ran');
+    }
+    if (model.key === 'FillWorkflowHole') {
+      if (status === 'pending' || status === 'running') return wfCardSay(WF_RUN_KIND_KEYS[status]);
+      return wfCardSay('hole.ran');
+    }
+    return wfCardSay(WF_RUN_KIND_KEYS[status] ?? 'workflow.ran');
+  }
+  const prefix = model.key === 'AmendWorkflow' ? 'amend' : model.key === 'FillWorkflowHole' ? 'hole' : 'workflow';
+  if (model.phase === 'preparing') {
+    const ordinal = wfCardNum(model.args('draft_ordinal') ?? model.args('draftOrdinal'));
+    return ordinal !== undefined && ordinal >= 2 ? wfCardSay(`${prefix}.revising`) : wfCardSay(`${prefix}.writing`);
+  }
+  // A call that is already validating has no separate amendment wording; the revision line covers it.
+  if (model.phase === 'start') return wfCardSay(prefix === 'workflow' ? 'workflow.running' : `${prefix}.revising`);
+  if (model.failed === true) {
+    return model.key === 'AmendWorkflow' ? wfCardSay('amend.draft')
+      : model.key === 'FillWorkflowHole' ? wfCardSay('hole.draft')
+        : wfCardSay('workflow.draft');
+  }
+  if (model.approval !== undefined && model.approval !== false && model.approval !== null) {
+    return model.key === 'AmendWorkflow' ? wfCardSay('amend.awaitingConfirmation')
+      : model.key === 'FillWorkflowHole' ? wfCardSay('hole.awaitingConfirmation')
+        : wfCardSay('workflow.awaitingConfirmation');
+  }
+  if (model.key === 'AmendWorkflow') return wfCardSay('amend.draft');
+  if (model.key === 'FillWorkflowHole') return wfCardSay('hole.draft');
+  return wfCardSay('workflow.draft');
+}
+
+/** Card name: the saved name, the workflow name, the hole name, else the fallback wording. */
+function wfRunCardName(model) {
+  const saved = wfCardRecord(model.args('saved')) ? model.args('saved') : undefined;
+  const holeTargetRaw = wfCardFirst(model.args('hole_target'), model.args('holeTarget'));
+  const holeTarget = wfCardRecord(holeTargetRaw) ? holeTargetRaw : undefined;
+  const candidates = [
+    model.argText('name'),
+    saved === undefined ? '' : wfCardFirstText(saved.name),
+    model.argText('run_name'),
+    holeTarget === undefined ? '' : wfCardFirstText(holeTarget.name, holeTarget.holeId, holeTarget.hole_id),
+    model.argText('hole_name'),
+    model.argText('hole_id'),
+  ];
+  for (const candidate of candidates) if (candidate !== '') return candidate;
+  return wfCardSay('workflow.fallbackName');
+}
+
+/** Phase count and waiting-hole count of a run, as the header detail reports them. */
+function wfRunPhaseTally(run) {
+  const stations = wfRunStations(run);
+  const holes = stations.filter((station) => station.hole === 'waiting').length;
+  return { phases: stations.length, holes };
+}
+
+/**
+ * The three-part header detail: `phases · agents · subagent model`.
+ * `phases` excludes waiting holes because those read as "not started yet"; running runs report the
+ * subagents that are actually working, finished runs report how many there were.
+ */
+function wfRunCardDetail(model, run) {
+  if (run === undefined) {
+    const ordinal = wfCardNum(model.args('draft_ordinal') ?? model.args('draftOrdinal'));
+    if (ordinal !== undefined) return wfCardSay('workflow.draftOrdinal', { ordinal });
+    return '';
+  }
+  const parts = [];
+  const tally = wfRunPhaseTally(run);
+  const phases = Math.max(0, tally.phases - tally.holes);
+  if (tally.phases > 0) {
+    parts.push(wfCardSayCount('card.phase', 'card.phases', phases));
+    if (tally.holes > 0) parts.push(wfCardSayCount('card.hole', 'card.holes', tally.holes));
+  }
+  const agents = wfRunAgents(run);
+  if (wfRunIsActive(run)) {
+    const working = agents.filter((agent) => agent.status === 'running').length;
+    if (working > 0 || agents.length > 0) parts.push(wfCardSayCount('card.agentWorking', 'card.agentsWorking', working));
+  } else if (agents.length > 0) {
+    parts.push(wfCardSayCount('card.agent', 'card.agents', agents.length));
+  }
+  const subagentModel = wfRunSubagentModel(run);
+  if (subagentModel !== '') parts.push(wfCardSay('run.subagentModel.label', { model: subagentModel }));
+  return parts.join(' · ');
+}
+
+/** Footer tallies: steps, tokens, rounds, artifacts. */
+function wfRunCardParts(run) {
+  if (run === undefined) return [];
+  const parts = [];
+  const steps = wfRunSteps(run);
+  if (steps.total > 0) parts.push(wfCardSay('card.steps', { done: steps.done, total: steps.total }));
+  parts.push(wfCardSay('card.tokens', { count: (wfRunTokens(run) ?? 0).toLocaleString() }));
+  const rounds = wfRunMaxRound(run);
+  if (rounds >= 2) parts.push(wfCardSay('card.round', { count: rounds }));
+  const artifacts = wfRunArtifacts(run);
+  if (artifacts.length > 0) parts.push(wfCardSayCount('card.artifact', 'card.artifacts', artifacts.length));
+  return parts;
+}
+
+/* ------------------------------- sub-surfaces ------------------------------ */
+
+/** One agent pill of a station; opens the subagent transcript in the run detail. */
+function WfRunAgentPill(props) {
+  const agent = props.agent;
+  const open = props.onOpen !== undefined;
+  const name = agent.name === '' ? wfCardSay('graph.lane.anonymous') : agent.name;
+  const attrs = {
+    className: 'zwf-pill',
+    'data-testid': 'workflow-agent-pill',
+    'data-agent-status': agent.status ?? 'pending',
+    'data-agent-open': open ? 'true' : undefined,
+    title: open ? wfCardSay('timeline.openAgent', { name }) : name,
+    'aria-label': open ? wfCardSay('timeline.openAgent', { name }) : name,
+    onClick: open ? props.onOpen : undefined,
+  };
+  if (open) attrs.type = 'button';
+  return React.createElement(open ? 'button' : 'span', attrs,
+    React.createElement('span', { className: 'zwf-pill-avatar' }, React.createElement(WF_ICON.agent, { size: 10 })),
+    React.createElement('span', { className: 'zwf-pill-name' }, name),
+    agent.status === 'running'
+      ? React.createElement('span', { className: 'zwf-pill-tail', 'data-testid': 'workflow-pill-status' }, React.createElement('span', { className: 'zwf-lamp', 'data-status': 'running' }))
+      : null);
+}
+
+/** The phase timeline: one station per declared phase, each with its subagent pills. */
+function WfRunTimeline(props) {
+  const stations = props.stations;
+  if (!Array.isArray(stations) || stations.length === 0) return null;
+  const agents = Array.isArray(props.agents) ? props.agents : [];
+  const children = [];
+  for (const [index, station] of stations.entries()) {
+    const own = agents.filter((agent) => agent.phaseName === station.name);
+    const shown = own.slice(0, WF_RUN_PILL_LIMIT);
+    const hidden = own.length - shown.length;
+    children.push(React.createElement('div', {
+      className: 'zwf-station',
+      key: `${station.name}-${index}`,
+      'data-testid': 'workflow-timeline-station',
+      'data-station-status': station.status,
+      'data-workflow-phase': station.name,
+    },
+    React.createElement('div', { className: 'zwf-station-head', 'data-testid': 'workflow-timeline-station-head' },
+      React.createElement(WfCardLamp, { status: station.status === 'done' ? 'completed' : station.status === 'failed' ? 'errored' : station.status }),
+      React.createElement('span', { className: 'zwf-station-name', title: station.name }, station.name),
+      station.rounds !== undefined && station.rounds > 1
+        ? React.createElement('span', { className: 'zwf-card-detail', 'data-testid': 'workflow-timeline-rounds' }, wfCardSay('timeline.rounds', { count: station.rounds }))
+        : null,
+      station.hole === 'waiting'
+        ? React.createElement('span', { className: 'zwf-note', 'data-tone': 'warn', 'data-testid': 'workflow-hole-waiting' }, wfCardSay('hole.waiting'))
+        : null),
+    own.length > 0
+      ? React.createElement('div', { className: 'zwf-pills', 'data-testid': 'workflow-timeline-pills' },
+        shown.map((agent, pillIndex) => React.createElement(WfRunAgentPill, {
+          key: `${agent.name}-${pillIndex}`,
+          agent,
+          onOpen: props.onOpenActor === undefined ? undefined : () => props.onOpenActor(agent, station),
+        })),
+        hidden > 0
+          ? React.createElement('span', { className: 'zwf-pill', 'data-testid': 'workflow-timeline-pill-open' }, wfCardSay('timeline.roster.more', { count: hidden }))
+          : null)
+      : null));
+  }
+  return React.createElement('div', {
+    className: 'zwf-timeline',
+    'data-testid': 'workflow-timeline',
+    role: 'list',
+  }, React.createElement('div', { className: 'zwf-timeline-scroller', 'data-testid': 'workflow-timeline-scroller' }, children));
+}
+
+/** Artifact chips of a run; the详情 surface owns the preview, the card only opens it. */
+function WfRunArtifacts(props) {
+  const artifacts = props.artifacts;
+  if (!Array.isArray(artifacts) || artifacts.length === 0) return null;
+  const shown = artifacts.slice(0, WF_RUN_CHIP_LIMIT);
+  const more = artifacts.length - shown.length;
+  return React.createElement('div', { className: 'zwf-chips', 'data-testid': 'workflow-card-artifacts' },
+    shown.map((artifact, index) => React.createElement('button', {
+      type: 'button',
+      className: 'zwf-chip',
+      key: `${artifact.id}-${index}`,
+      'data-testid': 'workflow-card-artifact',
+      title: artifact.title,
+      onClick: props.onOpen === undefined ? undefined : () => props.onOpen(artifact),
+    },
+    React.createElement(WF_ICON.artifact, { size: 12 }),
+    React.createElement('span', { className: 'zwf-chip-text' }, artifact.title))),
+    more > 0
+      ? React.createElement('span', { className: 'zwf-chip', 'data-static': 'true', 'data-testid': 'workflow-card-artifacts-more' }, `+${more}`)
+      : null);
+}
+
+/* --------------------------------- card body ------------------------------- */
+
+/** The `调整自 run` row of an amend card. */
+function WfRunAmendRow(props) {
+  const runId = props.runId;
+  if (runId === '') return null;
+  const unchanged = props.scriptUnchanged === true;
+  return React.createElement('p', {
+    className: 'zwf-note',
+    'data-workflow-amends': runId,
+  }, `${wfCardSay('run.amends')} ${runId}${unchanged ? ` · ${wfCardSay('amend.scriptUnchanged')}` : ''}`);
+}
+
+/** The saved-source row of a card that launches a saved workflow. */
+function WfRunSavedRow(props) {
+  const saved = props.saved;
+  if (saved === undefined) return null;
+  const scope = wfCardFirstText(saved.scope);
+  const path = wfCardFirstText(saved.path);
+  return React.createElement('div', { className: 'zwf-card-foot' },
+    React.createElement('span', { className: 'zwf-chip', 'data-static': 'true', 'data-testid': 'workflow-saved-source' },
+      React.createElement(WF_ICON.folder, { size: 12 }),
+      React.createElement('span', { className: 'zwf-chip-text' }, wfCardFirstText(saved.name) || wfCardSay('workflow.fallbackName'))),
+    scope === '' || (scope !== 'project' && scope !== 'global')
+      ? null
+      : React.createElement('span', { className: 'zwf-card-detail', 'data-testid': 'workflow-scope-badge' }, wfCardSay(`save.scope.${scope}`)),
+    path === '' ? null : React.createElement('span', { className: 'zwf-card-detail', title: path, 'data-testid': 'workflow-saved-path' }, path));
+}
+
+/** Waiting holes of a run, as the detail pane words them. */
+function WfRunHoles(props) {
+  const holes = props.holes;
+  if (!Array.isArray(holes) || holes.length === 0) return null;
+  return React.createElement('div', { className: 'zwf-card-foot' },
+    holes.map((hole, index) => React.createElement('span', {
+      className: 'zwf-note',
+      key: `${wfCardFirstText(hole.id)}-${index}`,
+      'data-tone': 'warn',
+      'data-testid': 'workflow-run-hole-waiting',
+      title: wfCardSay('hole.head.title.untimed', { name: wfCardFirstText(hole.name, hole.id) }),
+    },
+    React.createElement(WF_ICON.spark, { size: 12 }),
+    ` ${wfCardSay('run.hole.waitingFor')}${wfCardFirstText(hole.name) === '' ? '' : ` · ${wfCardFirstText(hole.name)}`}`)));
+}
+
+/* -------------------------------- the card -------------------------------- */
+
+/** CreateWorkflow / AmendWorkflow / FillWorkflowHole card. */
+function WfRunCard(props) {
+  const model = props.model;
+  const live = props.live;
+  // A launch waiting for a decision may not be this card's result run yet, so it gets its own
+  // subscription; the hook is always called, with nothing to watch when no launch is pending.
+  const pendingGuess = wfCardPendingRun(model, live);
+  const pendingId = pendingGuess === undefined ? undefined : wfRunId(pendingGuess.run);
+  const pendingLive = useWfCardRunById(model.sessionId, pendingId);
+  const pendingDetail = pendingLive === undefined ? undefined : pendingLive.run;
+  const permission = pendingGuess === undefined
+    ? undefined
+    : { sessionId: pendingGuess.sessionId, run: wfRunId(pendingDetail) === pendingId ? pendingDetail : pendingGuess.run };
+
+  const run = permission !== undefined ? undefined : (live?.run ?? live?.summary);
+  const status = run === undefined ? '' : wfRunStatus(run);
+  const runId = wfRunId(run) || wfCardResultRunId(model);
+  const kind = wfRunCardKind(model, run, status);
+  const liveKind = status === 'running' || (run === undefined && model.phase !== 'result');
+  const name = wfRunCardName(model);
+  const detail = wfRunCardDetail(model, run);
+  const stations = run === undefined ? [] : wfRunStations(run);
+  const agents = run === undefined ? [] : wfRunAgents(run);
+  const artifacts = run === undefined ? [] : wfRunArtifacts(run);
+  const holes = run === undefined ? [] : wfRunHoles(run);
+  const script = model.argText('script');
+  const saved = wfCardRecord(model.args('saved')) ? model.args('saved') : undefined;
+  const canResume = run !== undefined && run.resumable === true && status === 'stopped';
+  const diagnostics = wfCardDiagnostics(model);
+
+  const statusSlot = run === undefined
+    ? React.createElement(WfRunStaticStatus, { failed: model.failed })
+    : React.createElement(WfCardState, {
+      status,
+      stopReason: typeof wfRunField(run, 'stopReason', 'stop_reason') === 'string' ? wfRunField(run, 'stopReason', 'stop_reason') : undefined,
+      testId: 'workflow-card-status',
+    });
+
+  const actions = [];
+  if (runId !== '') {
+    actions.push(React.createElement(WfCardIconButton, {
+      key: 'details',
+      testId: 'workflow-card-open-details',
+      icon: React.createElement(WF_UI.icons.external, { size: 13 }),
+      label: wfCardSay('workflow.openRunDetails'),
+      title: wfCardSay('workflow.openRunDetails'),
+      onClick: () => wfCardOpenDetail({ sessionId: model.sessionId, runId, tab: 'run' }),
+    }));
+  }
+  if (props.expandable === true) {
+    actions.push(React.createElement(WfCardIconButton, {
+      key: 'toggle',
+      testId: 'workflow-card-toggle',
+      icon: React.createElement(WfCardChevron, { open: props.open }),
+      label: wfCardSay(props.open === true ? 'card.collapseDetails' : 'card.expandDetails'),
+      title: wfCardSay(props.open === true ? 'card.collapseDetails' : 'card.expandDetails'),
+      expanded: props.open === true,
+      onClick: props.toggle,
+    }));
+  }
+
+  const body = [];
+  if (permission !== undefined) {
+    const surface = wfCardSurface('permission');
+    body.push(React.createElement(surface.Block, {
+      key: 'permission',
+      sessionId: permission.sessionId,
+      run: permission.run,
+    }));
+  } else {
+    if (model.key === 'AmendWorkflow') {
+      body.push(React.createElement(WfRunAmendRow, {
+        key: 'amend',
+        runId: wfCardFirstText(model.args('run_id'), model.args('runId')),
+        scriptUnchanged: model.args('script_inherited') === true || model.args('scriptInherited') === true,
+      }));
+      body.push(React.createElement(WfSettingsChangeRow, { key: 'settings', model }));
+    }
+    if (saved !== undefined) body.push(React.createElement(WfRunSavedRow, { key: 'saved', saved }));
+    if (stations.length > 0) {
+      body.push(React.createElement(WfRunTimeline, {
+        key: 'timeline',
+        stations,
+        agents,
+        onOpenActor: (agent) => {
+          wfCardOpenDetail({
+            sessionId: model.sessionId,
+            runId,
+            tab: 'run',
+            actor: { ordinal: agent.ordinal, siteId: agent.siteId, sessionId: agent.sessionId, name: agent.name },
+          });
+        },
+      }));
+    }
+    if (artifacts.length > 0) {
+      body.push(React.createElement(WfRunArtifacts, {
+        key: 'artifacts',
+        artifacts,
+        onOpen: (artifact) => wfCardOpenDetail({ sessionId: model.sessionId, runId, tab: 'run', artifactId: artifact.id }),
+      }));
+    }
+    if (holes.length > 0) body.push(React.createElement(WfRunHoles, { key: 'holes', holes }));
+    if (wfCardRecord(run) && run.truncated === true) {
+      body.push(React.createElement('p', { className: 'zwf-note', key: 'truncated' }, wfCardSay('graph.truncated')));
+    }
+    if (diagnostics.length > 0) body.push(React.createElement(WfCardDiagnostics, { key: 'diagnostics', diagnostics, failed: model.failed }));
+    if (model.failed === true && script !== undefined) {
+      body.push(React.createElement(WfCardScriptBlock, { key: 'script-block', script, diagnostics }));
+    } else if (script !== undefined && run === undefined && model.phase !== 'preparing') {
+      body.push(React.createElement(WfCardScriptDisclosure, { key: 'script', script, diagnostics }));
+    } else if (script === undefined && model.resultText === '' && model.phase !== 'result') {
+      body.push(React.createElement('p', { className: 'zwf-note', key: 'no-script' }, wfCardSay('workflow.noScript')));
+    }
+    if (model.resultText !== '' && (model.failed === true || run === undefined)) {
+      body.push(React.createElement('pre', { className: 'zwf-pre', key: 'output' }, model.resultText));
+    }
+  }
+
+  const parts = wfRunCardParts(run);
+  const footer = run === undefined && parts.length === 0
+    ? null
+    : React.createElement('div', { className: 'zwf-card-foot', 'data-testid': 'workflow-card-footer' },
+      React.createElement(WfCardState, { status: status === '' ? 'pending' : status }),
+      parts.length === 0
+        ? null
+        : React.createElement(WF_FRAGMENT, null,
+          React.createElement(WF_UI.icons.log, { size: 12 }),
+          React.createElement('span', { className: 'zwf-card-parts' },
+            parts.map((part, index) => React.createElement(WF_FRAGMENT, { key: `part-${index}` },
+              index > 0 ? React.createElement('span', { className: 'zwf-card-sep' }, '·') : null,
+              React.createElement('span', null, part))))),
+      canResume
+        ? React.createElement('span', { className: 'zwf-card-trail' },
+          React.createElement(WfCardAction, {
+            testId: 'workflow-card-resume',
+            icon: React.createElement(WF_ICON.refresh, { size: 12 }),
+            title: wfCardSay('run.resumeHint'),
+            onClick: () => wfCardResume(model.sessionId, runId),
+          }, wfCardSay('run.resume')))
+        : null);
+
+  const header = React.createElement('div', { className: 'zwf-card-head', 'data-testid': 'workflow-card-header' },
+    React.createElement('span', { className: 'zwf-card-glyph' }, React.createElement(WF_UI.icons.workflow, { size: 15 })),
+    React.createElement('span', {
+      className: 'zwf-card-kind',
+      'data-live': liveKind ? 'true' : 'false',
+      'data-testid': 'workflow-card-kind',
+    }, kind),
+    React.createElement('span', { className: 'zwf-card-name', title: name, 'data-testid': 'workflow-card-name' }, name),
+    React.createElement('span', { className: 'zwf-card-cluster' },
+      statusSlot,
+      detail === '' ? null : React.createElement('span', { className: 'zwf-card-detail', title: detail, 'data-testid': 'workflow-card-detail' }, detail),
+      actions));
+
+  const children = [header];
+  // A launch waiting for a decision must stay visible even when the card's body is collapsed.
+  if ((props.open === true || permission !== undefined) && body.length > 0) {
+    children.push(React.createElement('div', { className: 'zwf-card-body', key: 'body', 'data-testid': 'workflow-card-body' }, body));
+  }
+  if (footer !== null) children.push(React.cloneElement(footer, { key: 'footer' }));
+
+  return React.createElement('section', {
+    className: 'zwf-card',
+    'data-testid': 'workflow-card',
+    'data-tool': model.key,
+    'data-workflow-card-state': status !== '' ? status : (model.phase === 'preparing' ? 'writing' : 'static'),
+    'data-workflow-run-id': runId === '' ? undefined : runId,
+    'data-workflow-run-status': status === '' ? undefined : status,
+  }, children);
+}
+
+/** Resume a stopped run from its card. */
+function wfCardResume(sessionId, runId) {
+  if (typeof WF_API !== 'object' || WF_API === null || typeof WF_API.resumeRun !== 'function') return;
+  wfRunChannelRefresh(sessionId, runId);
+  WF_API.resumeRun({ sessionId, runId }).then(() => {
+    wfRunChannelRefresh(sessionId, runId);
+  }).catch((error) => {
+    console.warn('zcode-workflow: resuming the run failed', error);
+  });
+}
+
+/* --------------------------------- renderers ------------------------------- */
+
+WF_CARDS.render.CreateWorkflow = WfRunCard;
+WF_CARDS.render.AmendWorkflow = WfRunCard;
+WF_CARDS.render.FillWorkflowHole = WfRunCard;
+
+/* ---- client-src/33-snippet.js ---- */
+/* `EvalWorkflowSnippet` card (ZCode `vsn`).
+ *
+ * The smallest card of the family: a title row (`工作流片段 · 5667ms`) and a body that switches
+ * between the running code, the returned value and the failure report. The duration wording is the
+ * part users quoted from the product, so it keeps the product's two units:
+ *
+ *   running   `{n}s`    — whole seconds since the snippet started;
+ *   settled   `{n}ms`   — the duration the tool reports, unrounded.
+ *
+ * The tool result wraps the value in a protocol shell (`The snippet completed in 12ms.`,
+ * `Return value:`, `Logs:`); `wfSnippetBody` strips it so the card shows what the script produced.
+ */
+
+/* ---------------------------------- glyph ---------------------------------- */
+
+/** The snippet glyph: a flask, matching the product's science-instrument icon. */
+const WF_SNIPPET_GLYPH = wfIcon([
+  ['path', { d: 'M9.5 3.5h5M11 3.5v5.2L6.2 17a2.2 2.2 0 0 0 1.9 3.3h7.8a2.2 2.2 0 0 0 1.9-3.3L13 8.7V3.5' }],
+  ['path', { d: 'M8.1 14.4h7.8' }],
+]);
+
+/* --------------------------------- readers --------------------------------- */
+
+/** Strip the tool's protocol shell from a snippet result; '' when nothing is left. */
+function wfSnippetBody(text) {
+  let value = typeof text === 'string' ? text : '';
+  if (value === '') return '';
+  value = value.replace(/^The snippet completed in \d+ms\.\n?/u, '');
+  value = value.replace(/^It returned no value\.\n?/u, '');
+  value = value.replace(/^Return value:\n/u, '');
+  value = value.replace(/^The snippet has errors:\n[\s\S]*?NOTE: [^\n]*\n?/u, '');
+  value = value.replace(/\n\nLogs:\n(- [^\n]*\n?)*(\(logs truncated\))?\s*$/u, '');
+  const trimmed = value.trim();
+  return trimmed === '' ? '' : trimmed;
+}
+
+/** Log lines the tool appends after the result, when it reports any. */
+function wfSnippetLogs(text) {
+  const match = /\n\nLogs:\n([\s\S]*)$/u.exec(typeof text === 'string' ? text : '');
+  if (match === null) return [];
+  return match[1]
+    .split('\n')
+    .map((line) => line.replace(/^- /u, '').trim())
+    .filter((line) => line !== '' && line !== '(logs truncated)');
+}
+
+/** A returned value as code: JSON pretty-printed when it parses, plain text otherwise. */
+function wfSnippetValue(text) {
+  const body = wfSnippetBody(text);
+  if (body === '') return { code: '', language: 'text' };
+  try {
+    return { code: JSON.stringify(JSON.parse(body), null, 2), language: 'json' };
+  } catch {
+    return { code: body, language: 'text' };
+  }
+}
+
+/** `{n}s` while running, `{n}ms` once the tool reports a duration. */
+function wfSnippetDuration(model, startedAt) {
+  if (model.phase !== 'result') {
+    if (typeof startedAt !== 'number') return '';
+    return `${Math.max(0, Math.floor((Date.now() - startedAt) / 1000))}s`;
+  }
+  const structured = wfCardRecord(model.structured) ? model.structured : undefined;
+  const direct = wfCardNum(structured === undefined ? undefined : structured.durationMs);
+  if (direct !== undefined) return `${direct}ms`;
+  const match = /completed in (\d+)ms/u.exec(model.resultText);
+  return match === null ? '' : `${match[1]}ms`;
+}
+
+/* --------------------------------- sections -------------------------------- */
+
+/** One titled block of the snippet body. */
+function WfSnippetSection(props) {
+  return React.createElement('section', { className: 'zwf-section', 'data-testid': props.testId },
+    React.createElement('span', { className: 'zwf-section-label' }, props.title),
+    props.children);
+}
+
+/** Snippet body styles: the details block and the log pre of the failure report. */
+const WF_CARDS_SNIPPET_CSS = `
+.zwf-mono-tab{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-variant-numeric:tabular-nums}
+.zwf-details{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-details-summary{cursor:pointer;font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-caption)}
+.zwf-details-summary:hover{color:var(--dsw-alias-label-primary)}
+.zwf-details[open] .zwf-details-summary{color:var(--dsw-alias-label-secondary)}
+.zwf-prewrap{margin:0;box-sizing:border-box;max-height:256px;overflow:auto;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}
+`;
+
+WF_STYLE_PARTS.push(WF_CARDS_SNIPPET_CSS);
+
+/* ----------------------------------- card ---------------------------------- */
+
+/** `EvalWorkflowSnippet` card. */
+function WfSnippetCard(props) {
+  const model = props.model;
+  const t = wfCardSay;
+  const startedAt = React.useRef(Date.now());
+  const running = model.phase !== 'result';
+  const duration = wfSnippetDuration(model, startedAt.current);
+  const code = model.argText('code');
+  const filePath = model.argText('path');
+  const value = wfSnippetValue(model.resultText);
+  const logs = wfSnippetLogs(model.resultText);
+  const diagnostics = wfCardDiagnostics(model);
+  const shownCode = code === undefined ? (filePath === undefined ? '' : `// ${filePath}`) : code;
+
+  const body = [];
+  if (running) {
+    if (shownCode !== '') {
+      body.push(React.createElement('div', { key: 'running', 'data-testid': 'snippet-running-code' },
+        WfCodeBlock({ code: shownCode, maxHeight: 320 })));
+    }
+  } else if (model.failed === true) {
+    if (diagnostics.length > 0) body.push(React.createElement(WfCardDiagnostics, { key: 'diag', diagnostics, failed: true }));
+    if (value.code !== '') {
+      body.push(React.createElement(WfSnippetSection, {
+        key: 'result',
+        testId: 'snippet-result',
+        title: wfCardSay('status.failed'),
+      }, WfCodeBlock({ code: value.code, maxHeight: 320 })));
+    }
+    body.push(React.createElement(WfSnippetSection, {
+      key: 'logs',
+      testId: 'snippet-logs',
+      title: wfCardSay('snippet.section.logs'),
+    }, logs.length === 0
+      ? React.createElement('p', { className: 'zwf-note' }, wfCardSay('snippet.logsEmpty'))
+      : React.createElement('pre', { className: 'zwf-prewrap' }, logs.join('\n'))));
+    if (shownCode !== '') {
+      body.push(React.createElement('details', { key: 'code', className: 'zwf-details', 'data-testid': 'snippet-code' },
+        React.createElement('summary', { className: 'zwf-details-summary' }, wfCardSay('snippet.section.code')),
+        WfCodeBlock({ code: shownCode, maxHeight: 256 })));
+    }
+    if (diagnostics.length > WF_CARD_DIAG_LIMIT) {
+      body.push(React.createElement('p', { className: 'zwf-note', key: 'truncated' }, wfCardSay('workflow.truncated')));
+    }
+  } else {
+    body.push(React.createElement(WfSnippetSection, {
+      key: 'value',
+      testId: 'snippet-result',
+      title: wfCardSay('snippet.section.response'),
+    }, value.code === ''
+      ? React.createElement('p', { className: 'zwf-note' }, wfCardSay('snippet.logsEmpty'))
+      : WfCodeBlock({ code: value.code, maxHeight: 320 })));
+    if (logs.length > 0) {
+      body.push(React.createElement(WfSnippetSection, {
+        key: 'logs',
+        testId: 'snippet-logs',
+        title: wfCardSay('snippet.section.logs'),
+      }, React.createElement('pre', { className: 'zwf-prewrap' }, logs.join('\n'))));
+    }
+  }
+
+  const status = model.failed === true
+    ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+    : running
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'running' }, React.createElement(WFSpinner, { inline: true }))
+      : React.createElement('span', { className: 'zwf-state', 'data-status': 'completed' }, wfCardSay('snippet.passed'));
+
+  const expandable = props.expandable === true && body.length > 0;
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : running ? 'running' : 'ok',
+    icon: React.createElement(WF_SNIPPET_GLYPH, { size: 15 }),
+    kind: wfCardSay(running ? 'snippet.validating' : 'snippet.ran'),
+    live: running,
+    separator: true,
+    summary: duration,
+    summaryMono: true,
+    status,
+    body: body.length === 0 ? undefined : body,
+    expandable,
+    open: props.open,
+    onToggle: props.toggle,
+    bodyTestId: 'workflow-snippet-body',
+  });
+}
+
+WF_CARDS.render.EvalWorkflowSnippet = WfSnippetCard;
+
+/* ---- client-src/34-script.js ---- */
+/* Script blocks, compiler feedback and amend setting rows.
+ *
+ * The three presentations the workflow cards share:
+ *
+ *   WfCardScriptBlock      a TypeScript block with line numbers and the diagnostic lines marked —
+ *                          the run card's `workflow-script-codeblock` and the permission block's
+ *                          script viewer use the same renderer;
+ *   WfCardDiagnostics      the compiler feedback block (`workflow-compiler-feedback`), shared by the
+ *                          run card, the snippet card and the failed-launch card;
+ *   WfSettingsChangeRow    what an AmendWorkflow changed, since the product shows a setting table
+ *                          instead of a diff.
+ */
+
+/** How many diagnostic lines one block shows. */
+const WF_CARD_DIAG_LIMIT = 6;
+
+/** Source blocks, the script disclosure and the amend setting rows. */
+const WF_CARDS_SCRIPT_CSS = `
+.zwf-code{display:flex;flex-direction:column;box-sizing:border-box;min-width:0;max-height:320px;overflow:auto;padding:6px 0;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-markdown-code-block,var(--dsw-alias-bg-layer-1))}
+.zwf-code-line{display:flex;min-width:0;padding:0 10px 0 0;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;white-space:pre;tab-size:2}
+.zwf-code-line[data-marked="true"]{background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 14%,transparent)}
+.zwf-code-gutter{flex:none;width:34px;padding-right:8px;text-align:right;color:var(--dsw-alias-label-caption);font-variant-numeric:tabular-nums;user-select:none}
+.zwf-code-text{min-width:0;color:var(--dsw-alias-label-primary);white-space:pre}
+.zwf-diag{display:flex;flex-direction:column;gap:4px;box-sizing:border-box;min-width:0;padding:7px 9px;border:1px solid color-mix(in oklab,var(--dsw-alias-state-error-primary) 36%,var(--dsw-alias-border-l1));border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 7%,transparent)}
+.zwf-diag-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-state-error-primary)}
+.zwf-diag-lede{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-diag-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin:0;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.zwf-script{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-script-toggle{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;max-width:100%;margin:0;padding:2px 0;border:0;background:transparent;color:var(--dsw-alias-label-caption);font:inherit;font-size:12px;line-height:18px;font-weight:500;cursor:pointer}
+.zwf-script-toggle:hover{color:var(--dsw-alias-label-primary)}
+.zwf-script-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px;border-radius:5px}
+.zwf-script-toggle-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-script-body{min-width:0;max-height:288px;overflow:auto}
+.zwf-settings-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-timeline{display:flex;box-sizing:border-box;min-width:0;overflow-x:auto;padding:2px 0}
+.zwf-timeline-scroller{display:flex;align-items:flex-start;gap:14px;min-width:0}
+.zwf-station{display:flex;flex-direction:column;gap:4px;flex:0 0 auto;min-width:0;max-width:220px}
+.zwf-station-head{display:flex;align-items:center;gap:5px;min-width:0}
+.zwf-station-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px;color:var(--dsw-alias-label-primary)}
+.zwf-pills{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
+.zwf-pill{display:inline-flex;box-sizing:border-box;align-items:center;gap:5px;min-width:0;max-width:180px;height:22px;padding:0 6px;border:0;border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:17px;text-align:left}
+.zwf-pill[data-agent-open="true"]{cursor:pointer}
+.zwf-pill[data-agent-open="true"]:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.zwf-pill[data-agent-open="true"]:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-pill-avatar{display:inline-flex;flex:none;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.zwf-pill-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-pill-tail{display:inline-flex;flex:none;align-items:center}
+`;
+
+WF_STYLE_PARTS.push(WF_CARDS_SCRIPT_CSS);
+
+/* ------------------------------- diagnostics ------------------------------- */
+
+/** `path:12:5 message`, `line 12: message`, `[rule] message` — the shapes the compiler emits. */
+const WF_CARD_DIAG_PATTERNS = [
+  /^(?<path>[^\s:]+):(?<line>\d+):(?<column>\d+)\s+(?<message>.+)$/,
+  /^line\s+(?<line>\d+):\s*(?<message>.+)$/,
+  /^(?<message>.+?)\s*\[(?<rule>[a-z0-9_.-]+)\]$/i,
+];
+
+/**
+ * Compiler diagnostics of one card.
+ * A structured `diagnostics` array wins over the text form because it keeps line and rule apart.
+ * @returns {{line?: number, column?: number, message: string, rule?: string, severity: string}[]}
+ */
+function wfCardDiagnostics(model) {
+  const structured = wfCardRecord(model.structured) ? model.structured.diagnostics : undefined;
+  const rows = [];
+  if (Array.isArray(structured)) {
+    for (const entry of structured) {
+      if (wfCardRecord(entry)) {
+        const message = wfCardFirstText(entry.message, entry.text);
+        if (message === '') continue;
+        rows.push({
+          line: wfCardNum(entry.line),
+          column: wfCardNum(entry.column),
+          message,
+          rule: wfCardFirstText(entry.rule, entry.code) || undefined,
+          severity: wfCardFirstText(entry.severity) || 'error',
+        });
+        continue;
+      }
+      if (typeof entry === 'string' && entry.trim() !== '') {
+        rows.push({ message: entry.trim(), severity: 'error' });
+      }
+    }
+    if (rows.length > 0) return rows;
+  }
+  for (const line of model.resultText.split('\n')) {
+    const text = line.trim();
+    if (text === '') continue;
+    for (const pattern of WF_CARD_DIAG_PATTERNS) {
+      const match = pattern.exec(text);
+      if (match === null) continue;
+      const groups = match.groups ?? {};
+      rows.push({
+        line: groups.line === undefined ? undefined : Number(groups.line),
+        column: groups.column === undefined ? undefined : Number(groups.column),
+        message: groups.message ?? text,
+        rule: groups.rule,
+        severity: 'error',
+      });
+      break;
+    }
+  }
+  return rows;
+}
+
+/** Called lines of a source, for the code gutter marks. */
+function wfCardMarkedLines(diagnostics) {
+  const lines = new Set();
+  for (const diagnostic of diagnostics ?? []) {
+    if (typeof diagnostic.line === 'number' && diagnostic.line > 0) lines.add(diagnostic.line);
+  }
+  return lines;
+}
+
+/**
+ * The compiler feedback block (`i1`).
+ * A passing compile is not shown: the block exists to explain why nothing ran.
+ */
+function WfCardDiagnostics(props) {
+  const diagnostics = Array.isArray(props.diagnostics) ? props.diagnostics : [];
+  if (diagnostics.length === 0) return null;
+  const shown = diagnostics.slice(0, WF_CARD_DIAG_LIMIT);
+  const more = diagnostics.length - shown.length;
+  return React.createElement('div', {
+    className: 'zwf-diag',
+    'data-testid': 'workflow-compiler-feedback',
+    role: 'status',
+  },
+  React.createElement('div', { className: 'zwf-diag-head' },
+    React.createElement(WF_ICON.alert, { size: 13 }),
+    React.createElement('span', { 'data-testid': 'workflow-compiler-feedback-title' }, wfCardSay('workflow.feedback')),
+    React.createElement('span', { 'data-testid': 'workflow-compiler-feedback-count' }, wfCardSayCount('feedback.countOne', 'feedback.count', diagnostics.length))),
+  React.createElement('p', {
+    className: 'zwf-diag-lede',
+    'data-testid': 'workflow-compiler-feedback-lede',
+  }, wfCardSay('feedback.lede')),
+  shown.map((diagnostic, index) => React.createElement('p', {
+    className: 'zwf-diag-line',
+    key: `diag-${index}`,
+    'data-testid': 'workflow-compiler-feedback-line',
+  },
+  typeof diagnostic.line === 'number' ? React.createElement('span', { className: 'zwf-card-detail' }, `L${diagnostic.line}${typeof diagnostic.column === 'number' ? `:${diagnostic.column}` : ''}`) : null,
+  React.createElement('span', null, diagnostic.message),
+  diagnostic.rule === undefined ? null : React.createElement('span', { className: 'zwf-card-detail' }, wfCardSay('feedback.rule', { code: diagnostic.rule })))),
+  more > 0 ? React.createElement('p', { className: 'zwf-note' }, wfCardSay('workflow.truncated')) : null);
+}
+
+/* -------------------------------- code block -------------------------------- */
+
+/** One line of a code block, with the gutter and the diagnostic mark. */
+function WfCodeLine(props) {
+  return React.createElement('div', {
+    className: 'zwf-code-line',
+    'data-marked': props.marked === true ? 'true' : undefined,
+  },
+  props.gutter === true ? React.createElement('span', { className: 'zwf-code-gutter' }, String(props.number)) : null,
+  React.createElement('span', { className: 'zwf-code-text' }, props.text === '' ? ' ' : props.text));
+}
+
+/**
+ * A source block: line numbers, marked diagnostic lines, one scroll container.
+ * @param {{code: string, gutter?: boolean, marked?: Set<number>, testId?: string, maxHeight?: number}} props
+ */
+function WfCodeBlock(props) {
+  const code = typeof props.code === 'string' ? props.code : '';
+  const lines = code === '' ? [] : code.replace(/\r\n/g, '\n').split('\n');
+  const marked = props.marked ?? new Set();
+  return React.createElement('div', {
+    className: 'zwf-code',
+    'data-testid': props.testId,
+    style: props.maxHeight === undefined ? undefined : { maxHeight: `${props.maxHeight}px`, overflow: 'auto' },
+  }, lines.map((line, index) => React.createElement(WfCodeLine, {
+    key: `line-${index}`,
+    number: index + 1,
+    text: line,
+    gutter: props.gutter !== false,
+    marked: marked.has(index + 1),
+  })));
+}
+
+/** `workflow-script-codeblock`: the script with its failing lines marked. */
+function WfCardScriptBlock(props) {
+  const diagnostics = Array.isArray(props.diagnostics) ? props.diagnostics : [];
+  return WfCodeBlock({
+    code: props.script,
+    marked: wfCardMarkedLines(diagnostics),
+    testId: 'workflow-script-codeblock',
+    maxHeight: 320,
+  });
+}
+
+/**
+ * The `显示完整脚本` disclosure of a card whose call produced no run.
+ * Collapsed by default; the trigger is the spec's `workflow-card-script-toggle`.
+ */
+function WfCardScriptDisclosure(props) {
+  const [open, setOpen] = React.useState(false);
+  const label = wfCardSay(open ? 'script.hide' : 'script.show');
+  return React.createElement('div', { className: 'zwf-script' },
+    React.createElement('button', {
+      type: 'button',
+      className: 'zwf-script-toggle',
+      'data-testid': 'workflow-card-script-toggle',
+      'aria-expanded': open ? 'true' : 'false',
+      onClick: () => setOpen((previous) => previous !== true),
+    },
+    React.createElement(WfCardChevron, { open }),
+    React.createElement('span', { className: 'zwf-script-toggle-text' }, label)),
+    open
+      ? React.createElement('div', { className: 'zwf-script-body' },
+        React.createElement(WfCardScriptBlock, { script: props.script, diagnostics: props.diagnostics }))
+      : null);
+}
+
+/* ----------------------------- amend set changes ---------------------------- */
+
+/**
+ * The rows an AmendWorkflow introduced, in the product's wording.
+ * There is no line diff: the card reports the settings that moved and whether the script changed.
+ */
+function wfCardSettingsRows(model) {
+  if (model.key !== 'AmendWorkflow') return [];
+  const settings = wfCardFirst(model.args('settings'), model.args('adjust'));
+  const rows = [];
+  if (wfCardRecord(settings)) {
+    const model0 = wfCardFirstText(settings.subagent_model, settings.subagentModel);
+    if (model0 === 'session') rows.push(wfCardSay('settingsChange.modelSession'));
+    else if (model0 !== '') rows.push(wfCardSay('settingsChange.model', { model: model0 }));
+    const limit = wfCardNum(wfCardFirst(settings.max_concurrency, settings.maxConcurrency));
+    if (limit !== undefined) rows.push(wfCardSay('settingsChange.limit', { n: limit }));
+  }
+  const subagentModel = model.argText('subagent_model') ?? model.argText('subagentModel');
+  if (rows.length === 0 && subagentModel !== undefined) {
+    if (subagentModel === 'session') rows.push(wfCardSay('settingsChange.modelSession'));
+    else rows.push(wfCardSay('settingsChange.model', { model: subagentModel }));
+  }
+  const limit = wfCardNum(wfCardFirst(model.args('max_concurrency'), model.args('maxConcurrency')));
+  if (limit !== undefined && rows.length === 0) rows.push(wfCardSay('settingsChange.limit', { n: limit }));
+  return rows;
+}
+
+/** `workflow-settings-change-row`: one amended setting. */
+function WfSettingsChangeRow(props) {
+  const rows = wfCardSettingsRows(props.model);
+  if (rows.length === 0) return null;
+  return React.createElement('div', {
+    className: 'zwf-settings-row',
+    'data-testid': 'workflow-settings-change-row',
+  },
+  React.createElement('span', { className: 'zwf-section-label' }, wfCardSay('settingsChange.kind')),
+  React.createElement('span', { className: 'zwf-card-parts' },
+    rows.map((row, index) => React.createElement(WF_FRAGMENT, { key: `row-${index}` },
+      index > 0 ? React.createElement('span', { className: 'zwf-card-sep' }, '·') : null,
+      React.createElement('span', null, row)))));
+}
+
+/* ---- client-src/35-tool-cards.js ---- */
+/* The remaining workflow tool cards.
+ *
+ * Each renderer here reads one tool's own contract and never borrows the run card's:
+ *
+ *   GetWorkflowRun / TaskOutput   the status card (`Xsn`): summary line, phase table, subagent
+ *                                 tallies, health line, log tail, interruption and truncation notes;
+ *   ListWorkflowRuns              the instance list (count, rows, interruption flags);
+ *   ListSavedWorkflows            the saved-workflow catalogue (count, rows, unreadable files);
+ *   SaveWorkflow                  the save card (name, scope, overwrite badge, path, argument table);
+ *   StopWorkflowRun               the stop acknowledgement;
+ *   ResumeWorkflowRun             the resume card (new run id, background hint);
+ *   Escalate / Resolve…Question   the question cards (question/context/answer, question id/outcome);
+ *   default                       an unknown workflow tool: kind, output, diagnostics.
+ */
+
+/** Longest question text the escalate card pins in its header. */
+const WF_CARD_QUESTION_CHARS = 160;
+
+/** Status card, list rows and argument tables. */
+const WF_CARDS_TOOL_CSS = `
+.zwf-phase-table{display:flex;flex-direction:column;gap:2px;box-sizing:border-box;min-width:0;padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1)}
+.zwf-phase-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0;font-size:12.5px;line-height:19px}
+.zwf-phase-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}
+.zwf-phase-state{flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-phase-state[data-state="done"]{color:var(--dsw-alias-state-success-primary)}
+.zwf-phase-state[data-state="current"]{color:var(--dsw-alias-state-warn-primary)}
+.zwf-phase-state[data-state="ahead"]{color:var(--dsw-alias-label-caption)}
+.zwf-phase-state[data-state="unfinished"]{color:var(--dsw-alias-label-secondary)}
+.zwf-run-line{display:flex;align-items:baseline;gap:6px;min-width:0}
+.zwf-run-line-text{min-width:0;overflow-wrap:anywhere}
+`;
+
+WF_STYLE_PARTS.push(WF_CARDS_TOOL_CSS);
+
+/* --------------------------------- shared ---------------------------------- */
+
+/** `{age} ago` of a millisecond span, in the product's own short units. */
+function wfCardAge(ms) {
+  const value = Math.max(0, Number(ms) || 0);
+  if (value < 60000) return `${Math.floor(value / 1000)}s`;
+  if (value < 3600000) return `${Math.floor(value / 60000)}m`;
+  if (value < 86400000) return `${Math.floor(value / 3600000)}h`;
+  return `${Math.floor(value / 86400000)}d`;
+}
+
+/** Section list → body nodes; an empty section disappears so a card never shows a bare label. */
+function wfCardSections(sections) {
+  const nodes = [];
+  for (const section of Array.isArray(sections) ? sections : []) {
+    if (section === undefined || section === null) continue;
+    if (section.text !== undefined && String(section.text).trim() === '') continue;
+    nodes.push(React.createElement('section', {
+      className: 'zwf-section',
+      key: section.key ?? `section-${nodes.length}`,
+      'data-testid': section.testId,
+    },
+    section.title === undefined ? null : React.createElement('span', { className: 'zwf-section-label' }, section.title),
+    section.node ?? React.createElement('pre', { className: 'zwf-pre' }, section.text)));
+  }
+  return nodes;
+}
+
+/* ------------------------------ GetWorkflowRun ----------------------------- */
+
+/** Phase rows of the status card, merged from the run's stations and its per-phase tallies. */
+function wfGetRunPhases(run) {
+  const stations = wfRunStations(run);
+  const detail = wfRunField(run, 'phasesDetail');
+  const byName = new Map();
+  if (Array.isArray(detail)) {
+    for (const phase of detail) {
+      if (wfCardRecord(phase) && typeof phase.name === 'string') byName.set(phase.name, phase);
+    }
+  }
+  return stations.map((station, index) => {
+    const record = byName.get(station.name);
+    const state = station.status === 'running' ? 'current'
+      : station.status === 'done' ? 'done'
+        : station.status === 'failed' ? 'unfinished'
+          : 'ahead';
+    const ended = wfCardNum(record === undefined ? undefined : record.endedAt);
+    const started = wfCardNum(record === undefined ? undefined : record.startedAt);
+    return {
+      index: index + 1,
+      name: station.name,
+      state,
+      rounds: station.rounds,
+      settled: wfCardNum(record === undefined ? undefined : record.settled) ?? wfCardNum(record === undefined ? undefined : record.asks) ?? 0,
+      running: station.status === 'running' ? 1 : 0,
+      duration: started === undefined ? '' : WF_UI.duration(started, ended ?? Date.now()),
+    };
+  });
+}
+
+/** The `getRun` phase table (`zsn`). */
+function WfGetRunPhaseTable(props) {
+  const rows = props.rows;
+  if (rows.length === 0) return null;
+  return React.createElement('div', { className: 'zwf-phase-table', 'data-testid': 'workflow-run-phases' },
+    rows.map((row) => React.createElement('div', { className: 'zwf-phase-row', key: `${row.name}-${row.index}` },
+      React.createElement('span', { className: 'zwf-card-detail' }, `${row.index}.`),
+      React.createElement('span', { className: 'zwf-phase-name', title: row.name }, row.name),
+      React.createElement('span', { className: `zwf-phase-state`, 'data-state': row.state }, wfCardSay(`getRun.phase.state.${row.state}`)),
+      row.rounds === undefined || row.rounds < 2 ? null : React.createElement('span', { className: 'zwf-card-detail' }, wfCardSayCount('getRun.phase.roundsOne', 'getRun.phase.rounds', row.rounds)),
+      row.settled === 0 ? null : React.createElement('span', { className: 'zwf-card-detail' }, wfCardSay('getRun.phase.settled', { count: row.settled })),
+      row.running === 0 ? null : React.createElement('span', { className: 'zwf-card-detail' }, wfCardSay('getRun.phase.running', { count: row.running })),
+      row.duration === '' ? null : React.createElement('span', { className: 'zwf-card-detail' }, wfCardSay('getRun.phase.soFar', { duration: row.duration })))));
+}
+
+/** The `getRun` subagent tallies (`Usn`). */
+function WfGetRunAgents(props) {
+  const agents = props.agents;
+  if (agents.length === 0) return null;
+  return React.createElement('div', { className: 'zwf-chips', 'data-testid': 'workflow-run-subagents' },
+    agents.map((agent, index) => React.createElement('span', {
+      className: 'zwf-pill',
+      key: `${agent.name}-${index}`,
+      'data-agent-status': agent.status,
+      title: agent.phaseName === '' ? agent.name : wfCardSay('getRun.subagent.phase', { name: agent.phaseName }),
+    },
+    React.createElement('span', { className: 'zwf-pill-avatar' }, React.createElement(WF_ICON.agent, { size: 10 })),
+    React.createElement('span', { className: 'zwf-pill-name' }, agent.name),
+    React.createElement('span', { className: 'zwf-card-detail' }, wfCardSay(`getRun.subagent.state.${wfGetRunAgentState(agent.status)}`)))));
+}
+
+/** Map the run's actor status onto the status card's wording. */
+function wfGetRunAgentState(status) {
+  switch (status) {
+    case 'running':
+      return 'executing';
+    case 'waiting':
+      return 'waiting';
+    case 'completed':
+      return 'done';
+    case 'failed':
+      return 'failed';
+    default:
+      return 'idle';
+  }
+}
+
+/** The `getRun` health line (`Vsn`): only the facts the snapshot actually carries. */
+function wfGetRunHealthParts(run) {
+  const parts = [];
+  const updated = wfCardNum(wfRunField(run, 'updatedAt', 'updated_at', 'lastEventAt'));
+  if (updated !== undefined) parts.push(wfCardSay('getRun.health.lastProgress', { age: wfCardAge(Date.now() - updated) }));
+  const concurrency = wfRunField(run, 'concurrency');
+  if (wfCardRecord(concurrency)) {
+    const cap = wfCardNum(concurrency.cap) ?? 0;
+    const effective = wfCardNum(concurrency.limit) ?? cap;
+    parts.push(wfCardSay('getRun.health.concurrency', { effective, cap }));
+  }
+  const steps = wfRunSteps(run);
+  if (steps.failed > 0) {
+    parts.push(wfCardSayCount('getRun.health.failuresOne', 'getRun.health.failures', steps.failed));
+  }
+  const cached = wfCardNum(wfRunField(run, 'cachedSteps'));
+  if (cached !== undefined && cached > 0) {
+    parts.push(wfCardSayCount('getRun.health.cachedStepsOne', 'getRun.health.cachedSteps', cached));
+  }
+  return parts;
+}
+
+/** GetWorkflowRun / TaskOutput card. */
+function WfGetRunCard(props) {
+  const model = props.model;
+  const live = props.live;
+  const structured = wfCardRecord(model.structured) ? model.structured : undefined;
+  const fromTool = structured === undefined ? undefined : wfCardRecord(structured.run) ? structured.run : structured;
+  const run = wfRunId(fromTool) !== '' ? fromTool : (live?.run ?? live?.summary);
+  const settled = model.phase === 'result';
+  const status = run === undefined ? '' : wfRunStatus(run);
+  const runId = wfRunId(run) || wfCardResultRunId(model);
+  const steps = run === undefined ? { total: 0, done: 0, failed: 0, running: 0 } : wfRunSteps(run);
+  const agents = run === undefined ? [] : wfRunAgents(run);
+  const phases = run === undefined ? [] : wfGetRunPhases(run);
+  const tokens = run === undefined ? 0 : wfRunTokens(run);
+  const logTail = run === undefined ? [] : wfCardLogTail(run);
+  const healthParts = run === undefined ? [] : wfGetRunHealthParts(run);
+  const interrupted = wfCardRecord(run) && wfRunField(run, 'possibleInterruption') === true;
+  const questionsUnknown = wfCardRecord(run) && wfCardRecord(wfRunField(run, 'health')) && wfRunField(run, 'health').pendingQuestionsKnown === false;
+
+  const sections = [];
+  const summary = wfCardRecord(run) ? wfRunName(run) : '';
+  if (settled && model.failed === true) {
+    sections.push({ key: 'error', testId: 'workflow-run-error-message', title: wfCardSay('getRun.section.error'), text: model.resultText });
+  }
+  if (phases.length > 0) {
+    sections.push({
+      key: 'phases',
+      title: wfCardSay('getRun.section.actors'),
+      node: React.createElement(WfGetRunPhaseTable, { rows: phases }),
+    });
+  }
+  if (agents.length > 0) {
+    sections.push({
+      key: 'agents',
+      title: wfCardSay('getRun.section.actors'),
+      node: React.createElement(WfGetRunAgents, { agents }),
+    });
+  }
+  if (run !== undefined && status === 'completed') {
+    const result = wfCardFirstText(wfRunField(run, 'result'), wfRunField(run, 'resultPreview'));
+    if (result !== '') {
+      sections.push({ key: 'result', testId: 'workflow-run-result', title: wfCardSay('getRun.section.result'), text: result });
+    }
+  }
+  if (logTail.length > 0) {
+    sections.push({
+      key: 'log',
+      title: wfCardSay('getRun.section.logTail'),
+      text: logTail.join('\n'),
+    });
+  }
+
+  const body = [];
+  if (summary !== '') {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'summary', 'data-testid': 'workflow-run-summary' }, summary));
+  }
+  if (questionsUnknown) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'questions', 'data-tone': 'warn', 'data-testid': 'workflow-run-questions-unknown' }, wfCardSay('getRun.questionsUnknown')));
+  }
+  for (const node of wfCardSections(sections)) body.push(node);
+  if (healthParts.length > 0) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'health', 'data-testid': 'workflow-run-health' }, healthParts.join(' · ')));
+  }
+  if (run !== undefined) {
+    const line = [];
+    line.push(wfCardSay(`run.status.${status}`));
+    const stopReason = wfCardFirstText(wfRunField(run, 'stopReason', 'stop_reason'));
+    if (stopReason !== '') line.push(wfCardSay(`run.stopReason.${stopReason}`));
+    line.push(wfCardSay('getRun.nodesLine', {
+      observed: steps.total,
+      done: steps.done,
+      running: steps.running,
+      failed: steps.failed,
+    }));
+    line.push(wfCardSay('run.usage.tokens', { tokens: tokens.toLocaleString() }));
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'status-line', 'data-testid': 'workflow-run-status-row' }, line.join(' · ')));
+  }
+  if (interrupted) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'interrupted', 'data-tone': 'warn', 'data-testid': 'workflow-run-untracked' }, wfCardSay('getRun.interruptedHint')));
+  }
+  if (wfCardRecord(run) && run.truncated === true) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'truncated', 'data-testid': 'workflow-run-truncated' }, wfCardSay('getRun.truncated')));
+  }
+  if (body.length === 0 && settled) {
+    body.push(React.createElement('pre', { className: 'zwf-pre', key: 'output' }, model.resultText));
+  }
+
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: settled ? (model.failed === true ? 'error' : 'ok') : 'running',
+    kind: wfCardSay(settled ? 'getRun.fetched' : 'getRun.fetching'),
+    live: !settled,
+    summary: runId,
+    summaryMono: runId !== '',
+    status: run === undefined
+      ? null
+      : React.createElement(WfCardState, { status, testId: 'workflow-run-stop-reason' }),
+    actions: run === undefined || runId === '' ? null : React.createElement(WfCardIconButton, {
+      icon: React.createElement(WF_UI.icons.external, { size: 13 }),
+      label: wfCardSay('workflow.openRunDetails'),
+      title: wfCardSay('workflow.openRunDetails'),
+      onClick: () => wfCardOpenDetail({ sessionId: model.sessionId, runId, tab: 'run' }),
+    }),
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+    bodyTestId: 'workflow-status-body',
+  });
+}
+
+/** The `log` rows of a run snapshot, oldest first, capped. */
+function wfCardLogTail(run) {
+  const log = wfRunField(run, 'log');
+  if (!Array.isArray(log)) return [];
+  return log.slice(-40).map((entry) => {
+    const text = wfCardRecord(entry) ? wfCardFirstText(entry.text, entry.message) : wfCardTextOf(entry);
+    if (text === '') return '';
+    const at = wfCardRecord(entry) ? wfCardNum(wfCardFirst(entry.at, entry.at_ms)) : undefined;
+    return at === undefined ? text : `${wfCardSay('getRun.age', { age: wfCardAge(Date.now() - at) })}  ${text}`;
+  }).filter((line) => line !== '');
+}
+
+/* ------------------------------ list cards -------------------------------- */
+
+/** The `- ` rows of a result list. */
+function wfCardBulletRows(text, limit) {
+  const rows = [];
+  for (const line of String(text ?? '').split('\n')) {
+    if (!line.startsWith('- ')) continue;
+    const row = line.slice(2).trim();
+    if (row === '') continue;
+    rows.push(row);
+    if (rows.length >= limit) break;
+  }
+  return rows;
+}
+
+/** Leading count of a result headline (`3 runs`). */
+function wfCardLeadingCount(text) {
+  const match = /^(\d+)\b/.exec(String(text ?? '').trim().split('\n')[0] ?? '');
+  return match === null ? undefined : Number(match[1]);
+}
+
+/** The `Run <id> "<name>" — <status>` words of one list row. */
+function wfCardRunRowStatus(row) {
+  const match = /\b(pending|running|completed|errored|stopped|superseded)\b/.exec(row);
+  return match === null ? '' : match[1];
+}
+
+/** ListWorkflowRuns card. */
+function WfListRunsCard(props) {
+  const model = props.model;
+  const text = model.resultText;
+  const settled = model.phase === 'result';
+  const rows = wfCardBulletRows(text, WF_CARD_MAX_ROWS);
+  const count = wfCardLeadingCount(text);
+  const total = count ?? rows.length;
+  const empty = /^No workflow runs\b/m.test(text);
+  const sections = [];
+  const body = [];
+  if (rows.length > 0) {
+    body.push(React.createElement('div', { className: 'zwf-rows', key: 'rows', 'data-testid': 'workflow-run-lines' },
+      rows.map((row, index) => React.createElement('div', { className: 'zwf-row-item zwf-run-line', key: `row-${index}` },
+        React.createElement('span', { className: 'zwf-lamp', 'data-status': wfCardRunRowStatus(row) || 'idle' }),
+        React.createElement('span', { className: 'zwf-run-line-text' }, row)))));
+  } else if (settled && model.failed === true) {
+    sections.push({ key: 'output', text });
+  } else if (settled && empty) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'empty' }, wfCardSay('listRuns.empty')));
+  }
+  for (const node of wfCardSections(sections)) body.push(node);
+  const truncated = settled && !model.failed && rows.length > 0 && (total === undefined || total > rows.length);
+  if (truncated) body.push(React.createElement('p', { className: 'zwf-note', key: 'truncated' }, wfCardSay('listRuns.truncated')));
+
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    kind: wfCardSay(settled ? 'listRuns.listed' : 'listRuns.listing'),
+    live: !settled,
+    summary: settled && total !== undefined ? wfCardSayCount('listRuns.countOne', 'listRuns.count', total) : '',
+    status: settled ? (model.failed === true ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed')) : null) : null,
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+    bodyTestId: 'workflow-list-runs',
+  });
+}
+
+/** ListSavedWorkflows card. */
+function WfListSavedCard(props) {
+  const model = props.model;
+  const text = model.resultText;
+  const settled = model.phase === 'result';
+  const rows = wfCardBulletRows(text, WF_CARD_MAX_ROWS);
+  const count = wfCardLeadingCount(text);
+  const total = count ?? rows.length;
+  const empty = /^No saved workflows\b/m.test(text);
+  const invalidMatch = /(\d+) files? could not be read/m.exec(text);
+  const body = [];
+  if (rows.length > 0) {
+    body.push(React.createElement('div', { className: 'zwf-rows', key: 'rows', 'data-testid': 'workflow-list' },
+      rows.map((row, index) => React.createElement('div', { className: 'zwf-row-item', key: `row-${index}` }, row))));
+  } else if (settled && empty && !model.failed) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'empty' }, wfCardSay('list.empty')));
+  } else if (settled && model.failed) {
+    body.push(React.createElement('pre', { className: 'zwf-pre', key: 'output' }, text));
+  }
+  if (invalidMatch !== null) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'invalid', 'data-tone': 'warn' },
+      wfCardSayCount('list.invalidOne', 'list.invalid', Number(invalidMatch[1]))));
+  }
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    kind: wfCardSay(settled ? 'list.listed' : 'list.listing'),
+    live: !settled,
+    summary: settled && total !== undefined ? wfCardSayCount('list.countOne', 'list.count', total) : '',
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : null,
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+    bodyTestId: 'workflow-list-saved',
+  });
+}
+
+/* --------------------------------- save card ------------------------------- */
+
+/** The declared-argument table of a saved workflow (`save.args.*`). */
+function WfSaveArgTable(props) {
+  const args = props.args;
+  const names = Object.keys(args ?? {});
+  if (names.length === 0) return null;
+  return React.createElement('div', { className: 'zwf-rows', 'data-testid': 'workflow-args' },
+    React.createElement('div', { className: 'zwf-row-item', 'data-testid': 'workflow-arg-row' }, wfCardSay('save.args.title')),
+    names.map((name) => {
+      const declaration = wfCardRecord(args[name]) ? args[name] : {};
+      const required = declaration.required === true;
+      return React.createElement('div', { className: 'zwf-row-item', key: name, 'data-testid': `workflow-arg-${name}` },
+        `${name} · ${wfCardFirstText(declaration.type) || 'string'} · ${wfCardSay(required ? 'save.args.requiredYes' : 'save.args.requiredNo')}`,
+        declaration.default === undefined ? null : ` · ${wfCardSay('save.args.default')} ${wfCardTextOf(wfCardJsonText(declaration.default))}`);
+    }));
+}
+
+/** JSON-ish display of a declared default. */
+function wfCardJsonText(value) {
+  try {
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+/** SaveWorkflow card. */
+function WfSaveCard(props) {
+  const model = props.model;
+  const settled = model.phase === 'result';
+  const scope = wfCardFirstText(model.args('scope'));
+  const name = model.argText('name') ?? '';
+  const description = model.argText('description') ?? '';
+  const whenToUse = model.argText('when_to_use') ?? model.argText('whenToUse') ?? '';
+  const overwrite = model.args('overwrite') === true;
+  const savedPath = wfCardFirstText(
+    wfCardRecord(model.structured) ? model.structured.path : undefined,
+    model.argText('path'),
+  );
+  const body = [];
+  if (description !== '') body.push(React.createElement('p', { className: 'zwf-note', key: 'description' }, description));
+  body.push(React.createElement('p', { className: 'zwf-note', key: 'scope' },
+    `${wfCardSay('save.scope.label')} · ${wfCardSay(scope === 'global' ? 'save.scope.global' : 'save.scope.project')}`));
+  if (overwrite) {
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'overwrite', 'data-tone': 'warn' }, wfCardSay('save.scope.hidesGlobal')));
+  }
+  if (savedPath !== '') {
+    body.push(React.createElement('p', { className: 'zwf-note zwf-mono-tab', key: 'path', title: savedPath }, savedPath));
+  }
+  if (whenToUse !== '') {
+    body.push(React.createElement('section', { className: 'zwf-section', key: 'when' },
+      React.createElement('span', { className: 'zwf-section-label' }, wfCardSay('save.whenToUse')),
+      React.createElement('p', { className: 'zwf-note' }, whenToUse)));
+  }
+  const args = wfCardRecord(model.args('args')) ? model.args('args') : {};
+  const table = WfSaveArgTable({ args });
+  if (table !== null) body.push(table);
+  if (body.length === 0 && settled) body.push(React.createElement('pre', { className: 'zwf-pre', key: 'output' }, model.resultText));
+
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    kind: wfCardSay(settled && !model.failed ? 'save.saved' : 'save.saving'),
+    live: !settled,
+    summary: name,
+    summaryMono: name !== '',
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : null,
+    detail: scope === '' ? '' : wfCardSay(scope === 'global' ? 'save.scope.global' : 'save.scope.project'),
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+    headTestId: 'workflow-save-header',
+  });
+}
+
+/* ------------------------------ stop / resume ------------------------------ */
+
+/** StopWorkflowRun card. */
+function WfStopCard(props) {
+  const model = props.model;
+  const settled = model.phase === 'result';
+  const runId = wfCardResultRunId(model) ?? '';
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    icon: React.createElement(WF_ICON.stop, { size: 14 }),
+    kind: wfCardSay(settled && !model.failed ? 'card.stopped' : 'run.cancel'),
+    live: !settled,
+    summary: runId,
+    summaryMono: runId !== '',
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : null,
+    body: model.resultText === '' ? undefined : [React.createElement('pre', { className: 'zwf-pre', key: 'output' }, model.resultText)],
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+  });
+}
+
+/** ResumeWorkflowRun card. */
+function WfResumeCard(props) {
+  const model = props.model;
+  const settled = model.phase === 'result';
+  const resumed = /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m.exec(model.resultText);
+  const previous = model.argText('run_id') ?? '';
+  const runId = resumed === null ? previous : resumed[1];
+  const body = [React.createElement('p', { className: 'zwf-note', key: 'hint' }, wfCardSay('resumeRun.hint'))];
+  if (model.resultText !== '' && model.failed === true) {
+    body.push(React.createElement('pre', { className: 'zwf-pre', key: 'output' }, model.resultText));
+  }
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    icon: React.createElement(WF_ICON.refresh, { size: 14 }),
+    kind: wfCardSay(model.failed === true ? 'resumeRun.label' : settled ? 'resumeRun.label' : 'resumeRun.resuming'),
+    live: !settled,
+    summary: runId,
+    summaryMono: runId !== '',
+    detail: resumed !== null && previous !== '' ? previous : '',
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : React.createElement('span', { className: 'zwf-state', 'data-status': settled ? 'running' : 'pending' }, wfCardSay('resumeRun.inBackground')),
+    body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+  });
+}
+
+/* -------------------------------- questions -------------------------------- */
+
+/** Escalate card (`msn`): question, context and the answer once it arrives. */
+function WfEscalateCard(props) {
+  const model = props.model;
+  const settled = model.phase === 'result';
+  const question = model.argText('question') ?? '';
+  const context = model.argText('context') ?? '';
+  const answer = settled ? model.resultText : '';
+  const summary = question.length > WF_CARD_QUESTION_CHARS ? `${question.slice(0, WF_CARD_QUESTION_CHARS - 1)}…` : question;
+  const sections = [{
+    key: 'question',
+    title: wfCardSay('escalate.question'),
+    node: React.createElement('p', { className: 'zwf-note' }, question),
+  }];
+  if (context !== '') {
+    sections.push({ key: 'context', title: wfCardSay('escalate.context'), node: React.createElement('p', { className: 'zwf-note' }, context) });
+  }
+  if (settled && answer !== '') {
+    sections.push({ key: 'answer', title: wfCardSay('escalate.answer'), node: React.createElement('p', { className: 'zwf-note' }, answer) });
+  }
+  const body = wfCardSections(sections);
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    icon: React.createElement(WF_ICON.agent, { size: 14 }),
+    kind: wfCardSay(settled ? 'escalate.asked' : 'escalate.asking'),
+    live: !settled,
+    summary,
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : null,
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+  });
+}
+
+/** ResolveWorkflowQuestion card (`Ocn`). */
+function WfResolveCard(props) {
+  const model = props.model;
+  const settled = model.phase === 'result';
+  const questionId = model.argText('question_id') ?? model.argText('questionId') ?? '';
+  const answer = model.argText('answer') ?? '';
+  const sections = [
+    questionId === '' ? undefined : { key: 'qid', title: wfCardSay('resolveQuestion.questionId'), node: React.createElement('p', { className: 'zwf-note zwf-mono-tab' }, questionId) },
+    answer === '' ? undefined : { key: 'answer', title: wfCardSay('resolveQuestion.answer'), node: React.createElement('p', { className: 'zwf-note' }, answer) },
+    settled && model.resultText !== '' ? { key: 'outcome', title: wfCardSay('resolveQuestion.outcome'), node: React.createElement('p', { className: 'zwf-note' }, model.resultText) } : undefined,
+  ].filter(Boolean);
+  const body = wfCardSections(sections);
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    icon: React.createElement(WF_ICON.check, { size: 14 }),
+    kind: wfCardSay(settled ? 'resolveQuestion.answered' : 'resolveQuestion.answering'),
+    live: !settled,
+    summary: questionId,
+    summaryMono: questionId !== '',
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : null,
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+  });
+}
+
+/* --------------------------------- default -------------------------------- */
+
+/** Any other workflow tool: kind, run id when the result names one, output and diagnostics. */
+function WfDefaultCard(props) {
+  const model = props.model;
+  const settled = model.phase === 'result';
+  const diagnostics = wfCardDiagnostics(model);
+  const body = [];
+  if (diagnostics.length > 0) body.push(React.createElement(WfCardDiagnostics, { key: 'diagnostics', diagnostics, failed: model.failed }));
+  if (model.resultText !== '') body.push(React.createElement('pre', { className: 'zwf-pre', key: 'output' }, model.resultText));
+  return React.createElement(WfCardShell, {
+    tool: model.key,
+    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
+    kind: settled ? wfCardSay('workflow.ran') : wfCardSay('workflow.writing'),
+    live: !settled,
+    summary: wfCardResultRunId(model) ?? '',
+    summaryMono: true,
+    status: settled && model.failed === true
+      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
+      : null,
+    body: body.length === 0 ? undefined : body,
+    expandable: props.expandable,
+    open: props.open,
+    onToggle: props.toggle,
+  });
+}
+
+/* -------------------------------- registry -------------------------------- */
+
+WF_CARDS.render.GetWorkflowRun = WfGetRunCard;
+WF_CARDS.render.TaskOutput = WfGetRunCard;
+WF_CARDS.render.ListWorkflowRuns = WfListRunsCard;
+WF_CARDS.render.ListSavedWorkflows = WfListSavedCard;
+WF_CARDS.render.SaveWorkflow = WfSaveCard;
+WF_CARDS.render.StopWorkflowRun = WfStopCard;
+WF_CARDS.render.ResumeWorkflowRun = WfResumeCard;
+WF_CARDS.render.Escalate = WfEscalateCard;
+WF_CARDS.render.ResolveWorkflowQuestion = WfResolveCard;
+WF_CARDS.render.default = WfDefaultCard;
+
+/* ---- client-src/40-detail.js ---- */
+/*
+ * Right-Sidebar workflow run detail (`sidePane.workflowRun`).
+ *
+ * The pane reads one run from the session's run list, follows its event log while it is in flight
+ * and renders the Host's derived station list. It owns the panel chrome (title, actions, status
+ * row, provenance), the phase/timeline body (43/42), the roster (45) and the artifacts area (44);
+ * the script-steps pane lives beside it as a second right-pane tab (46).
+ */
+
+/** Registered by `register`; `open`/`openScript` are the entry points other parts call. */
+const WF_DETAIL = {};
+
+/** Slot keys and right-pane tab ids for the two surfaces this part owns. */
+const WF_DETAIL_RUN_ID = 'zcode-workflow/run';
+const WF_DETAIL_SCRIPT_ID = 'zcode-workflow/script';
+/** Pane id prefix, mirroring the product's `workflow-run:<id>` / `workflow-script:<id>` ids. */
+const WF_DETAIL_RUN_KIND = 'workflow-run';
+const WF_DETAIL_SCRIPT_KIND = 'workflow-script';
+
+/** A live run refreshes its summary on this cadence. */
+const WF_DETAIL_POLL_MS = 2000;
+/** Event pages are pulled no faster than this, so a busy run stays one request per tick. */
+const WF_DETAIL_EVENTS_MS = 1200;
+/** How long a copy confirmation stays on screen. */
+const WF_DETAIL_COPY_MS = 1500;
+/** Stop asking for the artifact ledger at this cadence while the run publishes more. */
+const WF_DETAIL_ARTIFACTS_MS = 6000;
+/** Page size for the run list; one page covers the live-window runs. */
+const WF_DETAIL_RUN_LIMIT = 40;
+
+/** Sidebar services, captured once the profile provides them. */
+const WF_DETAIL_SERVICES = { sidebar: undefined, tabs: undefined };
+
+/**
+ * The one target held when no Sidebar can host a pane.
+ *
+ * A static Client module cannot mount a panel on its own, so a profile without the right Sidebar
+ * still shows the pane through `shell.overlay`; the pane component is shared.
  */
 const WF_DETAIL_OVERLAY = (() => {
+  let current;
+  const listeners = new Set();
+  const publish = () => {
+    for (const listener of listeners) listener();
+  };
+  return {
+    read: () => current,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    open(kind, params) {
+      current = { kind, params };
+      publish();
+    },
+    close() {
+      if (current === undefined) return;
+      current = undefined;
+      publish();
+    },
+  };
+})();
+
+/** One locale string for this surface, with the embedded English fragment as fallback. */
+function wfDetailSay(t, key, params) {
+  return WF_UI.say(t, UI_EN, key, params);
+}
+
+/**
+ * A stop/resume rejection, normalized to the copy the product shows for each reason code.
+ * @returns {{ text: string, detail?: string }}
+ */
+function wfRunRejection(t, action, error) {
+  const allowed = action === 'cancel'
+    ? ['not_found', 'not_running', 'cancel_not_supported', 'unsupported', 'generic']
+    : ['not_found', 'not_resumable', 'superseded', 'already_running', 'script_missing', 'script_mismatch', 'compile_failed', 'unsupported', 'generic'];
+  const code = wfText(error?.code);
+  const reason = code !== undefined && allowed.includes(code) ? code : 'generic';
+  const key = `run.rejection.${action}.${reason}`;
+  const detail = wfText(error?.message);
+  return {
+    text: wfDetailSay(t, key, { code: code ?? 'error' }),
+    ...(detail === undefined || detail === '' ? {} : { detail }),
+  };
+}
+
+/** A button that carries a `data-testid`; `WF_UI.Button` deliberately does not. */
+function WfActionButton(props) {
+  return WF_H('button', {
+    type: 'button',
+    className: ['zwf-btn', 'zwf-btn-sm', props.variant === 'subtle' ? 'zwf-btn-subtle' : 'zwf-btn-ghost', 'zwf-btn-iconic', props.className ?? ''].filter(Boolean).join(' '),
+    'data-testid': props.testId,
+    disabled: props.disabled === true,
+    title: props.title,
+    onClick: props.disabled === true ? undefined : props.onClick,
+  },
+  props.icon === undefined ? null : WF_H('span', { className: 'zwf-btn-glyph' }, props.icon),
+  WF_H('span', { className: 'zwf-btn-label' }, props.children));
+}
+
+/** Peer view of the translate function so child parts can read the dictionary too. */
+function useWfDetailSay(t) {
+  return React.useCallback((key, params) => wfDetailSay(t, key, params), [t]);
+}
+
+/* -------------------------------- parameters ------------------------------- */
+
+/** Narrow an opener's value to the run pane's navigation parameters. */
+function wfDetailParams(value) {
+  if (value === null || typeof value !== 'object') return undefined;
+  const runId = wfText(value.runId);
+  if (runId === undefined) return undefined;
+  const sessionId = wfText(value.sessionId);
+  const projectRoot = wfText(value.projectRoot);
+  const name = wfText(value.workflowName) ?? wfText(value.name);
+  const focusPhaseId = wfText(value.focusPhaseId);
+  return {
+    runId,
+    ...(sessionId === undefined ? {} : { sessionId }),
+    ...(projectRoot === undefined ? {} : { projectRoot }),
+    ...(name === undefined ? {} : { name }),
+    ...(focusPhaseId === undefined ? {} : { focusPhaseId }),
+  };
+}
+
+/** A tab record carries its opener parameters; the record omits them after a reload. */
+function wfDetailTabParams(tab) {
+  const navigation = tab?.navigation;
+  if (navigation === null || typeof navigation !== 'object') return undefined;
+  return wfDetailParams(navigation.params);
+}
+
+/** Whether the browser tab is visible; hidden surfaces issue no requests. */
+function useWfVisible(forced) {
+  const [visible, setVisible] = React.useState(() => (typeof document === 'undefined' ? true : document.visibilityState !== 'hidden'));
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const onChange = () => setVisible(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  return forced === false ? false : visible;
+}
+
+/* ------------------------------- run source -------------------------------- */
+
+/**
+ * One run's live record plus the event page it has not folded yet.
+ *
+ * The summary comes from the session run list (the Host derives stations and counters there); the
+ * event log is pulled only after `lastEventSequence`, at a lower cadence, and only while the run
+ * is active and the pane is visible.
+ */
+function useWfDetailRun(scope, options) {
+  const { runId, sessionId, visible } = scope;
+  const withEvents = options?.events === true;
+  const usable = typeof runId === 'string' && typeof sessionId === 'string';
+  const scopeKey = [sessionId ?? '', runId ?? ''].join('\u0000');
+  const [state, setState] = React.useState({ scopeKey: '', run: undefined, error: undefined, loading: usable, events: [], watermark: undefined });
+  const [revision, setRevision] = React.useState(0);
+  const watermark = React.useRef(undefined);
+  const lastEvents = React.useRef(0);
+  React.useEffect(() => {
+    if (!usable) {
+      setState({ scopeKey, run: undefined, error: undefined, loading: false, events: [], watermark: undefined });
+      return undefined;
+    }
+    if (!visible) return undefined;
+    let cancelled = false;
+    let timer;
+    watermark.current = undefined;
+    lastEvents.current = 0;
+    setState((current) => (current.scopeKey === scopeKey
+      ? { ...current, loading: true }
+      : { scopeKey, run: undefined, error: undefined, loading: true, events: [], watermark: undefined }));
+    const pullEvents = async (run) => {
+      if (!withEvents || run === undefined) return;
+      const sequence = wfNum(run.lastEventSequence);
+      if (sequence === undefined || sequence <= (watermark.current ?? -1)) return;
+      const now = Date.now();
+      if (now - lastEvents.current < WF_DETAIL_EVENTS_MS) return;
+      lastEvents.current = now;
+      try {
+        const page = await WF_API.runEvents({ sessionId, runId, afterSequence: watermark.current, limit: 200 });
+        if (cancelled) return;
+        const events = Array.isArray(page?.events) ? page.events : [];
+        if (events.length === 0) {
+          watermark.current = sequence;
+          return;
+        }
+        watermark.current = events.reduce((max, event) => Math.max(max, wfNum(event.sequence) ?? 0), sequence);
+        setState((current) => ({ ...current, events: current.events.concat(events).slice(-400), watermark: watermark.current }));
+      } catch {
+        // The summary remains authoritative; a failed page is retried on the next tick.
+      }
+    };
+    const tick = async () => {
+      let nextRun;
+      let nextError;
+      try {
+        const payload = await WF_API.runs({ sessionId, limit: WF_DETAIL_RUN_LIMIT });
+        const rows = Array.isArray(payload?.runs) ? payload.runs : [];
+        nextRun = rows.find((row) => wfDetailRunId(row) === runId);
+        if (nextRun === undefined) {
+          nextError = new Error('run is not in the live run list');
+          nextError.code = 'run-not-tracked';
+        }
+      } catch (error) {
+        nextError = error;
+      }
+      if (cancelled) return;
+      if (nextRun !== undefined) {
+        setState((current) => (current.scopeKey === scopeKey
+          ? { ...current, run: nextRun, error: undefined, loading: false, watermark: watermark.current }
+          : { scopeKey, run: nextRun, error: undefined, loading: false, events: [], watermark: watermark.current }));
+      } else setState((current) => ({ ...current, scopeKey, error: nextError, loading: false }));
+      const active = nextRun !== undefined && wfDetailActive(nextRun);
+      const stillLooking = nextRun === undefined && nextError !== undefined;
+      if (!cancelled) await pullEvents(nextRun);
+      if (!cancelled && visible && (active || stillLooking)) timer = setTimeout(tick, WF_DETAIL_POLL_MS);
+    };
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [scopeKey, runId, sessionId, usable, visible, withEvents, revision]);
+  const reload = React.useCallback(() => setRevision((value) => value + 1), []);
+  const replace = React.useCallback((run) => {
+    if (run === undefined || run === null) return;
+    setState((current) => ({ ...current, run, error: undefined, loading: false }));
+  }, []);
+  const current = state.scopeKey === scopeKey
+    ? state
+    : { scopeKey, run: undefined, error: undefined, loading: usable, events: [], watermark: undefined };
+  return { run: current.run, error: current.error, loading: current.loading, events: current.events, watermark: current.watermark, reload, replace };
+}
+
+/**
+ * The artifact ledger: the run record's own list when the Host carries it, otherwise one read of
+ * `/run/artifacts`, refreshed at a slower cadence than the run summary.
+ */
+function useWfArtifacts(scope, run) {
+  const inline = React.useMemo(() => wfDetailArtifacts(run), [run]);
+  const signature = inline.map((artifact) => `${artifact.id}@${artifact.version}`).join(',');
+  const [state, setState] = React.useState({ scopeKey: '', artifacts: [], error: undefined });
+  const scopeKey = [scope.sessionId ?? '', scope.runId ?? '', signature, run?.status ?? ''].join('\u0000');
+  const [revision, setRevision] = React.useState(0);
+  const lastFetch = React.useRef(0);
+  React.useEffect(() => {
+    if (inline.length > 0 || typeof scope.runId !== 'string' || typeof scope.sessionId !== 'string') return undefined;
+    const terminal = run !== undefined && wfRunIsTerminal(run);
+    const now = Date.now();
+    if (!terminal && now - lastFetch.current < WF_DETAIL_ARTIFACTS_MS) return undefined;
+    lastFetch.current = now;
+    let cancelled = false;
+    WF_API.runArtifacts({ sessionId: scope.sessionId, runId: scope.runId }).then((payload) => {
+      if (cancelled) return;
+      setState({ scopeKey, artifacts: wfDetailArtifacts({ artifacts: payload?.artifacts }), error: undefined });
+    }).catch((error) => {
+      if (!cancelled) setState({ scopeKey, artifacts: [], error });
+    });
+    return () => { cancelled = true; };
+  }, [scopeKey, scope.sessionId, scope.runId, inline.length, run?.status, revision]);
+  const fetched = state.scopeKey === scopeKey || signature === '' ? state.artifacts : [];
+  return {
+    artifacts: inline.length > 0 ? inline : fetched,
+    error: state.error,
+    reload: () => setRevision((value) => value + 1),
+  };
+}
+
+/* -------------------------------- chrome ----------------------------------- */
+
+/** Status pill: dot, status word and, for a stopped run, why it stopped. */
+function WfRunStatusPill(props) {
+  const { run, t } = props;
+  const status = wfDetailRunStatus(run);
+  const tone = WF_UI.statusTone(status);
+  const reason = status === 'stopped' ? wfText(run?.stopReason) : undefined;
+  return WF_H('span', {
+    className: `zwf-run-status zwf-run-status-${tone}`,
+    'data-testid': 'workflow-run-status',
+    'data-status': status,
+  },
+  WF_H('span', { className: `zwf-dot zwf-dot-${tone}` }),
+  WF_H('span', { className: 'zwf-run-status-word' }, WF_UI.statusText(t, UI_EN, status)),
+  reason === undefined
+    ? null
+    : WF_H('span', { className: 'zwf-run-status-reason', 'data-testid': 'workflow-run-stop-reason' },
+      WF_UI.say(t, UI_EN, `run.stopReason.${['user', 'model', 'provider', 'interrupted', 'superseded'].includes(reason) ? reason : 'user'}`)));
+}
+
+/** One status-row chip. */
+function WfStatusChip(props) {
+  return WF_H('span', {
+    className: `zwf-chip-inline${props.tone === undefined ? '' : ` zwf-chip-inline-${props.tone}`}`,
+    'data-testid': props.testId,
+    title: props.title,
+  },
+  props.icon === undefined ? null : WF_H('span', { className: 'zwf-chip-inline-glyph' }, props.icon),
+  props.children);
+}
+
+/**
+ * The status row: what the run is doing, how much of it is done, who is working, and every
+ * deviation the ledger recorded (rejection, amend chain, supersession, truncated steps).
+ */
+function WfRunStatusRow(props) {
+  const { run, t, stations, holes, rejection, onOpenSuccessor } = props;
+  const say = (key, params) => wfDetailSay(t, key, params);
+  const status = wfDetailRunStatus(run);
+  const active = wfDetailActive(run);
+  const steps = wfDetailSteps(run);
+  const tokens = wfDetailTokens(run);
+  const rounds = wfRunRounds(run, stations);
+  const roster = wfRunRoster(run);
+  const working = roster.filter((entry) => entry.status === 'running').length;
+  const artifacts = wfDetailArtifacts(run).length;
+  const model = wfText(run?.subagentModel);
+  const concurrency = wfRunConcurrency(run);
+  const amends = wfText(run?.resumedFrom);
+  const supersededBy = wfText(run?.supersededBy);
+  const truncated = run?.truncated === true && Array.isArray(run?.nodes) && run.nodes.length < steps.total;
+  const parts = [];
+  if (model !== undefined) parts.push({ key: 'model', node: WF_H(WfStatusChip, { key: 'model', testId: 'workflow-run-subagent-model' }, say('run.subagentModel.label', { model })) });
+  parts.push({
+    key: 'subagents',
+    node: WF_H(WfStatusChip, {
+      key: 'subagents',
+      testId: 'workflow-run-subagents',
+      icon: WF_H(WF_UI.icons.agent, { size: 12 }),
+      title: say(model === undefined ? 'card.agents' : 'run.subagentModel.label', { count: roster.length, model }),
+    }, active
+      ? say(working === 1 ? 'card.agentWorking' : 'card.agentsWorking', { count: working })
+      : say(roster.length === 1 ? 'card.agent' : 'card.agents', { count: Math.max(roster.length, roster.length) })),
+  });
+  parts.push({ key: 'steps', node: WF_H(WfStatusChip, { key: 'steps' }, say('card.steps', { done: steps.settled, total: steps.total })) });
+  parts.push({ key: 'usage', node: WF_H(WfStatusChip, { key: 'usage', testId: 'workflow-run-usage', title: say('run.usage.label') }, say('run.usage.value', { tokens: wfGroup(tokens), steps: say('card.steps', { done: steps.settled, total: steps.total }) })) });
+  if (rounds >= 2) parts.push({ key: 'rounds', node: WF_H(WfStatusChip, { key: 'rounds' }, say(active ? 'card.round' : 'card.rounds', { count: rounds })) });
+  if (artifacts > 0) parts.push({ key: 'artifacts', node: WF_H(WfStatusChip, { key: 'artifacts' }, say(artifacts === 1 ? 'card.artifact' : 'card.artifacts', { count: artifacts })) });
+  if (holes.length > 0) {
+    parts.push({
+      key: 'holes',
+      node: WF_H(WfStatusChip, {
+        key: 'holes',
+        testId: 'workflow-run-holes',
+        tone: 'warn',
+        icon: WF_H(WF_UI.icons.spark, { size: 12 }),
+      }, say(holes.length === 1 ? 'card.hole' : 'card.holes', { count: holes.length })),
+    });
+  }
+  if (concurrency !== undefined) {
+    parts.push({
+      key: 'concurrency',
+      node: WF_H(WfStatusChip, { key: 'concurrency', testId: 'workflow-run-concurrency' },
+        say('run.concurrency.label', { cap: concurrency.cap }),
+        concurrency.cooldownUntil === undefined
+          ? null
+          : ` · ${say('run.concurrency.cooldown', { time: WF_UI.date(concurrency.cooldownUntil) })}`),
+    });
+  }
+  if (amends !== undefined) {
+    parts.push({ key: 'amends', node: WF_H(WfStatusChip, { key: 'amends', testId: 'workflow-run-amends' }, `${say('run.amends')} ${amends}`) });
+  }
+  if (supersededBy !== undefined) {
+    parts.push({
+      key: 'superseded',
+      node: WF_H('button', {
+        key: 'superseded',
+        type: 'button',
+        className: 'zwf-chip-inline zwf-chip-inline-link',
+        'data-testid': 'workflow-run-superseded-by',
+        onClick: () => onOpenSuccessor?.(supersededBy),
+      }, `${say('run.supersededBy')} ${supersededBy}`, WF_H(WF_UI.icons.external, { size: 11 })),
+    });
+  }
+  if (truncated) {
+    parts.push({ key: 'truncated', node: WF_H(WfStatusChip, { key: 'truncated', testId: 'workflow-run-truncated', tone: 'warn' }, say('run.truncated', { shown: run.nodes.length, total: steps.total })) });
+  }
+  return WF_H('div', { className: 'zwf-status-row', 'data-testid': 'workflow-run-status-row' },
+    WF_H(WfRunStatusPill, { run, t }),
+    parts.map((part, index) => WF_H(WF_FRAGMENT, { key: part.key },
+      index === 0 ? null : WF_H('span', { className: 'zwf-status-sep', 'aria-hidden': 'true' }, '·'),
+      part.node)),
+    rejection === undefined
+      ? null
+      : WF_H('span', {
+        className: 'zwf-status-rejection',
+        'data-testid': 'workflow-run-rejection',
+        role: 'status',
+      },
+      WF_H('span', { className: 'zwf-status-rejection-text' }, rejection.text),
+      rejection.detail === undefined ? null : WF_H('pre', { className: 'zwf-status-rejection-detail' }, rejection.detail)));
+}
+
+/** Where the run came from: started by you, or amended from an earlier run, plus its arguments. */
+function WfRunProvenance(props) {
+  const { run, t, params } = props;
+  const say = (key, value) => wfDetailSay(t, key, value);
+  const scope = wfText(run?.scope) ?? wfText(params?.scope);
+  const changed = wfText(run?.resumedFrom) !== undefined || run?.origin === 'settings';
+  const args = run?.args;
+  const entries = args !== null && typeof args === 'object' && Array.isArray(args) === false ? Object.entries(args) : [];
+  const createdAt = wfNum(run?.createdAt);
+  return WF_H('div', { className: 'zwf-provenance', 'data-testid': 'workflow-run-provenance' },
+    WF_H('span', { className: 'zwf-provenance-text' },
+      changed ? say('launch.settingsChangedByYou') : say('launch.startedByYou'),
+      createdAt === undefined ? null : ` · ${WF_UI.date(createdAt)}`),
+    scope === 'project' || scope === 'global'
+      ? WF_H('span', { className: 'zwf-tag', 'data-testid': 'workflow-run-provenance-scope' }, say(`launch.scope.${scope}`))
+      : null,
+    entries.length === 0
+      ? null
+      : WF_H('dl', { className: 'zwf-provenance-args', 'data-testid': 'workflow-run-provenance-args' },
+        entries.slice(0, 8).map(([key, value]) => WF_H(WF_FRAGMENT, { key },
+          WF_H('dt', { className: 'zwf-mono' }, key),
+          WF_H('dd', null, typeof value === 'string' ? value : WF_UI.json(value).replace(/\s+/gu, ' ').slice(0, 200))))),
+    WF_H('span', {
+      className: 'zwf-provenance-settings',
+      'data-testid': 'workflow-run-provenance-settings',
+      title: say('subagentModel.tooltip', { model: wfText(run?.subagentModel) ?? say('launch.settings.sessionModel') }),
+    },
+    wfText(run?.subagentModel) === undefined
+      ? say('launch.settings.sessionModel')
+      : say('launch.settings.model'),
+    ` ${wfText(run?.subagentModel) ?? say('launch.settings.defaultLimitValue', { n: wfNum(run?.concurrency?.cap) ?? 1 })}`,
+    wfNum(run?.concurrency?.cap) === undefined ? null : ` · ${say('launch.settings.limit')} ${run.concurrency.cap}`));
+}
+
+/** Result, error and untracked states: what the run left behind. */
+function WfRunResultBlock(props) {
+  const { run, t, rejection } = props;
+  const say = (key, params) => wfDetailSay(t, key, params);
+  if (run === undefined) {
+    return WF_H('div', { className: 'zwf-result-block zwf-result-untracked', 'data-testid': 'workflow-run-untracked' },
+      WF_H('p', { className: 'zwf-result-title' }, say('run.untracked.title')),
+      WF_H('p', { className: 'zwf-result-body' }, say('run.untracked.body')));
+  }
+  const status = wfDetailRunStatus(run);
+  if (status === 'errored') {
+    const message = wfText(run?.error) ?? wfText(run?.failureMessage) ?? say('run.result.noError');
+    return WF_H('div', { className: 'zwf-result-block zwf-result-error', 'data-testid': 'workflow-run-error' },
+      WF_H('p', { className: 'zwf-result-title' }, say('run.result.erroredTitle')),
+      WF_H('pre', { className: 'zwf-result-message', 'data-testid': 'workflow-run-error-message' }, message));
+  }
+  if (status === 'stopped') {
+    const reason = wfText(run?.stopReason);
+    return WF_H('div', { className: 'zwf-result-block', 'data-testid': 'workflow-run-result', 'data-result': 'stopped' },
+      WF_H('p', { className: 'zwf-result-title' }, say('run.result.stoppedTitle')),
+      reason === undefined ? null : WF_H('p', { className: 'zwf-result-body' }, say(`run.stopReason.${['user', 'model', 'provider', 'interrupted', 'superseded'].includes(reason) ? reason : 'user'}`)));
+  }
+  if (status !== 'completed') return null;
+  const preview = wfText(run?.resultPreview) ?? wfText(run?.result);
+  return WF_H('div', { className: 'zwf-result-block', 'data-testid': 'workflow-run-result', 'data-result': 'completed' },
+    WF_H('p', { className: 'zwf-result-title' }, say('run.result.title')),
+    WF_H('p', { className: 'zwf-result-body' }, say('run.result.completedHint')),
+    preview === undefined ? null : WF_H('pre', { className: 'zwf-result-preview' }, preview),
+    rejection === undefined ? null : WF_H('p', { className: 'zwf-result-body zwf-result-warn' }, rejection.text));
+}
+
+/** Health: last progress, concurrency, cached and failed steps, plus the leftover warning. */
+function WfRunHealth(props) {
+  const { run, t, stations } = props;
+  const health = wfRunHealth(run, stations.length);
+  if (health.items.length === 0) return null;
+  return WF_H('div', { className: 'zwf-health', 'data-testid': 'workflow-run-health' },
+    health.items.map((item, index) => WF_H(WF_FRAGMENT, { key: String(index) },
+      index === 0 ? null : WF_H('span', { className: 'zwf-health-sep', 'aria-hidden': 'true' }, '·'),
+      WF_H('span', { className: 'zwf-health-item' }, wfDetailSay(t, item.key, item.params)))),
+    health.leftover > 0
+      ? WF_H('p', { className: 'zwf-leftover', 'data-testid': 'workflow-run-leftover' },
+        wfDetailSay(t, health.leftoverKey, { count: health.leftover }))
+      : null);
+}
+
+/**
+ * The configure popover: the subagent model and the concurrency bound for this run, the
+ * consequence of changing either, and the apply control.
+ */
+function WfRunSettingsPopover(props) {
+  const { run, t, open, onClose } = props;
+  if (open !== true) return null;
+  const say = (key, params) => wfDetailSay(t, key, params);
+  const concurrency = wfRunConcurrency(run);
+  const status = wfDetailRunStatus(run);
+  const defaultBound = wfNum(props.defaultBound) ?? 4;
+  const [bound, setBound] = React.useState(() => concurrency?.limit ?? concurrency?.cap ?? defaultBound);
+  const [rejection, setRejection] = React.useState(undefined);
+  const configure = props.onConfigure;
+  const model = wfText(run?.subagentModel);
+  const consequence = status === 'running'
+    ? 'run.settings.consequence.running'
+    : status === 'pending' ? 'run.settings.consequence.pending'
+      : status === 'stopped' ? 'run.settings.consequence.stopped'
+        : status === 'errored' ? 'run.settings.consequence.errored'
+          : 'run.settings.consequence.running';
+  const apply = async () => {
+    setRejection(undefined);
+    if (typeof configure === 'function') {
+      const answer = await configure({ bound, model });
+      if (answer !== undefined) setRejection(answer);
+      return;
+    }
+    setRejection({ key: 'run.settings.rejection.unsupported' });
+  };
+  return WF_H('div', {
+    className: 'zwf-settings-popover',
+    'data-testid': 'workflow-run-settings-popover',
+    role: 'dialog',
+    'aria-label': say('run.settings.title'),
+  },
+  WF_H('div', { className: 'zwf-settings-head' },
+    WF_H('span', { className: 'zwf-settings-title' }, say('run.settings.title')),
+    WF_H(WF_UI.IconButton, {
+      icon: WF_H(WF_UI.icons.close, { size: 13 }),
+      label: say('ui.close'),
+      onClick: onClose,
+    })),
+  WF_H('div', { className: 'zwf-settings-row', 'data-testid': 'workflow-retune-row' },
+    WF_H('span', { className: 'zwf-settings-label' }, say('run.settings.model')),
+    WF_H('div', { className: 'zwf-settings-model', 'data-testid': 'workflow-run-settings-model' },
+      WF_H('button', {
+        type: 'button',
+        className: 'zwf-settings-trigger',
+        'data-testid': 'workflow-run-settings-model-trigger',
+        title: say('subagentModel.tooltip', { model: model ?? say('run.settings.model.session') }),
+      },
+      WF_H('span', { className: 'zwf-settings-model-name' }, model ?? say('run.settings.model.sessionFallback')),
+      WF_H('span', { className: 'zwf-settings-model-badge', 'data-testid': 'workflow-run-settings-model-badge' },
+        say('models.current'))),
+      WF_H('p', { className: 'zwf-settings-note' }, say('run.settings.model.noCatalog')))),
+  WF_H('div', { className: 'zwf-settings-row' },
+    WF_H('span', { className: 'zwf-settings-label' }, say('run.settings.limit')),
+    WF_H('div', { className: 'zwf-settings-bound', 'data-testid': 'workflow-run-settings-bound' },
+      WF_H('button', {
+        type: 'button',
+        className: 'zwf-settings-step',
+        'data-testid': 'workflow-run-settings-bound-decrease',
+        'aria-label': say('run.settings.limit.decrease'),
+        disabled: bound <= 1,
+        onClick: () => setBound((value) => Math.max(1, value - 1)),
+      }, '−'),
+      WF_H('span', { className: 'zwf-settings-bound-value zwf-mono', 'data-testid': 'workflow-run-settings-bound-value' }, String(bound)),
+      WF_H('button', {
+        type: 'button',
+        className: 'zwf-settings-step',
+        'data-testid': 'workflow-run-settings-bound-increase',
+        'aria-label': say('run.settings.limit.increase'),
+        disabled: bound >= 32,
+        onClick: () => setBound((value) => Math.min(32, value + 1)),
+      }, '+'),
+      WF_H('span', { className: 'zwf-settings-default' },
+        say(bound === defaultBound ? 'run.settings.limit.atDefault' : 'run.settings.limit.default', { n: defaultBound })))),
+  WF_H('p', { className: 'zwf-settings-consequence', 'data-testid': 'workflow-run-settings-consequence' }, say(consequence)),
+  rejection === undefined
+    ? null
+    : WF_H('p', { className: 'zwf-settings-rejection', 'data-testid': 'workflow-run-settings-rejection', role: 'status' },
+      say(rejection.key, rejection.params)),
+  WF_H('div', { className: 'zwf-settings-foot' },
+    WF_H(WF_UI.Button, { variant: 'subtle', size: 'sm', onClick: onClose }, say('ui.close')),
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-btn zwf-btn-primary zwf-btn-sm',
+      'data-testid': 'workflow-run-settings-apply',
+      onClick: () => { void apply(); },
+    }, WF_H('span', { className: 'zwf-btn-label' }, say('run.settings.apply')))));
+}
+
+/* ---------------------------------- pane ----------------------------------- */
+
+/**
+ * The run pane: chrome, live record, and the body that renders the timeline, the phase list and
+ * the artifacts area. An empty `run` is a tracked-absent state, not an error.
+ *
+ * @param {{ t: Function, params?: object, visible?: boolean }} props
+ */
+function WfDetailPane(props) {
+  const { t, params } = props;
+  const say = useWfDetailSay(t);
+  const visible = useWfVisible(props.visible);
+  const runId = params?.runId;
+  const scope = React.useMemo(() => ({ runId, sessionId: params?.sessionId, visible }), [runId, params?.sessionId, visible]);
+  const state = useWfDetailRun(scope, { events: true });
+  const workspaceScope = React.useMemo(() => ({ sessionId: params?.sessionId, runId }), [params?.sessionId, runId]);
+  const workspace = useWfWorkspace(workspaceScope, 0);
+  const run = state.run;
+  const artifacts = useWfArtifacts(scope, run);
+  const now = useWfClock();
+  const [copied, flash] = React.useState('');
+  const copyTimer = React.useRef(undefined);
+  React.useEffect(() => () => {
+    if (copyTimer.current !== undefined) clearTimeout(copyTimer.current);
+  }, []);
+  const copy = (value, token) => {
+    const done = () => {
+      flash(token);
+      if (copyTimer.current !== undefined) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => flash(''), WF_DETAIL_COPY_MS);
+    };
+    try {
+      void navigator.clipboard?.writeText(value).then(done).catch(done);
+    } catch {
+      done();
+    }
+  };
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [artifactsOpen, setArtifactsOpen] = React.useState(true);
+  const [expanded, setExpanded] = React.useState(() => new Set());
+  const [doors, setDoors] = React.useState(() => new Set());
+  const [actorEntry, setActorEntry] = React.useState(undefined);
+  const [landed, setLanded] = React.useState(undefined);
+  const [rejection, setRejection] = React.useState(undefined);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    setSettingsOpen(false);
+    setArtifactsOpen(true);
+    setExpanded(new Set());
+    setDoors(new Set());
+    setActorEntry(undefined);
+    setLanded(undefined);
+    setRejection(undefined);
+  }, [runId]);
+  const stations = React.useMemo(() => wfDetailStations(run), [run]);
+  const holes = React.useMemo(() => wfDetailHoles(run), [run]);
+  const roster = React.useMemo(() => wfRunRoster(run), [run]);
+  const questions = React.useMemo(() => wfRunQuestions(run), [run]);
+  const ownership = React.useMemo(() => wfQuestionOwners(questions, roster), [questions, roster]);
+  const rosters = React.useMemo(() => {
+    const map = new Map();
+    for (const station of stations) map.set(station.name, wfStationRoster(run, station, roster, run?.unlistedByPhase));
+    return map;
+  }, [stations, roster, run]);
+  const rosterByPhase = React.useMemo(() => {
+    const map = new Map();
+    for (const station of stations) map.set(station.name, (rosters.get(station.name)?.pins ?? []).concat(rosters.get(station.name)?.rest ?? []));
+    return map;
+  }, [stations, rosters]);
+  // Running (and hole-waiting) phases start open, and follow the run as it advances.
+  const runningNames = stations.filter((station) => station.status === 'running' || station.hole === 'waiting').map((station) => station.name).join('\u0000');
+  React.useEffect(() => {
+    if (runningNames === '') return;
+    setExpanded((current) => {
+      const next = new Set(current);
+      for (const name of runningNames.split('\u0000')) next.add(name);
+      return next;
+    });
+  }, [runningNames]);
+  const scriptPhases = React.useMemo(() => new Set(workspace.nodes.map((node) => node.phaseName).filter(Boolean)), [workspace.nodes]);
+  const focus = params?.focusPhaseId === undefined
+    ? undefined
+    : stations.findIndex((station) => wfPhaseMatches(station.name, params.focusPhaseId));
+  const togglePhase = (name) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+  const toggleDoor = (name) => {
+    setDoors((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+  const openStation = (station) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      next.add(station.name);
+      return next;
+    });
+    setLanded(station.name);
+  };
+  const openActor = (entry) => {
+    setActorEntry((current) => (current?.key === entry.key ? undefined : entry));
+  };
+  const openScript = () => {
+    WF_DETAIL.openScript({
+      runId,
+      sessionId: params?.sessionId,
+      projectRoot: params?.projectRoot,
+      workflowName: wfDetailRunName(run, params),
+      focusPhaseId: params?.focusPhaseId,
+    });
+  };
+  const openSuccessor = (nextId) => {
+    WF_DETAIL.open({
+      runId: nextId,
+      sessionId: params?.sessionId,
+      projectRoot: params?.projectRoot,
+    });
+  };
+  const stop = async () => {
+    if (busy || runId === undefined) return;
+    setBusy(true);
+    setRejection(undefined);
+    try {
+      const payload = await WF_API.stopRun({ runId, sessionId: params?.sessionId, projectRoot: params?.projectRoot });
+      const next = payload !== null && typeof payload === 'object' ? payload.run : undefined;
+      if (next !== undefined) state.replace(next);
+      state.reload();
+    } catch (error) {
+      setRejection(wfRunRejection(t, 'cancel', error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const resume = async () => {
+    if (busy || runId === undefined) return;
+    setBusy(true);
+    setRejection(undefined);
+    try {
+      const payload = await WF_API.resumeRun({ runId, sessionId: params?.sessionId, projectRoot: params?.projectRoot });
+      const next = payload !== null && typeof payload === 'object' ? payload.run : undefined;
+      if (next !== undefined) state.replace(next);
+      state.reload();
+    } catch (error) {
+      setRejection(wfRunRejection(t, 'resume', error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const status = wfDetailRunStatus(run);
+  const title = wfDetailRunName(run, params) ?? say('pane.run');
+  const cancellable = status === 'running';
+  const resumable = run?.resumable === true && status === 'stopped';
+  const configurable = run !== undefined && status !== 'completed';
+  if (runId === undefined) {
+    return WF_H('div', { className: 'zwf-run' },
+      WF_H('header', { className: 'zwf-run-head' },
+        WF_H('div', { className: 'zwf-run-headline' },
+          WF_H('h2', { className: 'zwf-run-title' }, say('pane.run')))),
+      WF_H('div', { className: 'zwf-run-body' },
+        WF_H(WF_UI.EmptyState, {
+          icon: WF_H(WF_UI.icons.run, { size: 20 }),
+          title: say('run.result.title'),
+          body: say('run.graph.unavailable'),
+        })));
+  }
+  return WF_H('div', {
+    className: 'zwf-run',
+    'data-testid': 'workflow-run',
+    'data-workflow-run-id': runId,
+    'data-workflow-run-status': run === undefined ? 'absent' : status,
+  },
+  WF_H('header', { className: 'zwf-run-head' },
+    WF_H('div', { className: 'zwf-run-headline' },
+      WF_H('h2', { className: 'zwf-run-title', title }, title),
+      WF_H('div', { className: 'zwf-run-actions' },
+        WF_H(WfActionButton, {
+          variant: 'subtle',
+          icon: WF_H(WF_UI.icons.more, { size: 13 }),
+          onClick: () => setSettingsOpen((value) => !value),
+          disabled: configurable !== true,
+          title: configurable === true ? say('run.configure') : say('run.settings.rejection.not_configurable'),
+        }, say('run.configure')),
+        resumable
+          ? WF_H(WfActionButton, {
+            variant: 'subtle',
+            icon: WF_H(WF_UI.icons.refresh, { size: 13 }),
+            title: say('run.resumeHint'),
+            testId: 'workflow-run-resume',
+            onClick: () => { void resume(); },
+          }, say('run.resume'))
+          : null,
+        WF_H(WfActionButton, {
+          variant: 'subtle',
+          icon: WF_H(WF_UI.icons.log, { size: 13 }),
+          title: say('script.title'),
+          testId: 'workflow-run-workspace-open',
+          onClick: openScript,
+        }, say('script.title')),
+        typeof WF_SAVE === 'object' && WF_SAVE !== null && WF_SAVE.Slot !== undefined
+          ? WF_H(WF_SAVE.Slot, {
+            key: 'save',
+            sessionId: params?.sessionId,
+            runId,
+            projectRoot: params?.projectRoot,
+            run,
+            t,
+          })
+          : null,
+        WF_H(WfActionButton, {
+          variant: 'subtle',
+          icon: WF_H(WF_UI.icons.stop, { size: 12 }),
+          disabled: cancellable !== true || busy,
+          title: cancellable === true ? say('run.stopHint') : say('run.cancelDisabled'),
+          testId: 'workflow-run-cancel',
+          className: 'zwf-run-stop',
+          onClick: () => { void stop(); },
+        }, busy ? say('run.cancelling') : say('run.cancel')))),
+    WF_H(WfRunStatusRow, {
+      run,
+      t,
+      stations,
+      holes,
+      rejection,
+      onOpenSuccessor: openSuccessor,
+    }),
+    WF_H(WfRunHealth, { run, t, stations }),
+    run === undefined
+      ? null
+      : WF_H('div', { className: 'zwf-run-idline' },
+        WF_H('span', { className: 'zwf-run-id zwf-mono', 'data-testid': 'workflow-run-id' }, runId),
+        WF_H('button', {
+          type: 'button',
+          className: 'zwf-link',
+          title: say('ui.copyRunId'),
+          onClick: () => copy(runId, 'runId'),
+        }, copied === 'runId' ? say('ui.copied') : say('ui.copy')))),
+  WF_H(WfRunSettingsPopover, {
+    run,
+    t,
+    open: settingsOpen,
+    onClose: () => setSettingsOpen(false),
+  }),
+  WF_H('div', { className: 'zwf-run-body' },
+    WF_H(WfRunResultBlock, { run, t, rejection }),
+    run === undefined
+      ? null
+      : WF_H(WF_FRAGMENT, null,
+        stations.length > 0
+          ? WF_H(WfTimeline, {
+            stations,
+            roster: rosterByPhase,
+            t,
+            focus,
+            scriptPhases,
+            counts: new Map(stations.map((station) => [station.name, rosters.get(station.name)?.counts ?? {}])),
+            fractions: new Map(stations.map((station) => [station.name, rosters.get(station.name)?.fraction ?? { settled: 0, observed: 0 }])),
+            rounds: new Map(stations.map((station) => [station.name, rosters.get(station.name)?.rounds])),
+            onOpenEntry: openActor,
+            onOpenStation: openStation,
+            onOpenScript: openScript,
+          })
+          : null,
+        WF_H(WfRunPhaseList, {
+          run,
+          stations,
+          t,
+          rosters,
+          roster,
+          holes,
+          fills: holes,
+          questions: ownership.owned,
+          orphans: ownership.orphans,
+          expanded,
+          doors,
+          now,
+          landed,
+          onToggle: togglePhase,
+          onDoor: toggleDoor,
+          onOpenEntry: openActor,
+        }),
+        actorEntry === undefined
+          ? null
+          : WF_H('div', { className: 'zwf-actor-wrap' },
+            WF_H(WfActorLedger, { entry: actorEntry, t })),
+        run?.health?.pendingQuestionsKnown === false
+          ? WF_H('p', { className: 'zwf-questions-unknown', 'data-testid': 'workflow-run-questions-unknown' }, say('getRun.questionsUnknown'))
+          : null,
+        WF_H(WfArtifactsSection, {
+          artifacts: artifacts.artifacts,
+          t,
+          scope: workspaceScope,
+          open: artifactsOpen,
+          onToggle: () => setArtifactsOpen((value) => !value),
+        }),
+        artifacts.error === undefined || artifacts.artifacts.length > 0
+          ? null
+          : WF_H('p', { className: 'zwf-caption' }, say('run.artifacts.unavailable')))));
+}
+
+
+/* ---------------------------------- seats ---------------------------------- */
+
+/** The run pane as a right-Sidebar tab. */
+function WfDetailTab(props) {
+  const info = typeof props.useTabInfo === 'function' ? props.useTabInfo() : undefined;
+  const tab = info === undefined ? undefined : info.tab;
+  return WF_H(WfDetailPane, {
+    t: props.t,
+    params: wfDetailTabParams(tab),
+    visible: tab === undefined || tab.visible !== false,
+  });
+}
+
+/** The run pane's tab title: the workflow name, else the pane's own name. */
+function WfDetailTabTitle(props) {
+  const info = typeof props.useTabInfo === 'function' ? props.useTabInfo() : undefined;
+  const params = wfDetailTabParams(info === undefined ? undefined : info.tab);
+  const name = params === undefined || params.name === undefined ? wfDetailSay(props.t, 'pane.run') : params.name;
+  return WF_H('span', { className: 'zwf-run-tab-title' },
+    WF_H('span', { className: 'zwf-run-tab-glyph' }, WF_H(WF_UI.icons.run, { size: 14 })),
+    WF_H('span', { className: 'zwf-run-tab-text', title: name }, name));
+}
+
+/** The script-steps pane as a right-Sidebar tab. */
+function WfScriptTab(props) {
+  const info = typeof props.useTabInfo === 'function' ? props.useTabInfo() : undefined;
+  const tab = info === undefined ? undefined : info.tab;
+  const params = props.params ?? wfDetailTabParams(tab);
+  const visible = useWfVisible(tab === undefined || tab.visible !== false);
+  const scope = React.useMemo(() => ({
+    runId: params?.runId,
+    sessionId: params?.sessionId,
+    visible,
+  }), [params?.runId, params?.sessionId, visible]);
+  const state = useWfDetailRun(scope, { events: false });
+  return WF_H(WfWorkspacePane, { t: props.t, params, run: state.run, scope, visible });
+}
+
+/** The script pane's tab title: the workflow name, else the pane's own name. */
+function WfScriptTabTitle(props) {
+  const info = typeof props.useTabInfo === 'function' ? props.useTabInfo() : undefined;
+  const params = wfDetailTabParams(info === undefined ? undefined : info.tab);
+  const name = params === undefined || params.name === undefined ? wfDetailSay(props.t, 'pane.script') : params.name;
+  return WF_H('span', { className: 'zwf-run-tab-title' },
+    WF_H('span', { className: 'zwf-run-tab-glyph' }, WF_H(WF_UI.icons.log, { size: 14 })),
+    WF_H('span', { className: 'zwf-run-tab-text', title: name }, name));
+}
+
+/** The no-Sidebar fallback for both panes: the same component, centered in the shell overlay. */
+function WfDetailOverlay(props) {
+  const target = useWfDetailOverlay();
+  if (target === undefined) return null;
+  const say = (key, params) => wfDetailSay(props.t, key, params);
+  const script = target.kind === 'script';
+  return WF_H(WF_UI.Modal, {
+    open: true,
+    wide: true,
+    title: say(script ? 'pane.script' : 'pane.run'),
+    closeLabel: say('ui.close'),
+    onClose: () => WF_DETAIL_OVERLAY.close(),
+  },
+  WF_H('div', { className: 'zwf-run-overlay' },
+    script
+      ? WF_H(WfScriptTabContent, { t: props.t, params: target.params })
+      : WF_H(WfDetailPane, { t: props.t, params: target.params, visible: true })));
+}
+
+/** Overlay host for the script pane: it needs the run record, so it wraps the tab body. */
+function WfScriptTabContent(props) {
+  return WF_H(WfScriptTab, { t: props.t, useTabInfo: () => undefined, params: props.params });
+}
+
+/** The overlay store's current target, subscribing to changes. */
+function useWfDetailOverlay() {
+  const [value, setValue] = React.useState(WF_DETAIL_OVERLAY.read);
+  React.useEffect(() => WF_DETAIL_OVERLAY.subscribe(() => setValue(WF_DETAIL_OVERLAY.read())), []);
+  return value;
+}
+
+/* -------------------------------- registration ----------------------------- */
+
+/**
+ * Register both pane types, their titles, the overlay fallbacks and the tab types.
+ *
+ * @param {object} ctx Client root carrying slots, locale and the Sidebar services.
+ * @param {(callback: Function, label: string) => unknown} effect Owner-scoped effect runner.
+ */
+WF_DETAIL.register = function register(ctx, effect) {
+  if (ctx === null || typeof ctx !== 'object') return;
+  const runEffect = typeof effect === 'function' ? effect : (callback) => callback();
+  const t = ctx.locale !== undefined && typeof ctx.locale.bind === 'function' ? ctx.locale.bind(UI_NS) : undefined;
+  const slots = ctx.slots;
+  if (slots !== undefined && typeof slots.inject === 'function' && typeof slots.register === 'function') {
+    slots.inject('sidebar.right.pane.tab', () => slots.register({
+      name: 'sidebar.right.pane.tab',
+      key: WF_DETAIL_RUN_ID,
+      locale: UI_NS,
+    }, WfDetailTab));
+    slots.inject('sidebar.right.pane.tab', () => slots.register({
+      name: 'sidebar.right.pane.tab',
+      key: WF_DETAIL_SCRIPT_ID,
+      locale: UI_NS,
+    }, WfScriptTab));
+    slots.inject('sidebar.right.pane.tab.title', () => slots.register({
+      name: 'sidebar.right.pane.tab.title',
+      key: WF_DETAIL_RUN_ID,
+      locale: UI_NS,
+    }, WfDetailTabTitle));
+    slots.inject('sidebar.right.pane.tab.title', () => slots.register({
+      name: 'sidebar.right.pane.tab.title',
+      key: WF_DETAIL_SCRIPT_ID,
+      locale: UI_NS,
+    }, WfScriptTabTitle));
+    slots.inject('shell.overlay', () => slots.register({
+      name: 'shell.overlay',
+      id: WF_DETAIL_RUN_ID,
+      locale: UI_NS,
+    }, WfDetailOverlay));
+  }
+  if (typeof ctx.inject !== 'function') return;
+  ctx.inject(['sidebarRight', 'sidebarRightTabs'], (child) => {
+    const sidebar = child.sidebarRight;
+    const tabs = child.sidebarRightTabs;
+    if (sidebar !== undefined && typeof sidebar.openTab === 'function') WF_DETAIL_SERVICES.sidebar = sidebar;
+    if (tabs === undefined || typeof tabs.register !== 'function') return;
+    WF_DETAIL_SERVICES.tabs = tabs;
+    runEffect(() => tabs.register({
+      id: WF_DETAIL_RUN_ID,
+      kind: WF_DETAIL_RUN_KIND,
+      priority: 'extension',
+      title: () => wfDetailSay(t, 'pane.run'),
+    }), 'zcode-workflow: run detail tab type');
+    runEffect(() => tabs.register({
+      id: WF_DETAIL_SCRIPT_ID,
+      kind: WF_DETAIL_SCRIPT_KIND,
+      priority: 'extension',
+      title: () => wfDetailSay(t, 'pane.script'),
+    }), 'zcode-workflow: script steps tab type');
+  });
+};
+
+/**
+ * Open one run's detail in the right Sidebar; without a Sidebar (or with no session surface
+ * mounted) the same pane opens through the shell overlay instead.
+ *
+ * @param {{ runId: string, sessionId?: string, projectRoot?: string, workflowName?: string, name?: string,
+ *   focusPhaseId?: string }} value
+ * @returns {boolean} whether a surface accepted the request.
+ */
+WF_DETAIL.open = function open(value) {
+  const params = wfDetailParams(value);
+  if (params === undefined) return false;
+  const sidebar = WF_DETAIL_SERVICES.sidebar;
+  if (sidebar !== undefined && typeof sidebar.openTab === 'function') {
+    try {
+      sidebar.openTab(WF_DETAIL_RUN_KIND, { params });
+      WF_DETAIL_OVERLAY.close();
+      return true;
+    } catch (error) {
+      console.warn('zcode-workflow: cannot open the run detail in the right sidebar', error);
+    }
+  }
+  WF_DETAIL_OVERLAY.open('run', params);
+  return true;
+};
+
+/**
+ * Open the script-steps pane of one run, optionally focused on a phase.
+ * @param {{ runId: string, sessionId?: string, projectRoot?: string, workflowName?: string, focusPhaseId?: string }} value
+ * @returns {boolean} whether a surface accepted the request.
+ */
+WF_DETAIL.openScript = function openScript(value) {
+  const params = wfDetailParams({ ...value, focusPhaseId: value?.focusPhaseId });
+  if (params === undefined) return false;
+  const sidebar = WF_DETAIL_SERVICES.sidebar;
+  if (sidebar !== undefined && typeof sidebar.openTab === 'function') {
+    try {
+      sidebar.openTab(WF_DETAIL_SCRIPT_KIND, { params });
+      WF_DETAIL_OVERLAY.close();
+      return true;
+    } catch (error) {
+      console.warn('zcode-workflow: cannot open the script steps in the right sidebar', error);
+    }
+  }
+  WF_DETAIL_OVERLAY.open('script', params);
+  return true;
+};
+
+/* ---- client-src/41-detail-model.js ---- */
+/*
+ * View model for the run-detail surface: one run record (the Host's derived run summary) into the
+ * shapes the panel, the timeline and the roster render.
+ *
+ * The Host owns derivation: station status comes from the run record the Host returns, and this
+ * module only falls back to the documented derivation when that record carries bare phase data.
+ */
+
+/* --------------------------------- readers --------------------------------- */
+
+/** One non-empty string, or undefined. */
+function wfText(value) {
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+/** One finite number, or undefined. */
+function wfNum(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+/** Object entries of an array, dropping holes. */
+function wfObjects(value) {
+  return Array.isArray(value) ? value.filter((entry) => entry !== null && typeof entry === 'object') : [];
+}
+
+/** A compact age label (`5s`, `4m 12s`) between one past timestamp and now. */
+function wfAge(timestamp, now) {
+  const from = wfNum(timestamp);
+  if (from === undefined) return '';
+  return WF_UI.duration(from, wfNum(now) ?? Date.now());
+}
+
+/** Locale-aware thousands grouping with a stable fallback. */
+function wfGroup(value) {
+  const number = wfNum(value);
+  if (number === undefined) return '0';
+  try {
+    return number.toLocaleString();
+  } catch {
+    return String(number);
+  }
+}
+
+/* --------------------------------- identity -------------------------------- */
+
+/** The run id, under either wire name the Host may use. */
+function wfDetailRunId(run) {
+  return wfText(run?.runId) ?? wfText(run?.id);
+}
+
+/** The run's display name; the panel falls back to its own title. */
+function wfDetailRunName(run, params) {
+  return wfText(run?.name) ?? wfText(run?.label) ?? wfText(params?.workflowName) ?? wfText(params?.name);
+}
+
+function wfDetailRunStatus(run) {
+  const status = wfText(run?.status);
+  return ['pending', 'running', 'completed', 'errored', 'stopped', 'superseded'].includes(status) ? status : 'unknown';
+}
+
+function wfDetailActive(run) {
+  const status = wfDetailRunStatus(run);
+  return status === 'pending' || status === 'running';
+}
+
+function wfRunIsTerminal(run) {
+  return ['completed', 'errored', 'stopped', 'superseded'].includes(wfDetailRunStatus(run));
+}
+
+/** Phase names match exactly, unless the recorded name was truncated at the wire limit. */
+function wfPhaseMatches(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a === '' || b === '') return false;
+  return a === b || (a.length >= 128 && b.startsWith(a));
+}
+
+/* -------------------------------- stations --------------------------------- */
+
+/**
+ * Station statuses from the run record.
+ *
+ * The Host returns `stations` (already derived). When it only carries `phaseNames`/`phases`/
+ * `currentPhase`, apply the documented derivation so the panel degrades instead of guessing.
+ *
+ * @param {Record<string, any>} run
+ * @returns {{ name: string, status: string, alongside?: number[], hole?: string }[]}
+ */
+function wfDetailStations(run) {
+  const derived = wfObjects(run?.stations ?? run?.phaseSummary);
+  if (derived.length > 0) {
+    return derived.map((station) => ({
+      name: wfText(station.name) ?? '',
+      status: ['pending', 'running', 'done', 'failed'].includes(station.status) ? station.status : 'pending',
+      alongside: Array.isArray(station.alongside) ? station.alongside.filter((value) => Number.isInteger(value)) : undefined,
+      hole: station.hole === 'waiting' || station.hole === 'open' ? station.hole : undefined,
+    })).filter((station) => station.name !== '');
+  }
+  return wfDeriveStations(run);
+}
+
+/** Documented derivation, used only when the Host record carries no station list. */
+function wfDeriveStations(run) {
+  const declaredNames = new Set(wfObjects(run?.phases).map((phase) => wfText(phase.name)).filter(Boolean));
+  const current = wfText(run?.currentPhase);
+  const names = Array.isArray(run?.phaseNames) && run.phaseNames.length > 0
+    ? run.phaseNames.filter((name) => typeof name === 'string' && name !== '')
+    : wfObjects(run?.phases).map((phase) => wfText(phase.name)).filter(Boolean);
+  if (Array.isArray(run?.phaseNames) !== true && current !== undefined && !declaredNames.has(current)) {
+    names.push(current);
+  }
+  const active = wfDetailActive(run);
+  const liveNames = active
+    ? wfObjects(run?.nodes)
+      .filter((node) => ['executing', 'repairing', 'nudged'].includes(node.phase))
+      .map((node) => wfText(node.phaseName))
+      .filter(Boolean)
+    : [];
+  const alongsides = Array.isArray(run?.phaseAlongside) ? run.phaseAlongside : [];
+  const holedIndexes = new Set((Array.isArray(run?.phaseHoles) ? run.phaseHoles : []).filter((value) => Number.isInteger(value)));
+  const waitingHoles = new Set(
+    wfObjects(run?.holes).filter((hole) => hole.state === 'waiting').map((hole) => wfText(hole.name)).filter(Boolean),
+  );
+  const limit = Math.min(names.length, 32);
+  return names.slice(0, 32).map((name, index) => {
+    const isCurrent = name === current;
+    const isDeclared = declaredNames.has(name) || isCurrent;
+    const isLive = liveNames.some((live) => wfPhaseMatches(name, live));
+    let status;
+    if (active) status = isCurrent || isLive ? 'running' : isDeclared ? 'done' : 'pending';
+    else if (wfDetailRunStatus(run) === 'completed') status = isDeclared ? 'done' : 'pending';
+    else if (wfDetailRunStatus(run) === 'errored') status = isCurrent ? 'failed' : isDeclared ? 'done' : 'pending';
+    else status = isCurrent ? 'pending' : isDeclared ? 'done' : 'pending';
+    const alongside = (Array.isArray(alongsides[index]) ? alongsides[index] : [])
+      .filter((value) => Number.isInteger(value) && value >= 0 && value < limit && value !== index);
+    const hole = waitingHoles.has(name) ? 'waiting' : holedIndexes.has(index) ? 'open' : undefined;
+    return { name, status, ...(alongside.length === 0 ? {} : { alongside }), ...(hole === undefined ? {} : { hole }) };
+  });
+}
+
+/** How many times one phase was entered (`phase-entered` ordinal), when the Host reports it. */
+function wfPhaseRounds(run, name) {
+  const phase = wfObjects(run?.phases).find((entry) => wfPhaseMatches(name, wfText(entry.name)));
+  return wfNum(phase?.rounds);
+}
+
+/* ------------------------------- aggregates -------------------------------- */
+
+/** `{settled, total}`: settled nodes over every node the run ever dispatched. */
+function wfDetailSteps(run) {
+  const nodes = wfObjects(run?.nodes);
+  const unlisted = wfNum(run?.usage?.nodesUnlisted) ?? 0;
+  let settled = nodes.filter((node) => node.phase === 'settled').length + Math.max(0, wfNum(run?.usage?.nodesUnlistedSettled) ?? 0);
+  let total = nodes.length + unlisted;
+  const steps = run?.steps;
+  if (steps !== null && typeof steps === 'object') {
+    const started = wfNum(steps.started);
+    const done = wfNum(steps.settled);
+    if (started !== undefined) total = started;
+    if (done !== undefined) settled = done;
+  }
+  return { settled, total };
+}
+
+function wfDetailTokens(run) {
+  return wfNum(run?.usage?.spentTokens) ?? wfNum(run?.spentTokens) ?? 0;
+}
+
+/** Highest phase round count; the status row shows it only at two or more. */
+function wfRunRounds(run, stations) {
+  let rounds = 0;
+  for (const phase of wfObjects(run?.phases)) {
+    rounds = Math.max(rounds, wfNum(phase.rounds) ?? 0);
+  }
+  for (const station of stations ?? []) {
+    const value = wfPhaseRounds(run, station.name);
+    if (value !== undefined) rounds = Math.max(rounds, value);
+  }
+  return rounds;
+}
+
+function wfRunConcurrency(run) {
+  const concurrency = run?.concurrency;
+  if (concurrency === null || typeof concurrency !== 'object') return undefined;
+  const cap = wfNum(concurrency.cap);
+  if (cap === undefined) return undefined;
+  return {
+    cap,
+    limit: wfNum(concurrency.limit),
+    cooldownUntil: (wfNum(concurrency.cooldownMs) ?? 0) > 0 ? Date.now() + (wfNum(concurrency.cooldownMs)) : undefined,
+    key: wfText(concurrency.key),
+  };
+}
+
+/** Pending answers the run is parked on. */
+function wfRunQuestions(run) {
+  return wfObjects(run?.pendingQuestions).map((question) => ({
+    qid: wfText(question.qid) ?? '',
+    actorSiteId: wfText(question.actorSiteId),
+    actorOrdinal: wfNum(question.actorOrdinal),
+    actorName: wfText(question.actorName),
+    question: wfText(question.question) ?? '',
+    context: wfText(question.context),
+    askedAt: wfNum(question.askedAt),
+  })).filter((question) => question.question !== '');
+}
+
+/** Holes: waiting ones need the agent, filled ones only mark where work was inserted. */
+function wfDetailHoles(run) {
+  return wfObjects(run?.holes).map((hole) => ({
+    id: wfText(hole.id) ?? wfText(hole.name) ?? '',
+    name: wfText(hole.name) ?? '',
+    state: hole.state === 'filled' ? 'filled' : 'waiting',
+    prompt: wfText(hole.prompt),
+    since: wfNum(hole.since),
+    filledAt: wfNum(hole.filledAt),
+    filledBy: wfText(hole.filledBy),
+  })).filter((hole) => hole.name !== '');
+}
+
+/** Artifacts, newest version first, with the fields the panel needs flattened. */
+function wfDetailArtifacts(run) {
+  return wfObjects(run?.artifacts).map((artifact) => {
+    const versions = wfObjects(artifact.versions).map((version) => ({
+      version: wfNum(version.version) ?? 1,
+      title: wfText(version.title),
+      contentType: wfText(version.contentType),
+      bytes: wfNum(version.bytes),
+      uri: wfText(version.uri),
+      sourcePath: wfText(version.sourcePath),
+      publishedAt: wfNum(version.publishedAt),
+      primary: version.primary === true,
+      spec: version.spec,
+    }));
+    const version = wfNum(artifact.version) ?? versions.reduce((max, entry) => Math.max(max, entry.version), 1);
+    const current = versions.find((entry) => entry.version === version);
+    return {
+      id: wfText(artifact.id) ?? '',
+      kind: wfText(artifact.kind) ?? 'file',
+      title: wfText(artifact.title),
+      description: wfText(artifact.description),
+      contentType: wfText(artifact.contentType) ?? current?.contentType,
+      sourcePath: wfText(artifact.sourcePath) ?? current?.sourcePath,
+      spec: artifact.spec ?? current?.spec,
+      version,
+      versions,
+      itemCount: wfNum(artifact.itemCount) ?? 0,
+      primary: artifact.primary === true,
+      bytes: wfNum(artifact.bytes) ?? current?.bytes,
+      at: wfNum(artifact.publishedAt) ?? current?.publishedAt,
+    };
+  }).filter((artifact) => artifact.id !== '');
+}
+
+/** The artifact the ledger marks primary, else the newest one that carries a preview. */
+function wfPrimaryArtifact(artifacts) {
+  return artifacts.find((artifact) => artifact.primary === true) ?? artifacts[0];
+}
+
+/** Table-like artifacts ship their rows in the published spec. */
+function wfArtifactRows(artifact) {
+  const spec = artifact?.spec;
+  const items = Array.isArray(spec?.items) ? spec.items : Array.isArray(spec?.rows) ? spec.rows : undefined;
+  return Array.isArray(items) ? items.filter((item) => item !== null && typeof item === 'object') : [];
+}
+
+/** Column names of a table-like artifact, in first-row order plus declared columns. */
+function wfArtifactColumns(artifact, rows) {
+  const declared = Array.isArray(artifact?.spec?.columns)
+    ? artifact.spec.columns.map((column) => (typeof column === 'string' ? column : wfText(column?.key))).filter(Boolean)
+    : [];
+  const found = [];
+  for (const row of rows) {
+    for (const key of Object.keys(row)) if (!found.includes(key)) found.push(key);
+  }
+  for (const key of declared) if (!found.includes(key)) found.push(key);
+  return found;
+}
+
+/** `B / KB / MB` byte label, matching the ledger's copy. */
+function wfArtifactSize(bytes) {
+  const value = wfNum(bytes);
+  if (value === undefined || value <= 0) return undefined;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/**
+ * One compact health line, from whatever the Host reported.
+ * Only facts present on the record are rendered; nothing is inferred from a missing clock.
+ */
+function wfRunHealth(run, stationCount) {
+  const items = [];
+  const health = run?.health;
+  if (health !== null && typeof health === 'object') {
+    const lastProgress = wfNum(health.lastProgressAt);
+    if (lastProgress !== undefined) items.push({ key: 'getRun.health.lastProgress', params: { age: wfAge(lastProgress, health.now) } });
+    const stalled = health.stalled;
+    if (stalled === true) {
+      const since = wfNum(health.stalledSince);
+      items.push(since === undefined
+        ? { key: 'getRun.health.stalledNoClock' }
+        : { key: 'getRun.health.stalled', params: { age: wfAge(since, health.now) } });
+    } else if (stalled === false) {
+      items.push({ key: 'getRun.health.notStalled' });
+    }
+  }
+  const concurrency = wfRunConcurrency(run);
+  if (concurrency !== undefined) {
+    const effective = wfObjects(run?.actors).filter((actor) => actor.status === 'running').length;
+    items.push({ key: 'getRun.health.concurrency', params: { effective, cap: concurrency.cap } });
+  }
+  const nodes = wfObjects(run?.nodes);
+  const cached = nodes.filter((node) => node.cached === true).length;
+  if (cached > 0) items.push({ key: cached === 1 ? 'getRun.health.cachedStepsOne' : 'getRun.health.cachedSteps', params: { count: cached } });
+  const failures = nodes.filter((node) => node.outcome === 'failed').length;
+  if (failures > 0) items.push({ key: failures === 1 ? 'getRun.health.failuresOne' : 'getRun.health.failures', params: { count: failures } });
+  const leftover = wfRunIsTerminal(run)
+    ? nodes.filter((node) => ['executing', 'repairing', 'nudged', 'dispatched'].includes(node.phase)).length
+    : 0;
+  return {
+    items,
+    leftover,
+    leftoverKey: leftover === 1 ? 'getRun.health.leftoverOne' : 'getRun.health.leftover',
+    hasStationList: stationCount > 0,
+  };
+}
+
+/* --------------------------------- roster ---------------------------------- */
+
+function wfActorKey(actor) {
+  return `${wfText(actor.siteId) ?? ''}@${wfNum(actor.ordinal) ?? 0}`;
+}
+
+function wfNodeForActor(node, actor) {
+  return wfText(node.actorSiteId) === wfText(actor.siteId) && wfNum(node.actorOrdinal) === wfNum(actor.ordinal);
+}
+
+/** Nodes an actor owns, newest first. */
+function wfActorNodes(run, actor) {
+  return wfObjects(run?.nodes).filter((node) => wfNodeForActor(node, actor));
+}
+
+/** Actor status: running → running; any failed node → failed; settled work → done; else pending. */
+function wfActorStatus(actor, nodes) {
+  const declared = wfText(actor.status);
+  const failed = nodes.some((node) => node.outcome === 'failed');
+  if (declared === 'running') return 'running';
+  if (failed) return 'failed';
+  if (declared === 'completed') return 'done';
+  if (nodes.length > 0 && nodes.every((node) => node.phase === 'settled' || node.outcome === 'ok')) return 'done';
+  return declared === 'waiting' ? 'pending' : 'pending';
+}
+
+/** One roster entry (agent pill) for an actor. */
+function wfRosterEntry(run, actor, questions) {
+  const nodes = wfActorNodes(run, actor);
+  const status = wfActorStatus(actor, nodes);
+  const asks = nodes.filter((node) => node.kind === 'ask').length;
+  const reads = nodes.filter((node) => node.kind === 'world-read').length;
+  const asking = questions.some((question) => question.actorSiteId === wfText(actor.siteId)
+    && wfNum(question.actorOrdinal) === wfNum(actor.ordinal));
+  return {
+    key: wfActorKey(actor),
+    siteId: wfText(actor.siteId),
+    ordinal: wfNum(actor.ordinal) ?? 0,
+    sessionId: wfText(actor.sessionId),
+    name: wfText(actor.name),
+    status,
+    model: wfText(actor.model),
+    phaseName: wfText(actor.phaseName) ?? wfText(nodes[0]?.phaseName),
+    asks,
+    reads,
+    asking,
+    nodes,
+    questions: questions.filter((question) => question.actorSiteId === wfText(actor.siteId)
+      && wfNum(question.actorOrdinal) === wfNum(actor.ordinal)),
+  };
+}
+
+/** Every actor, in roster order (running first, then failed, pending, done). */
+function wfRunRoster(run) {
+  const questions = wfRunQuestions(run);
+  const entries = wfObjects(run?.actors).map((actor) => wfRosterEntry(run, actor, questions));
+  const rank = { running: 0, failed: 1, pending: 2, done: 3 };
+  return entries.slice().sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9));
+}
+
+/** Pinned pills, the rest of the roster and its tallies for one station. */
+function wfStationRoster(run, station, roster, unlistedByPhase) {
+  const own = roster.filter((entry) => wfPhaseMatches(station.name, entry.phaseName));
+  const unlisted = wfObjects(unlistedByPhase)
+    .filter((entry) => wfPhaseMatches(station.name, wfText(entry.phaseName)))
+    .reduce((sum, entry) => sum + Math.max(0, wfNum(entry.actors) ?? 0), 0);
+  const counts = { done: 0, failed: 0, running: 0, pending: 0 };
+  for (const entry of own) counts[entry.status] = (counts[entry.status] ?? 0) + 1;
+  const pinned = own.slice(0, 5);
+  const rest = own.slice(5);
+  const nodes = wfObjects(run?.nodes).filter((node) => wfPhaseMatches(station.name, wfText(node.phaseName)));
+  const settled = nodes.filter((node) => node.phase === 'settled').length
+    + Math.max(0, (wfNum(run?.usage?.nodesUnlistedSettled) ?? 0));
+  const observed = nodes.length + Math.max(0, wfNum(run?.usage?.nodesUnlisted) ?? 0);
+  return {
+    pins: pinned,
+    rest,
+    counts,
+    unlisted,
+    total: own.length + unlisted,
+    fraction: { settled, observed },
+    rounds: wfPhaseRounds(run, station.name),
+  };
+}
+
+/* --------------------------------- timeline -------------------------------- */
+
+/** Column geometry of the horizontal rail: one column per station. */
+const WF_TIMELINE = {
+  column: 168,
+  gap: 24,
+  head: 24,
+  pillsTop: 34,
+  pill: 30,
+  pillGap: 6,
+  maxPills: 6,
+  viewport: 4,
+  step: 192,
+};
+
+/**
+ * Layout for the horizontal rail: columns, rails between neighbours, arcs for parallel phases.
+ * @param {{ name: string, status: string, alongside?: number[] }[]} stations
+ */
+function wfTimelineLayout(stations) {
+  const pitch = WF_TIMELINE.column + WF_TIMELINE.gap;
+  const columns = stations.map((station, index) => ({
+    ...station,
+    index,
+    left: index * pitch,
+    pillsLeft: index * pitch + 6,
+    pillsWidth: WF_TIMELINE.column - 12,
+  }));
+  const rails = [];
+  for (let index = 0; index + 1 < columns.length; index += 1) {
+    const from = columns[index];
+    const to = columns[index + 1];
+    rails.push({
+      key: `rail-${index}`,
+      kind: 'stream',
+      x1: from.left + WF_TIMELINE.column - 8,
+      x2: to.left + 8,
+      y: WF_TIMELINE.head - 4,
+    });
+  }
+  const arcs = [];
+  for (const column of columns) {
+    for (const target of column.alongside ?? []) {
+      if (target <= column.index) continue;
+      const to = columns[target];
+      if (to === undefined) continue;
+      arcs.push({
+        key: `arc-${column.index}-${target}`,
+        kind: 'branch',
+        air: 8 + arcs.length * 10,
+        x1: column.left + WF_TIMELINE.column / 2,
+        x2: to.left + WF_TIMELINE.column / 2,
+      });
+    }
+  }
+  const width = Math.max(0, columns.length * pitch - WF_TIMELINE.gap);
+  const tallest = columns.reduce((max, column) => Math.max(max, column.pills ?? 0), 0);
+  return {
+    columns,
+    rails,
+    arcs,
+    width,
+    height: WF_TIMELINE.pillsTop + Math.min(tallest, WF_TIMELINE.maxPills) * (WF_TIMELINE.pill + WF_TIMELINE.pillGap) + 8,
+  };
+}
+
+/** Window of the rail that keeps the focused station visible, with the two ledge counts. */
+function wfTimelineWindow(count, focus) {
+  const viewport = WF_TIMELINE.viewport;
+  if (count <= viewport) return { start: 0, end: count, earlier: 0, later: 0 };
+  const anchor = Math.max(0, Math.min(focus ?? count - 1, count - 1));
+  let start = anchor - viewport + 2;
+  if (start < 0) start = 0;
+  if (start + viewport > count) start = count - viewport;
+  return { start, end: Math.min(count, start + viewport), earlier: start, later: Math.max(0, count - start - viewport) };
+}
+
+/** The first station that is running or waiting on a hole; the rail centres it. */
+function wfFocusStation(stations) {
+  const running = stations.findIndex((station) => station.status === 'running' || station.hole === 'waiting');
+  if (running >= 0) return running;
+  for (let index = stations.length - 1; index >= 0; index -= 1) {
+    if (stations[index].status !== 'pending') return index;
+  }
+  return stations.length - 1;
+}
+
+/* -------------------------------- questions -------------------------------- */
+
+/**
+ * Split pending questions into the ones a roster entry owns and the orphans.
+ * @param {{ qid: string }[]} questions
+ * @param {{ siteId?: string, ordinal?: number, key: string }[]} roster
+ */
+function wfQuestionOwners(questions, roster) {
+  const byActor = new Map(roster.map((entry) => [`${entry.siteId ?? ''}@${entry.ordinal}`, entry.key]));
+  const owned = new Map();
+  const orphans = [];
+  for (const question of questions) {
+    const key = byActor.get(`${question.actorSiteId ?? ''}@${question.actorOrdinal ?? 0}`);
+    if (key === undefined) {
+      orphans.push(question);
+      continue;
+    }
+    const list = owned.get(key) ?? [];
+    list.push(question);
+    owned.set(key, list);
+  }
+  return { owned, orphans };
+}
+
+/* ---- client-src/42-detail-timeline.js ---- */
+/*
+ * The horizontal run rail: stations, the rails between them, the arcs that carry parallel phases,
+ * the fill frames left by hole insertion, the pill column under each station and the edge ledges
+ * that stand in for the stations scrolled out of view.
+ *
+ * Geometry lives in `WF_TIMELINE` (41-detail-model.js); this part only draws and scrolls.
+ */
+
+/** Scroll step for one arrow key press, in pixels. */
+const WF_TIMELINE_STEP = 192;
+
+function wfTimelineStatusKey(status) {
+  return `graph.status.${['running', 'done', 'failed', 'pending'].includes(status) ? status : 'pending'}`;
+}
+
+/**
+ * One station head: lamp, name, the hole caret, the fraction and the round count.
+ * @param {{ station: object, fraction: { settled: number, observed: number }, rounds?: number,
+ *   t: Function, onOpen?: Function, openTestId?: string, script?: boolean }} props
+ */
+function WfTimelineStationHead(props) {
+  const { station, fraction, rounds, t } = props;
+  const lampClass = `zwf-lamp zwf-lamp-${station.status}${station.hole === 'waiting' ? ' zwf-lamp-hole-waiting' : ''}${station.hole === 'open' ? ' zwf-lamp-hole-open' : ''}`;
+  const hole = station.hole === 'waiting'
+    ? WF_H('span', { className: 'zwf-station-hole', 'data-testid': 'workflow-hole-waiting' }, WF_H('span', { className: 'zwf-station-hole-text' }, WF_UI.say(t, UI_EN, 'hole.waiting')))
+    : null;
+  return WF_H('div', { className: 'zwf-station-head', 'data-testid': 'workflow-timeline-station-head' },
+    WF_H('span', { className: lampClass, 'aria-hidden': 'true' }),
+    WF_H('span', { className: 'zwf-station-name', title: station.name }, station.name),
+    hole,
+    WF_H('span', { className: 'zwf-station-stats' },
+      WF_H('span', {
+        className: 'zwf-station-fraction zwf-mono',
+        'data-testid': 'workflow-timeline-fraction',
+      }, `${fraction.settled}/${fraction.observed}`),
+      rounds !== undefined && rounds > 0
+        ? WF_H('span', {
+          className: 'zwf-station-rounds zwf-mono',
+          'data-testid': 'workflow-timeline-rounds',
+          title: WF_UI.say(t, UI_EN, 'timeline.rounds', { count: rounds }),
+        }, String(rounds))
+        : null),
+    props.script === true
+      ? WF_H('button', {
+        type: 'button',
+        className: 'zwf-station-script',
+        'data-testid': 'workflow-timeline-workspace-open',
+        title: WF_UI.say(t, UI_EN, 'timeline.openScript', { phase: station.name }),
+        onClick: (event) => {
+          event.stopPropagation();
+          props.onOpenScript?.(station);
+        },
+      },
+      WF_H(WF_UI.icons.log, { size: 12 }),
+      WF_H('span', {}, WF_UI.say(t, UI_EN, 'graph.lane.script')))
+      : null,
+    WF_H('span', { className: 'zwf-station-caret', 'data-testid': 'workflow-timeline-caret', 'aria-hidden': 'true' }));
+}
+
+/**
+ * The rail itself.
+ *
+ * @param {{
+ *   stations: object[], roster: Map<string, object[]>, t: Function, focus?: number,
+ *   scriptPhases?: Set<string>, onOpenEntry?: Function, onOpenStation?: Function, onOpenScript?: Function,
+ *   fractions?: Map<string, { settled: number, observed: number }>, rounds?: Map<string, number>,
+ *   ledger?: { earlier: number, later: number },
+ * }} props
+ */
+function WfTimeline(props) {
+  const { stations, roster, t } = props;
+  const scroller = React.useRef(undefined);
+  const [scroll, setScroll] = React.useState({ left: 0, width: 0 });
+  const pitch = WF_TIMELINE.column + WF_TIMELINE.gap;
+  const layout = React.useMemo(() => wfTimelineLayout(stations), [stations]);
+  const focus = props.focus ?? wfFocusStation(stations);
+  const focusLeft = Math.max(0, focus * pitch - 24);
+  const fractionOf = (station) => (props.fractions?.get(station.name) ?? { settled: 0, observed: 0 });
+  const roundsOf = (station) => props.rounds?.get(station.name);
+  const measure = React.useCallback(() => {
+    const node = scroller.current;
+    if (node === undefined || node === null) return;
+    setScroll({ left: node.scrollLeft, width: node.clientWidth });
+  }, []);
+  React.useEffect(() => {
+    const node = scroller.current;
+    if (node === undefined || node === null) return undefined;
+    measure();
+    node.addEventListener('scroll', measure, { passive: true });
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver(measure);
+      observer.observe(node);
+      return () => {
+        node.removeEventListener('scroll', measure);
+        observer.disconnect();
+      };
+    }
+    return () => node.removeEventListener('scroll', measure);
+  }, [measure]);
+  React.useEffect(() => {
+    const node = scroller.current;
+    if (node === undefined || node === null) return;
+    if (Math.abs(node.scrollLeft - focusLeft) < 4) return;
+    node.scrollTo({ left: focusLeft, behavior: 'smooth' });
+  }, [focusLeft, layout.width]);
+  const onKeyDown = React.useCallback((event) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const target = event.target;
+    const inside = target instanceof Element && target.closest('[data-testid="workflow-timeline-station"], .zwf-ledge') !== null;
+    if (!inside) return;
+    event.preventDefault();
+    const node = scroller.current;
+    if (node === undefined || node === null) return;
+    node.scrollBy({ left: event.key === 'ArrowRight' ? WF_TIMELINE_STEP : -WF_TIMELINE_STEP, behavior: 'smooth' });
+  }, []);
+  if (stations.length === 0) return null;
+  const maxScroll = Math.max(0, layout.width - scroll.width);
+  const hiddenBefore = scroll.left > 8 ? stations.filter((station, index) => (index + 1) * pitch - 8 < scroll.left).length : 0;
+  const hiddenAfter = scroll.left < maxScroll - 8
+    ? stations.filter((station, index) => (index + 1) * pitch - 8 < scroll.left + scroll.width).length
+    : 0;
+  const fade = maxScroll <= 8 ? undefined : scroll.left <= 8 ? 'right' : scroll.left >= maxScroll - 8 ? 'left' : 'both';
+  const fills = stations.filter((station) => station.hole === 'open');
+  return WF_H('div', {
+    className: 'zwf-timeline',
+    'data-testid': 'workflow-timeline',
+    onKeyDown,
+  },
+  WF_H('div', { className: 'zwf-timeline-frame' },
+    WF_H('div', {
+      className: 'zwf-timeline-scroller',
+      'data-testid': 'workflow-timeline-scroller',
+      'data-timeline-fade': fade,
+      ref: scroller,
+    },
+    WF_H('div', { className: 'zwf-timeline-canvas', style: { width: layout.width, height: layout.height } },
+      fills.length > 0
+        ? WF_H(WF_FRAGMENT, null,
+          WF_H('div', { className: 'zwf-fills', 'data-testid': 'workflow-timeline-fill-frames' },
+            fills.map((station) => WF_H('span', {
+              key: station.name,
+              className: 'zwf-fill-frame',
+              'data-testid': 'workflow-timeline-fill-frame',
+              style: { left: station.index * pitch, width: WF_TIMELINE.column },
+            }))),
+          WF_H('div', { className: 'zwf-fill-heads', 'data-testid': 'workflow-timeline-fill-heads' },
+            fills.map((station) => WF_H('span', {
+              key: station.name,
+              className: 'zwf-fill-head zwf-mono',
+              'data-testid': 'workflow-timeline-fill-head',
+              style: { left: station.index * pitch },
+              title: station.name,
+            }, station.name))))
+        : null,
+      WF_H('svg', {
+        className: 'zwf-timeline-svg',
+        width: layout.width,
+        height: layout.height,
+        'data-testid': 'workflow-timeline-arc',
+        'aria-hidden': 'true',
+      },
+      WF_H('g', { 'data-rail-kind': 'stream' },
+        layout.rails.map((rail) => WF_H('g', { key: rail.key },
+          WF_H('path', {
+            className: `zwf-rail zwf-rail-${rail.kind}`,
+            'data-testid': 'workflow-timeline-rail',
+            d: `M${rail.x1} ${rail.y}H${rail.x2}`,
+          }),
+          [0, 1, 2].map((offset) => WF_H('path', {
+            key: offset,
+            className: 'zwf-rail-chevron',
+            d: `M${rail.x1 + 10 + offset * 6} ${rail.y - 3}l4 3-4 3`,
+          }))))),
+      layout.arcs.map((arc) => WF_H('path', {
+        key: arc.key,
+        className: 'zwf-arc',
+        'data-air': arc.air,
+        d: `M${arc.x1} 12V${12 - arc.air}H${arc.x2}V12`,
+      }))),
+      stations.map((station) => {
+        const entries = roster.get(station.name) ?? [];
+        const shown = entries.slice(0, WF_TIMELINE.maxPills);
+        const rest = entries.length - shown.length;
+        return WF_H('div', {
+          key: station.name,
+          className: 'zwf-station',
+          'data-testid': 'workflow-timeline-station',
+          'data-phase-status': station.status,
+          style: { left: station.index * pitch, width: WF_TIMELINE.column },
+        },
+        WF_H('button', {
+          type: 'button',
+          className: 'zwf-station-button',
+          onClick: () => props.onOpenStation?.(station),
+          'aria-label': station.name,
+        }, WF_H(WfTimelineStationHead, {
+          station,
+          fraction: fractionOf(station),
+          rounds: roundsOf(station),
+          t,
+          script: props.scriptPhases?.has(station.name) === true,
+          onOpenScript: props.onOpenScript,
+        })),
+        WF_H('div', {
+          className: 'zwf-station-pills',
+          'data-testid': 'workflow-timeline-pills',
+          style: { top: WF_TIMELINE.pillsTop, width: WF_TIMELINE.column - 12, gap: WF_TIMELINE.pillGap },
+        },
+        shown.map((entry) => WF_H(WfAgentPill, {
+          key: entry.key,
+          entry,
+          t,
+          size: 'row',
+          open: { testId: 'workflow-timeline-pill-open', onOpen: () => props.onOpenEntry?.(entry) },
+        })),
+        rest > 0
+          ? WF_H(WfRosterDoor, {
+            key: 'door',
+            t,
+            open: false,
+            total: rest,
+            entries: entries.slice(5),
+            counts: props.counts?.get(station.name) ?? {},
+            onToggle: () => props.onOpenStation?.(station),
+          })
+          : null));
+      }),
+      WF_H('span', { className: 'zwf-timeline-tail', 'data-testid': 'workflow-timeline-tail-stub', style: { left: layout.width - 12 } }))),
+    hiddenBefore > 0
+      ? WF_H('button', {
+        type: 'button',
+        className: 'zwf-ledge zwf-ledge-left',
+        'data-testid': 'workflow-timeline-ledge-left',
+        title: WF_UI.say(t, UI_EN, 'timeline.ledge.earlier', { count: hiddenBefore }),
+        onClick: () => scroller.current?.scrollBy({ left: -WF_TIMELINE_STEP, behavior: 'smooth' }),
+      },
+      WF_H('span', { className: 'zwf-ledge-more', 'data-testid': 'workflow-timeline-ledge-more' }, `+${hiddenBefore}`),
+      WF_H('span', { className: 'zwf-ledge-lamp', 'data-testid': 'workflow-timeline-ledge-lamp' }))
+      : null,
+    hiddenAfter > 0 && hiddenAfter < stations.length
+      ? WF_H('button', {
+        type: 'button',
+        className: 'zwf-ledge zwf-ledge-right',
+        'data-testid': 'workflow-timeline-ledge-right',
+        title: WF_UI.say(t, UI_EN, 'timeline.ledge.later', { count: hiddenAfter }),
+        onClick: () => scroller.current?.scrollBy({ left: WF_TIMELINE_STEP, behavior: 'smooth' }),
+      },
+      WF_H('span', { className: 'zwf-ledge-more', 'data-testid': 'workflow-timeline-ledge-more' }, `+${hiddenAfter}`),
+      WF_H('span', { className: 'zwf-ledge-lamp', 'data-testid': 'workflow-timeline-ledge-lamp' }))
+      : null,
+    maxScroll > 8
+      ? WF_H('div', { className: 'zwf-timeline-bar', 'data-testid': 'workflow-timeline-scrollbar', 'aria-label': WF_UI.say(t, UI_EN, 'timeline.scrollbar') },
+        WF_H('span', {
+          className: 'zwf-timeline-thumb',
+          'data-testid': 'workflow-timeline-scrollbar-thumb',
+          style: {
+            width: `${Math.max(12, Math.round((scroll.width / Math.max(1, layout.width)) * 100))}%`,
+            left: `${maxScroll === 0 ? 0 : Math.round((scroll.left / maxScroll) * (100 - Math.max(12, Math.round((scroll.width / Math.max(1, layout.width)) * 100))))}%`,
+          },
+        }))
+      : null,
+    WF_H('span', { className: 'zwf-timeline-leader', 'data-testid': 'workflow-timeline-leader', 'aria-hidden': 'true' })));
+}
+
+/* ---- client-src/43-detail-phases.js ---- */
+/*
+ * The vertical phase list of the run-detail pane: one folding row per station, the spine that
+ * joins them, the fill heading a hole leaves behind, the roster behind each row, the pending
+ * questions and the states that replace the list entirely (no graph, orphan questions).
+ */
+
+/** One pending question. */
+function WfQuestionBlock(props) {
+  const question = props.question;
+  const asker = question.actorName
+    ?? (question.actorSiteId === undefined ? undefined : `${question.actorSiteId}@${question.actorOrdinal ?? 0}`);
+  return WF_H('div', {
+    className: 'zwf-question',
+    'data-testid': 'workflow-run-question',
+    'data-qid': question.qid,
+  },
+  WF_H('span', { className: 'zwf-question-glyph' }, WF_H(WF_UI.icons.alert, { size: 13 })),
+  WF_H('div', { className: 'zwf-question-main' },
+    props.showAsker === true && asker !== undefined
+      ? WF_H('span', { className: 'zwf-question-asker zwf-mono' }, asker)
+      : null,
+    WF_H('span', { className: 'zwf-question-text' }, question.question),
+    question.context === undefined
+      ? null
+      : WF_H('p', { className: 'zwf-question-context', 'data-testid': 'workflow-run-question-context' }, question.context)),
+  WF_H('span', { className: 'zwf-question-meta zwf-mono' },
+    question.askedAt === undefined
+      ? null
+      : WF_H('span', { 'data-testid': 'workflow-run-question-waited' }, WF_UI.say(props.t, UI_EN, 'getRun.subagent.waitedFor', { age: wfAge(question.askedAt, props.now) })),
+    WF_H('span', { className: 'zwf-question-qid' }, question.qid)));
+}
+
+/** The actor's own steps: enough to see what it was asked and how far it got. */
+function WfActorLedger(props) {
+  const { entry, t } = props;
+  const nodes = entry.nodes ?? [];
+  if (nodes.length === 0) {
+    return WF_H('div', { className: 'zwf-actor', 'data-testid': 'workflow-actor-not-started' },
+      WF_H('span', { className: 'zwf-actor-glyph' }, WF_H(WF_UI.icons.agent, { size: 16 })),
+      WF_H('p', { className: 'zwf-actor-title' }, WF_UI.say(t, UI_EN, 'run.actor.notStarted.title')),
+      WF_H('p', { className: 'zwf-actor-body' }, WF_UI.say(t, UI_EN, 'run.actor.notStarted.body')));
+  }
+  return WF_H('div', { className: 'zwf-actor', 'data-testid': 'workflow-actor-session' },
+    nodes.map((node, index) => WF_H('div', { key: `${node.siteId ?? ''}-${node.ordinal ?? index}`, className: 'zwf-actor-row' },
+      WF_H('span', { className: `zwf-dot zwf-dot-${node.outcome === 'failed' ? 'error' : node.phase === 'settled' ? 'success' : 'warn'}` }),
+      WF_H('span', { className: 'zwf-actor-phase' }, node.phaseName ?? WF_UI.say(t, UI_EN, 'graph.phase.unphased')),
+      node.instructionsHead === undefined
+        ? null
+        : WF_H('span', { className: 'zwf-actor-brief' }, node.instructionsHead),
+      node.turn === undefined ? null : WF_H('span', { className: 'zwf-actor-meta zwf-mono' }, WF_UI.say(t, UI_EN, 'card.round', { count: node.turn })),
+      node.toolCalls === undefined ? null : WF_H('span', { className: 'zwf-actor-meta zwf-mono' }, `${node.toolCalls}`),
+      node.lastTool?.name === undefined
+        ? null
+        : WF_H('span', { className: 'zwf-actor-meta zwf-mono' }, node.lastTool.name))));
+}
+
+/** The hole waiting block that sits at the top of an expanded phase body. */
+function WfHoleWaiting(props) {
+  const hole = props.hole;
+  return WF_H('div', { className: 'zwf-hole-waiting', 'data-testid': 'workflow-run-hole-waiting' },
+    WF_H('span', { className: 'zwf-hole-waiting-text' },
+      WF_UI.say(props.t, UI_EN, 'run.hole.waitingFor'),
+      hole.since === undefined ? '' : ` · ${wfAge(hole.since, props.now)}`),
+    hole.prompt === undefined
+      ? null
+      : WF_H('p', { className: 'zwf-hole-prompt', 'data-testid': 'workflow-run-hole-prompt' }, hole.prompt));
+}
+
+/**
+ * One folding phase row with everything that hangs under it.
+ *
+ * @param {{
+ *   station: object, run: object, t: Function, index: number, open: boolean, door: boolean,
+ *   pins: object[], rest: object[], counts: object, unlisted: number, fraction: object, rounds?: number,
+ *   hole?: object, questions: Map<string, object[]>, orphanPins: object[], now: number,
+ *   landed: boolean, onToggle: Function, onDoor: Function, onOpenEntry: Function,
+ * }} props
+ */
+function WfPhaseRow(props) {
+  const { station, t, open, door } = props;
+  const expandLabel = WF_UI.say(t, UI_EN, open ? 'run.phase.collapse' : 'run.phase.expand', { name: station.name });
+  const cluster = open
+    ? WF_H(WfRosterMeter, { counts: props.counts })
+    : WF_H('span', { className: 'zwf-phase-cluster', 'data-testid': 'workflow-run-phase-cluster' },
+      WF_H(WfRosterMeter, { counts: props.counts, mini: true }),
+      WF_H(WfAvatarStack, { entries: props.pins.concat(props.rest), max: 3 }));
+  return WF_H('section', {
+    className: `zwf-phase${props.landed ? ' zwf-phase-landed' : ''}`,
+    'data-testid': 'workflow-run-phase',
+    'data-phase-id': station.name,
+    'data-phase-status': station.status,
+    'data-phase-hole': station.hole ?? '',
+    'data-phase-track': (station.alongside ?? []).join(',') || '0',
+    'data-phase-open': open ? 'true' : 'false',
+    'data-phase-landed': props.landed ? 'true' : undefined,
+  },
+  WF_H('button', {
+    type: 'button',
+    className: 'zwf-phase-toggle',
+    'data-testid': 'workflow-run-phase-toggle',
+    'aria-expanded': open,
+    'aria-label': expandLabel,
+    onClick: () => props.onToggle?.(station.name),
+  },
+  WF_H('span', {
+    className: `zwf-lamp zwf-lamp-${station.status}${station.hole === 'waiting' ? ' zwf-lamp-hole-waiting' : ''}${station.hole === 'open' ? ' zwf-lamp-hole-open' : ''}`,
+    'data-testid': 'workflow-run-phase-lamp',
+    'data-status': station.status,
+    'data-hole': station.hole ?? '',
+    'aria-hidden': 'true',
+  }),
+  WF_H('span', {
+    className: `zwf-phase-name${station.status === 'pending' ? ' zwf-phase-name-idle' : ''}`,
+    title: station.name,
+  }, station.name),
+  station.hole === 'filled' || station.hole === 'open'
+    ? WF_H('span', { className: 'zwf-phase-fillmark', 'data-testid': 'workflow-hole-fill-mark', title: WF_UI.say(t, UI_EN, 'run.hole.filledAt', { time: '' }) },
+      WF_H(WF_UI.icons.spark, { size: 11 }))
+    : null,
+  station.hole === 'waiting'
+    ? WF_H('span', { className: 'zwf-phase-holew', 'data-testid': 'workflow-hole-waiting' }, WF_UI.say(t, UI_EN, 'hole.waiting'))
+    : null,
+  WF_H('span', { className: 'zwf-phase-right' },
+    cluster,
+    WF_H('span', { className: 'zwf-phase-fraction zwf-mono', 'data-testid': 'workflow-run-phase-fraction' }, `${props.fraction.settled}/${props.fraction.observed}`),
+    props.rounds === undefined || props.rounds <= 0
+      ? null
+      : WF_H('span', { className: 'zwf-phase-rounds zwf-mono', 'data-testid': 'workflow-run-phase-rounds', title: WF_UI.say(t, UI_EN, 'timeline.rounds', { count: props.rounds }) }, String(props.rounds)),
+    WF_H('span', { className: `zwf-chevron${open ? ' zwf-chevron-open' : ''}`, 'aria-hidden': 'true' }, WF_H(WF_UI.icons.chevronRight, { size: 13 })))),
+  open
+    ? WF_H('div', { className: 'zwf-phase-body', 'data-testid': 'workflow-run-phase-body' },
+      station.hole === 'waiting' && props.hole !== undefined
+        ? WF_H(WfHoleWaiting, { hole: props.hole, t, now: props.now })
+        : null,
+      props.pins.length > 0
+        ? WF_H('div', { className: 'zwf-roster-pins', 'data-testid': 'workflow-roster-pins' },
+          props.pins.map((entry) => WF_H('div', { key: entry.key, className: 'zwf-roster-pin' },
+            WF_H(WfAgentPill, {
+              entry,
+              t,
+              size: 'row',
+              open: { testId: 'workflow-run-agent-open', onOpen: () => props.onOpenEntry?.(entry) },
+            }),
+            (props.questions.get(entry.key) ?? []).map((question) => WF_H(WfQuestionBlock, {
+              key: question.qid,
+              question,
+              t,
+              now: props.now,
+            })))))
+        : null,
+      props.rest.length > 0 || props.unlisted > 0
+        ? WF_H(WfRosterDoor, {
+          t,
+          open: door,
+          total: props.rest.length + props.unlisted,
+          entries: props.pins.concat(props.rest),
+          counts: props.counts,
+          onToggle: () => props.onDoor?.(station.name),
+        })
+        : null,
+      door
+        ? WF_H(WfRosterRoll, {
+          t,
+          groups: [{ status: 'failed', entries: [] }, { status: 'running', entries: [] }, { status: 'pending', entries: [] }, { status: 'done', entries: [] }]
+            .map((group) => ({ status: group.status, entries: props.rest.filter((entry) => entry.status === group.status) })),
+          unlisted: props.unlisted,
+          onOpenEntry: props.onOpenEntry,
+        })
+        : null)
+    : null);
+}
+
+/**
+ * The whole phase list: spine, one row per station, the fill heading of a hole, the orphan
+ * question area and the "no graph" notice.
+ */
+function WfRunPhaseList(props) {
+  const { run, stations, t } = props;
+  if (stations.length === 0) {
+    return WF_H('p', { className: 'zwf-graph-unavailable', 'data-testid': 'workflow-run-graph-unavailable' },
+      WF_UI.say(t, UI_EN, 'run.graph.unavailable'));
+  }
+  const fillHoles = (props.fills ?? []).filter((hole) => hole.state === 'filled');
+  const orphans = props.orphans ?? [];
+  return WF_H('div', { className: 'zwf-phases', 'data-testid': 'workflow-run-phases' },
+    fillHoles.length > 0
+      ? WF_H('div', { className: 'zwf-fill-frames', 'data-testid': 'workflow-run-fill-frames' },
+        fillHoles.map((hole) => WF_H('span', {
+          key: hole.id ?? hole.name,
+          className: 'zwf-fill-frame-run',
+          'data-testid': 'workflow-run-fill-frame',
+          'data-fill-frame': hole.id ?? hole.name,
+        })))
+      : null,
+    stations.map((station, index) => {
+      const roster = props.rosters?.get(station.name);
+      const hole = (props.holes ?? []).find((entry) => wfPhaseMatches(station.name, entry.name));
+      const fillRow = hole !== undefined && hole.state === 'filled'
+        ? WF_H('div', {
+          key: `fill-${hole.name}`,
+          className: 'zwf-fill-heading',
+          'data-testid': 'workflow-run-fill-heading',
+          'data-fill-head': hole.id ?? hole.name,
+          title: hole.filledAt === undefined
+            ? WF_UI.say(t, UI_EN, 'hole.head.title.untimed', { name: hole.name })
+            : WF_UI.say(t, UI_EN, 'hole.head.title', { name: hole.name, time: WF_UI.date(hole.filledAt) }),
+        },
+        WF_H('span', { className: 'zwf-fill-heading-glyph' }, WF_H(WF_UI.icons.spark, { size: 11 })),
+        WF_H('span', { className: 'zwf-fill-heading-name' }, hole.name))
+        : null;
+      return WF_H(WF_FRAGMENT, { key: station.name },
+        WF_H('div', { className: 'zwf-spine', 'aria-hidden': 'true' },
+          WF_H('span', { className: 'zwf-spine-rail', 'data-testid': 'workflow-run-spine-rail' }),
+          index === stations.length - 1 ? null : WF_H('span', { className: 'zwf-spine-joint', 'data-testid': 'workflow-run-spine-joint', 'data-joint-open': index === 0 ? 'start' : 'end' })),
+        fillRow,
+        WF_H(WfPhaseRow, {
+          station,
+          run,
+          t,
+          index,
+          open: props.expanded?.has(station.name) === true,
+          door: props.doors?.has(station.name) === true,
+          pins: roster?.pins ?? [],
+          rest: roster?.rest ?? [],
+          counts: roster?.counts ?? { done: 0, failed: 0, running: 0, pending: 0 },
+          unlisted: roster?.unlisted ?? 0,
+          fraction: roster?.fraction ?? { settled: 0, observed: 0 },
+          rounds: roster?.rounds,
+          hole,
+          questions: props.questions ?? new Map(),
+          now: props.now,
+          landed: props.landed === station.name,
+          onToggle: props.onToggle,
+          onDoor: props.onDoor,
+          onOpenEntry: props.onOpenEntry,
+        }));
+    }),
+    orphans.length > 0
+      ? WF_H('div', { className: 'zwf-orphan-questions', 'data-testid': 'workflow-run-orphan-questions' },
+        WF_H('h3', { className: 'zwf-orphan-title' }, WF_UI.say(t, UI_EN, 'run.questions.title')),
+        orphans.map((question) => WF_H(WfQuestionBlock, {
+          key: question.qid,
+          question,
+          t,
+          showAsker: true,
+          now: props.now,
+        })))
+      : null);
+}
+
+/* ---- client-src/44-detail-artifacts.js ---- */
+/*
+ * The artifacts area of the run-detail pane.
+ *
+ * A published artifact is shown through the newest version the ledger records: table-like kinds
+ * render from their published spec, text kinds read one chunk of the stored bytes, everything else
+ * keeps a placeholder that still names the file. The remaining artifacts sit behind an index (a
+ * primary artifact exists) or a gallery (none does).
+ */
+
+/** Read one chunk of an artifact's bytes and decode it as text. */
+function useWfArtifactText(scope, artifact, version) {
+  const enabled = artifact !== undefined
+    && ['markdown', 'file'].includes(artifact.kind)
+    && scope !== undefined
+    && typeof scope.runId === 'string';
+  const [state, setState] = React.useState({ kind: enabled ? 'loading' : 'idle' });
+  const key = [scope?.sessionId ?? '', scope?.runId ?? '', artifact?.id ?? '', version ?? '', enabled ? '1' : '0'].join('\u0000');
+  React.useEffect(() => {
+    if (!enabled) {
+      setState({ kind: 'idle' });
+      return undefined;
+    }
+    let cancelled = false;
+    setState({ kind: 'loading' });
+    WF_API.artifactRead({
+      sessionId: scope.sessionId,
+      runId: scope.runId,
+      artifactId: artifact.id,
+      version,
+      offset: 0,
+      limit: 256 * 1024,
+    }).then((payload) => {
+      if (cancelled) return;
+      const base64 = typeof payload?.dataBase64 === 'string' ? payload.dataBase64 : '';
+      let text = '';
+      try {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        text = new TextDecoder().decode(bytes);
+      } catch {
+        text = '';
+      }
+      setState({
+        kind: 'text',
+        text,
+        truncated: payload?.nextOffset !== null && payload?.nextOffset !== undefined,
+        mediaType: typeof payload?.mediaType === 'string' ? payload.mediaType : undefined,
+      });
+    }).catch((error) => {
+      if (!cancelled) setState({ kind: 'error', error });
+    });
+    return () => { cancelled = true; };
+  }, [key, enabled, scope?.sessionId, scope?.runId, artifact?.id, version]);
+  return state;
+}
+
+/** The kind label shown next to a title. */
+function wfArtifactKindLabel(t, kind) {
+  const known = ['file', 'markdown', 'chart', 'table', 'metrics', 'board'];
+  return WF_UI.say(t, UI_EN, `run.artifacts.kind.${known.includes(kind) ? kind : 'file'}`);
+}
+
+/** Title, falling back to the id so a row is never nameless. */
+function wfArtifactTitle(artifact) {
+  return artifact.title ?? artifact.id;
+}
+
+/** Table-like artifacts share one renderer. */
+function WfArtifactTable(props) {
+  const { artifact, t } = props;
+  const rows = wfArtifactRows(artifact);
+  if (rows.length === 0) {
+    return WF_H('div', { className: 'zwf-artifact-empty', 'data-testid': 'workflow-run-artifact-items' },
+      WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.preset.empty')));
+  }
+  const columns = wfArtifactColumns(artifact, rows).slice(0, 6);
+  return WF_H('div', { className: 'zwf-artifact-table', 'data-testid': 'workflow-run-artifact-items' },
+    WF_H('table', null,
+      WF_H('thead', null, WF_H('tr', null, columns.map((column) => WF_H('th', { key: column }, column)))),
+      WF_H('tbody', null, rows.slice(0, 40).map((row, index) => WF_H('tr', { key: String(index) },
+        columns.map((column) => WF_H('td', { key: column }, wfArtifactCell(row[column]))))))));
+}
+
+/** One table cell: primitives as-is, everything else compact JSON. */
+function wfArtifactCell(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return WF_UI.json(value).replace(/\s+/gu, ' ').slice(0, 200);
+}
+
+/** Version stepper shared by the primary card and the gallery tiles. */
+function WfArtifactVersionChips(props) {
+  const { artifact, t, version, onVersion } = props;
+  const versions = artifact.versions ?? [];
+  if (versions.length <= 1) {
+    return WF_H('span', { className: 'zwf-artifact-version zwf-mono', 'data-testid': 'workflow-run-artifact-version' },
+      WF_UI.say(t, UI_EN, 'run.artifacts.versionTail', { version }));
+  }
+  const index = versions.findIndex((entry) => entry.version === version);
+  const previous = versions[index - 1];
+  const next = versions[index + 1];
+  return WF_H('span', { className: 'zwf-artifact-chips', 'data-testid': 'workflow-run-artifact-chips' },
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-artifact-chip',
+      disabled: previous === undefined,
+      title: WF_UI.say(t, UI_EN, 'run.artifacts.previousVersion'),
+      onClick: () => previous !== undefined && onVersion?.(previous.version),
+    }, WF_H(WF_UI.icons.chevronRight, { size: 11, className: 'zwf-flip' })),
+    WF_H('span', { className: 'zwf-artifact-version zwf-mono', 'data-testid': 'workflow-run-artifact-version' },
+      WF_UI.say(t, UI_EN, 'run.artifacts.versionOf', { version, total: versions.length })),
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-artifact-chip',
+      disabled: next === undefined,
+      title: WF_UI.say(t, UI_EN, 'run.artifacts.nextVersion'),
+      onClick: () => next !== undefined && onVersion?.(next.version),
+    }, WF_H(WF_UI.icons.chevronRight, { size: 11 })),
+    versions.length > 3
+      ? WF_H('span', { className: 'zwf-artifact-chips-more zwf-mono', 'data-testid': 'workflow-run-artifact-chips-more' }, `+${versions.length - 2}`)
+      : null);
+}
+
+/** The primary artifact: title row, metadata, version control and the preview body. */
+function WfArtifactPrimary(props) {
+  const { artifact, t, scope, version, onVersion } = props;
+  const text = useWfArtifactText(scope, artifact, version);
+  const size = wfArtifactSize(artifact.bytes);
+  const tableLike = ['chart', 'table', 'metrics', 'board'].includes(artifact.kind);
+  const rows = wfArtifactRows(artifact);
+  let body;
+  if (tableLike) {
+    body = artifact.spec !== undefined && rows.length === 0 && artifact.spec !== null && typeof artifact.spec === 'object' && artifact.spec.items !== undefined && Array.isArray(artifact.spec.items) === false
+      ? WF_H('div', { className: 'zwf-artifact-empty', 'data-testid': 'workflow-run-artifact-preset-invalid' },
+        WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.presetInvalid')))
+      : WF_H(WfArtifactTable, { artifact, t });
+  } else if (text.kind === 'text') {
+    body = WF_H('pre', { className: 'zwf-artifact-text' }, text.text === '' ? WF_UI.say(t, UI_EN, 'run.artifacts.preset.empty') : text.text);
+  } else if (text.kind === 'loading') {
+    body = WF_H('div', { className: 'zwf-artifact-empty' }, WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.loading')));
+  } else if (text.kind === 'error') {
+    body = WF_H('div', { className: 'zwf-artifact-empty', 'data-testid': 'workflow-run-artifact-preset-missing' },
+      WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.missing')));
+  } else {
+    body = WF_H('div', { className: 'zwf-artifact-empty' },
+      WF_H('span', { className: 'zwf-artifact-empty-text' }, WF_UI.say(t, UI_EN, 'run.artifacts.unsupported')));
+  }
+  return WF_H('div', { className: 'zwf-artifact-primary' },
+    WF_H('div', { className: 'zwf-artifact-head' },
+      WF_H('span', { className: 'zwf-artifact-glyph' }, WF_H(WF_UI.artifactIcon(artifact.kind), { size: 15 })),
+      WF_H('span', { className: 'zwf-artifact-title', title: wfArtifactTitle(artifact) }, wfArtifactTitle(artifact)),
+      WF_H('span', { className: 'zwf-artifact-badge', 'data-testid': 'workflow-run-artifact-badge' }, wfArtifactKindLabel(t, artifact.kind)),
+      size === undefined ? null : WF_H('span', { className: 'zwf-artifact-bytes zwf-mono', 'data-testid': 'workflow-run-artifact-bytes' }, size),
+      WF_H(WfArtifactVersionChips, { artifact, t, version, onVersion })),
+    artifact.description === undefined
+      ? null
+      : WF_H('p', { className: 'zwf-artifact-desc' }, artifact.description),
+    body);
+}
+
+/** A compact row in the index of the remaining artifacts. */
+function WfArtifactIndex(props) {
+  const { artifacts, t, versionOf, onSelect } = props;
+  if (artifacts.length === 0) return null;
+  return WF_H('div', { className: 'zwf-artifact-index', 'data-testid': 'workflow-run-artifact-index' },
+    artifacts.map((artifact) => {
+      const version = versionOf(artifact);
+      const size = wfArtifactSize(artifact.bytes);
+      return WF_H('button', {
+        key: artifact.id,
+        type: 'button',
+        className: 'zwf-artifact-row',
+        'data-artifact-id': artifact.id,
+        title: `${wfArtifactKindLabel(t, artifact.kind)}${size === undefined ? '' : ` · ${size}`}\n${artifact.sourcePath ?? artifact.id}`,
+        onClick: () => onSelect?.(artifact),
+      },
+      WF_H('span', { className: 'zwf-artifact-row-glyph' }, WF_H(WF_UI.artifactIcon(artifact.kind), { size: 13 })),
+      WF_H('span', { className: 'zwf-artifact-row-title' }, wfArtifactTitle(artifact)),
+      WF_H('span', { className: 'zwf-artifact-row-meta zwf-mono' },
+        wfArtifactKindLabel(t, artifact.kind),
+        artifact.itemCount > 0 ? ` · ${WF_UI.say(t, UI_EN, 'run.artifacts.preset.items', { count: artifact.itemCount })}` : ''),
+      WF_H('span', { className: 'zwf-artifact-row-version zwf-mono' }, WF_UI.say(t, UI_EN, 'run.artifacts.versionTail', { version })));
+    }));
+}
+
+/** The gallery shown when the ledger marks no artifact as primary. */
+function WfArtifactGallery(props) {
+  const { artifacts, t, versionOf, onSelect } = props;
+  return WF_H('div', { className: 'zwf-artifact-gallery', 'data-testid': 'workflow-run-artifact-gallery' },
+    artifacts.map((artifact) => {
+      const version = versionOf(artifact);
+      return WF_H('button', {
+        key: artifact.id,
+        type: 'button',
+        className: 'zwf-artifact-tile',
+        'data-artifact-id': artifact.id,
+        onClick: () => onSelect?.(artifact),
+      },
+      WF_H('span', { className: 'zwf-artifact-tile-glyph' }, WF_H(WF_UI.artifactIcon(artifact.kind), { size: 15 })),
+      WF_H('span', { className: 'zwf-artifact-tile-title' }, wfArtifactTitle(artifact)),
+      WF_H('span', { className: 'zwf-artifact-tile-meta' },
+        wfArtifactKindLabel(t, artifact.kind),
+        artifact.itemCount > 0 ? ` · ${WF_UI.say(t, UI_EN, 'run.artifacts.preset.items', { count: artifact.itemCount })}` : ''),
+      WF_H('span', { className: 'zwf-artifact-tile-version zwf-mono' }, WF_UI.say(t, UI_EN, 'run.artifacts.versionTail', { version })));
+    }));
+}
+
+/**
+ * The artifacts area: a collapsing section that keeps drawing attention to itself while the run
+ * is producing new artifacts.
+ *
+ * @param {{ artifacts: object[], t: Function, scope: object, open: boolean, onToggle: Function }} props
+ */
+function WfArtifactsSection(props) {
+  const { artifacts, t, scope, open } = props;
+  const [versions, setVersions] = React.useState({});
+  const [selected, setSelected] = React.useState(undefined);
+  const primary = wfPrimaryArtifact(artifacts);
+  const rest = artifacts.filter((artifact) => artifact !== primary);
+  const versionOf = React.useCallback((artifact) => versions[artifact.id] ?? artifact.version ?? 1, [versions]);
+  const setVersion = React.useCallback((artifact, version) => {
+    setVersions((current) => ({ ...current, [artifact.id]: version }));
+  }, []);
+  if (artifacts.length === 0) return null;
+  const shown = selected ?? primary;
+  const body = shown === undefined
+    ? null
+    : primary === undefined
+      ? WF_H(WfArtifactGallery, { artifacts, t, versionOf, onSelect: setSelected })
+      : WF_H(WF_FRAGMENT, null,
+        WF_H('div', { className: 'zwf-artifact-primary-body', 'data-testid': 'workflow-run-artifact-primary-body' },
+          WF_H(WfArtifactPrimary, {
+            artifact: shown,
+            t,
+            scope,
+            version: versionOf(shown),
+            onVersion: (version) => setVersion(shown, version),
+          })),
+        WF_H(WfArtifactIndex, {
+          artifacts: rest,
+          t,
+          versionOf,
+          onSelect: (artifact) => {
+            setSelected(artifact);
+          },
+        }));
+  return WF_H('section', {
+    className: 'zwf-artifacts',
+    'data-testid': 'workflow-artifacts',
+    'data-artifacts-open': open ? 'true' : 'false',
+  },
+  WF_H('button', {
+    type: 'button',
+    className: 'zwf-artifacts-toggle',
+    'aria-expanded': open,
+    'aria-label': WF_UI.say(t, UI_EN, open ? 'run.artifacts.collapse' : 'run.artifacts.expand'),
+    onClick: () => props.onToggle?.(),
+  },
+  WF_H('span', { className: 'zwf-artifacts-title' }, WF_UI.say(t, UI_EN, 'run.artifacts.title')),
+  WF_H('span', { className: 'zwf-artifacts-count zwf-mono', 'data-testid': 'workflow-run-artifacts-count' }, wfGroup(artifacts.length)),
+  open || primary === undefined
+    ? null
+    : WF_H('span', { className: 'zwf-artifacts-primary-title', 'data-testid': 'workflow-run-artifacts-primary-title' },
+      `· ${wfArtifactTitle(primary)}`),
+  WF_H('span', { className: `zwf-chevron${open ? ' zwf-chevron-open' : ''}`, 'aria-hidden': 'true' }, WF_H(WF_UI.icons.chevronRight, { size: 13 }))),
+  open && body !== null
+    ? WF_H('div', { className: 'zwf-artifacts-body' }, body)
+    : null);
+}
+
+/* ---- client-src/45-detail-roster.js ---- */
+/*
+ * Subagent presentation: the avatar face, the agent pill, the roster meter and its tallies.
+ *
+ * One pill implementation serves the phase rows, the rail columns and the expanded roster; the
+ * only difference between the three seats is the pill size and where its trailing control sits.
+ */
+
+/** Nine avatar colours; a stable hash picks one when no index is recorded. */
+const WF_AVATAR_COLORS = [
+  '#54B9A6', '#F19D38', '#6464EF', '#885CF5', '#3C82F6', '#ED712E', '#EB4699', '#5BC67A', '#EA4045',
+];
+
+/** Status → expression, so a face reads as busy, finished or worried without a legend. */
+const WF_FACE_EXPRESSION = {
+  running: 'pill',
+  done: 'happy',
+  failed: 'sad',
+  pending: 'dots',
+};
+
+/** Stable colour index from the actor name (same hash the product uses: `t = t * 31 + cp`). */
+function wfAvatarIndex(name) {
+  let hash = 0;
+  const text = typeof name === 'string' ? name : '';
+  for (let index = 0; index < text.length; index += 1) hash = (hash * 31 + text.codePointAt(index)) % 360;
+  return hash;
+}
+
+function wfAvatarColor(entry) {
+  const index = wfNum(entry?.ordinal) ?? wfAvatarIndex(entry?.name);
+  return WF_AVATAR_COLORS[Math.abs(index) % WF_AVATAR_COLORS.length];
+}
+
+/**
+ * One 20×20 rounded face. Eyes only: the shape carries the colour, the eyes carry the state.
+ * @param {{ name?: string, ordinal?: number, status?: string, size?: number, className?: string }} props
+ */
+function WfAgentFace(props) {
+  const expression = WF_FACE_EXPRESSION[props.status] ?? 'dots';
+  const color = wfAvatarColor(props);
+  const eye = 'var(--zwf-face-eye)';
+  const eyes = expression === 'pill'
+    ? [
+      WF_H('rect', { key: 'l', x: 6.2, y: 7.4, width: 2.1, height: 5.2, rx: 1.05, fill: eye }),
+      WF_H('rect', { key: 'r', x: 11.7, y: 7.4, width: 2.1, height: 5.2, rx: 1.05, fill: eye }),
+    ]
+    : expression === 'happy'
+      ? [
+        WF_H('path', { key: 'l', d: 'M5.6 9.2c.7.9 2.1.9 2.8 0', stroke: eye, strokeWidth: 1.4, fill: 'none', strokeLinecap: 'round' }),
+        WF_H('path', { key: 'r', d: 'M11.6 9.2c.7.9 2.1.9 2.8 0', stroke: eye, strokeWidth: 1.4, fill: 'none', strokeLinecap: 'round' }),
+      ]
+      : expression === 'sad'
+        ? [
+          WF_H('path', { key: 'l', d: 'M5.8 10.4 8.2 9', stroke: eye, strokeWidth: 1.4, fill: 'none', strokeLinecap: 'round' }),
+          WF_H('path', { key: 'r', d: 'M11.8 9 14.2 10.4', stroke: eye, strokeWidth: 1.4, fill: 'none', strokeLinecap: 'round' }),
+        ]
+        : [
+          WF_H('circle', { key: 'l', cx: 7, cy: 9.6, r: 1.05, fill: eye }),
+          WF_H('circle', { key: 'm', cx: 12.9, cy: 9.6, r: 1.05, fill: eye }),
+        ];
+  return WF_H('svg', {
+    className: props.className,
+    width: props.size ?? 20,
+    height: props.size ?? 20,
+    viewBox: '0 0 20 20',
+    'aria-hidden': 'true',
+    focusable: 'false',
+    'data-expression': expression,
+    'data-avatar': color,
+  },
+  WF_H('rect', { key: 'body', width: 20, height: 20, rx: 7, fill: color }),
+  ...eyes);
+}
+
+/** Status glyph inside a pill tail: spinner, check, cross or hollow ring. */
+function WfPillStatus(props) {
+  const status = props.status ?? 'pending';
+  const tone = status === 'done' ? 'success' : status === 'failed' ? 'error' : status === 'running' ? 'brand' : 'idle';
+  const glyph = status === 'running'
+    ? WF_H(WF_UI.Spinner, { size: 12 })
+    : status === 'done'
+      ? WF_H(WF_UI.icons.check, { size: 12 })
+      : status === 'failed'
+        ? WF_H(WF_UI.icons.close, { size: 12 })
+        : WF_H('span', { className: 'zwf-pill-ring' });
+  return WF_H('span', {
+    className: `zwf-pill-status zwf-pill-status-${tone}`,
+    'data-testid': 'workflow-pill-status',
+    'data-status': status,
+    role: 'img',
+    'aria-label': WF_UI.say(props.t, UI_EN, `graph.status.${status}`, undefined),
+  }, glyph);
+}
+
+/**
+ * The agent pill. `open` turns it into a button that reveals the actor's steps; without it the
+ * pill is inert (a roster line that carries no destination).
+ *
+ * @param {{
+ *   entry?: object, name?: string, status?: string, model?: string, asks?: number, reads?: number,
+ *   asking?: boolean, size?: 'row' | 'full', trailing?: any, open?: { testId?: string, onOpen?: Function },
+ *   t?: Function, className?: string,
+ * }} props
+ */
+function WfAgentPill(props) {
+  const entry = props.entry ?? {};
+  const name = props.name ?? entry.name ?? WF_UI.say(props.t, UI_EN, 'graph.lane.anonymous');
+  const status = props.status ?? entry.status ?? 'pending';
+  const asks = props.asks ?? entry.asks;
+  const reads = props.reads ?? entry.reads;
+  const model = props.model ?? entry.model;
+  const asking = props.asking ?? entry.asking === true;
+  const size = props.size ?? 'row';
+  const open = props.open;
+  const extras = [];
+  if (typeof props.reads === 'number' || typeof props.asks === 'number' || reads !== undefined || asks !== undefined) {
+    const parts = [];
+    if (asks !== undefined && asks > 0) {
+      parts.push(WF_UI.say(props.t, UI_EN, 'graph.card.tasks', { count: asks }));
+    }
+    if (reads !== undefined && reads > 0) {
+      parts.push(WF_UI.say(props.t, UI_EN, 'graph.card.reads', { count: reads }));
+    }
+    if (parts.length > 0) extras.push(WF_H('span', { key: 'cards', className: 'zwf-pill-note' }, parts.join(' · ')));
+  }
+  if (model !== undefined) {
+    extras.push(WF_H('span', {
+      key: 'model',
+      className: 'zwf-pill-model zwf-mono',
+      'data-testid': 'workflow-run-agent-model',
+      title: model,
+    }, model));
+  }
+  if (asking) {
+    extras.push(WF_H('span', {
+      key: 'asking',
+      className: 'zwf-pill-asking',
+      'data-testid': 'workflow-roll-asking',
+      'aria-label': WF_UI.say(props.t, UI_EN, 'run.questions.title'),
+    }, WF_H(WF_UI.icons.alert, { size: 12 })));
+  }
+  const showTail = status !== 'pending' || open !== undefined;
+  const tail = showTail
+    ? WF_H('span', {
+      key: 'tail',
+      className: 'zwf-pill-tail',
+      'data-testid': 'workflow-pill-tail',
+    },
+    WF_H(WfPillStatus, { status, t: props.t }),
+    open === undefined
+      ? null
+      : WF_H('span', {
+        key: 'go',
+        className: 'zwf-pill-go',
+        'data-testid': open.testId ?? 'workflow-pill-open',
+        role: 'img',
+        'aria-label': WF_UI.say(props.t, UI_EN, 'timeline.openAgent', { name }),
+        onClick: (event) => {
+          event.stopPropagation();
+          open.onOpen?.();
+        },
+      }, WF_H(WF_UI.icons.external, { size: 11 })))
+    : null;
+  const className = [
+    'zwf-pill',
+    'zwf-agent-pill',
+    size === 'row' ? 'zwf-pill-row' : 'zwf-pill-full',
+    open === undefined ? '' : 'zwf-pill-open',
+    props.className ?? '',
+  ].filter(Boolean).join(' ');
+  const glyph = WF_H(WfAgentFace, { name: name ?? entry.name, ordinal: entry.ordinal, status, size: size === 'row' ? 14 : 16 });
+  const body = [
+    glyph,
+    WF_H('span', { key: 'name', className: `zwf-pill-name${status === 'pending' ? ' zwf-pill-name-idle' : ''}` }, name),
+    ...extras,
+    tail,
+    props.trailing === undefined ? null : WF_H('span', { key: 'trailing', className: 'zwf-pill-trailing' }, props.trailing),
+  ];
+  if (open === undefined) {
+    return WF_H('span', {
+      className,
+      'data-testid': 'workflow-agent-pill',
+      'data-agent-status': status,
+      'data-pill-size': size,
+      title: name,
+    }, body);
+  }
+  return WF_H('button', {
+    type: 'button',
+    className,
+    'data-testid': 'workflow-agent-pill',
+    'data-agent-status': status,
+    'data-pill-size': size,
+    'data-agent-open': '',
+    'data-agent-key': entry.key,
+    'data-agent-session-id': entry.sessionId,
+    title: name,
+    'aria-label': name,
+    onClick: () => open.onOpen?.(),
+  }, body);
+}
+
+/** Up to three avatars plus `+n`, the collapsed phase cluster. */
+function WfAvatarStack(props) {
+  const entries = props.entries ?? [];
+  const shown = entries.slice(0, props.max ?? 3);
+  const rest = entries.length - shown.length;
+  return WF_H('span', { className: 'zwf-avatar-stack' },
+    shown.map((entry) => WF_H(WfAgentFace, {
+      key: entry.key ?? `${entry.name}-${entry.ordinal}`,
+      name: entry.name,
+      ordinal: entry.ordinal,
+      status: entry.status,
+      size: 14,
+      className: 'zwf-avatar-stacked',
+    })),
+    rest > 0 ? WF_H('span', { className: 'zwf-avatar-more zwf-mono' }, `+${rest}`) : null);
+}
+
+/**
+ * The four-segment roster bar: done / failed / running / pending by width.
+ * @param {{ counts: { done: number, failed: number, running: number, pending: number }, mini?: boolean }} props
+ */
+function WfRosterMeter(props) {
+  const counts = props.counts ?? { done: 0, failed: 0, running: 0, pending: 0 };
+  const order = ['done', 'failed', 'running', 'pending'];
+  const total = order.reduce((sum, key) => sum + (counts[key] ?? 0), 0);
+  return WF_H('span', {
+    className: `zwf-meter4${props.mini === true ? ' zwf-meter4-mini' : ''}`,
+    'data-testid': props.mini === true ? 'workflow-roster-meter-mini' : 'workflow-roster-meter',
+    'aria-hidden': 'true',
+  }, total === 0
+    ? WF_H('span', { className: 'zwf-meter4-seg zwf-meter4-pending', style: { flexGrow: 1 } })
+    : order
+      .filter((key) => (counts[key] ?? 0) > 0)
+      .map((key) => WF_H('span', {
+        key,
+        className: `zwf-meter4-seg zwf-meter4-${key}`,
+        style: { flexGrow: counts[key] },
+      })));
+}
+
+/** Per-status tallies shown to the right of the roster door. */
+function WfRosterTally(props) {
+  const counts = props.counts ?? { done: 0, failed: 0, running: 0, pending: 0 };
+  const order = ['failed', 'running', 'pending', 'done'];
+  return WF_H('span', { className: 'zwf-tally', 'data-testid': 'workflow-roster-tally' },
+    order
+      .filter((key) => (counts[key] ?? 0) > 0)
+      .map((key) => WF_H('span', { key, className: `zwf-tally-item zwf-tally-${key}` },
+        WF_H('span', { className: `zwf-dot zwf-dot-${key === 'done' ? 'success' : key === 'failed' ? 'error' : key === 'running' ? 'warn' : 'idle'}` }),
+        WF_H('span', { className: 'zwf-mono' }, String(counts[key])))));
+}
+
+/** The roster door: the collapsed line that expands the rest of a phase's subagents. */
+function WfRosterDoor(props) {
+  const open = props.open === true;
+  const total = props.total ?? 0;
+  const label = WF_UI.say(props.t, UI_EN, open ? 'timeline.roster.door.fold' : 'timeline.roster.door.list', { count: total });
+  return WF_H('button', {
+    type: 'button',
+    className: 'zwf-door',
+    'data-testid': 'workflow-roster-more-row',
+    'data-door': open ? 'open' : 'closed',
+    'aria-expanded': open,
+    onClick: () => props.onToggle?.(),
+  },
+  WF_H('span', { className: 'zwf-door-avatars' }, WF_H(WfAvatarStack, { entries: props.entries ?? [], max: 3 })),
+  WF_H('span', { className: 'zwf-door-label' }, label),
+  WF_H(WfRosterTally, { counts: props.counts ?? {} }),
+  WF_H('span', { className: `zwf-door-chevron${open ? ' zwf-door-chevron-open' : ''}` }, WF_H(WF_UI.icons.chevronDown, { size: 13 })));
+}
+
+/**
+ * The expanded roster: one heading per status group, then that group's pills.
+ * @param {{ groups: { status: string, entries: object[] }[], t: Function, unlisted: number, onOpenEntry: Function }} props
+ */
+function WfRosterRoll(props) {
+  const order = ['failed', 'running', 'pending', 'done'];
+  const groups = order
+    .map((status) => ({ status, entries: (props.groups ?? []).filter((group) => group.status === status).flatMap((group) => group.entries) }))
+    .filter((group) => group.entries.length > 0);
+  const heading = (status, count) => WF_H('div', {
+    key: `head-${status}`,
+    className: 'zwf-roll-heading',
+    'data-testid': 'workflow-roll-heading',
+    role: 'heading',
+    'aria-level': 4,
+  },
+  WF_H('span', { className: `zwf-dot zwf-dot-${status === 'done' ? 'success' : status === 'failed' ? 'error' : status === 'running' ? 'warn' : 'idle'}` }),
+  WF_H('span', { className: 'zwf-roll-count zwf-mono' }, String(count)),
+  WF_H('span', { className: 'zwf-roll-label' }, WF_UI.say(props.t, UI_EN, `timeline.roster.${status}`, { count })),
+  WF_H('span', { className: 'zwf-roll-rule' }));
+  return WF_H('div', { className: 'zwf-roll', 'data-testid': 'workflow-roster-roll' },
+    groups.map((group) => WF_H(WF_FRAGMENT, { key: group.status },
+      heading(group.status, group.entries.length),
+      group.entries.map((entry) => WF_H(WfAgentPill, {
+        key: entry.key,
+        entry,
+        t: props.t,
+        size: 'row',
+        open: { testId: 'workflow-run-agent-open', onOpen: () => props.onOpenEntry?.(entry) },
+      })))),
+    (props.unlisted ?? 0) > 0
+      ? WF_H('p', { className: 'zwf-roll-unlisted', 'data-testid': 'workflow-roll-unlisted' },
+        WF_UI.say(props.t, UI_EN, props.unlisted === 1 ? 'timeline.roster.unlisted.one' : 'timeline.roster.unlisted.many', { count: props.unlisted }))
+      : null);
+}
+
+/* ---- client-src/45-permission.js ---- */
+/* Launch confirmation for a workflow script: the compact block inside the tool card, and the
+ * full-size dialog it opens.
+ *
+ * ZCode asks before a `CreateWorkflow` / `AmendWorkflow` / `FillWorkflowHole` script runs. The
+ * question carries the phase graph, the script, the saved-workflow provenance and the two settings
+ * the user may still change (subagent model, concurrency ceiling); the answer is one of four
+ * decisions — allow once, allow for this session, deny, or "refine" with free text, which the
+ * workflow facade records as a rejection carrying the user's words.
+ *
+ * Data comes from the run the host publishes for the pending call: the run row (`runId`) plus the
+ * tool input (`input`) and its prepared display (`display.causalityGraph`). Field names are read
+ * tolerantly in both spellings, because a run arrives either as the host's camelCase projection or
+ * as the tool's snake_case input.
+ */
+
+const WF_PERMISSION = {};
+
+/** The four answers the host accepts, in the order the dialog lists them. */
+const WF_PERM_OPTION_IDS = ['allow_once', 'allow_session', 'deny', 'workflowRefine'];
+
+/** Column pitch of the phase graph, in pixels. */
+const WF_PERM_PITCH = 192;
+/** Width of one station head, in pixels. */
+const WF_PERM_STATION = 168;
+/** Height of one station head row, in pixels. */
+const WF_PERM_ROW = 24;
+/** Vertical distance between two connector lanes, in pixels. */
+const WF_PERM_LANE = 14;
+/** Top padding of the connector field, in pixels. */
+const WF_PERM_LANE_TOP = 10;
+/** Connectors drawn above the stations before the lanes are reused. */
+const WF_PERM_LANES = 6;
+/** Pills drawn per station before the rest collapse into a counter. */
+const WF_PERM_PIN = 5;
+
+/** Copy of this surface; the `shell.overlay` registration binds the live translator. */
+var WF_PERMISSION_UI = undefined;
+
+/**
+ * One string of the workspace dictionary, with the compiled English text as fallback.
+ * @param {((key: string, params?: Record<string, unknown>) => string) | undefined} t
+ * @param {string} key
+ * @param {Record<string, unknown>} [params]
+ */
+function wfPermSay(t, key, params) {
+  const translate = typeof t === 'function' ? t : WF_PERMISSION_UI;
+  return WF_UI.say(translate, UI_EN, key, params);
+}
+
+/** Count copy: the `…One` variant is used only when the fragment carries one. */
+function wfPermCountSay(t, key, count, params) {
+  const oneKey = `${key}One`;
+  const useOne = count === 1 && Object.prototype.hasOwnProperty.call(UI_EN, oneKey);
+  return wfPermSay(t, useOne ? oneKey : key, { ...(params ?? {}), count });
+}
+
+/* ---------------------------------- readers --------------------------------- */
+
+/** @returns {Record<string, any> | undefined} */
+function wfPermRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined;
+}
+
+/** @returns {string | undefined} a non-empty trimmed string */
+function wfPermText(value) {
+  if (typeof value !== 'string') return undefined;
+  const text = value.trim();
+  return text === '' ? undefined : text;
+}
+
+/** @returns {number | undefined} */
+function wfPermNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+/** @returns {number | undefined} a positive whole number */
+function wfPermLimit(value) {
+  const number = wfPermNumber(value);
+  return number !== undefined && number > 0 ? Math.floor(number) : undefined;
+}
+
+const WF_PERM_KEYS = ['approval', 'permission', 'pendingApproval', 'pendingPermission', 'launch', 'confirmation'];
+
+/** Run states that mean "still live": an amend of such a run stops it first. */
+const WF_PERM_LIVE = ['running', 'pending'];
+
+/**
+ * Split one run into the run row and the permission envelope, whichever shape it arrived in.
+ * @param {unknown} run
+ * @returns {{ run: Record<string, any> | undefined, envelope: Record<string, any> }}
+ */
+function wfPermSource(run) {
+  const record = wfPermRecord(run);
+  if (record === undefined) return { run: undefined, envelope: {} };
+  for (const key of WF_PERM_KEYS) {
+    const nested = wfPermRecord(record[key]);
+    if (nested !== undefined) return { run: record, envelope: nested };
+  }
+  return { run: record, envelope: record };
+}
+
+/** The run identity, in either spelling. */
+function wfPermRunId(run) {
+  const record = wfPermRecord(run);
+  if (record === undefined) return '';
+  return wfPermText(record.runId) ?? wfPermText(record.id) ?? '';
+}
+
+/** The run's display name: the workflow label the host projected, else the script name. */
+function wfPermRunName(run) {
+  const record = wfPermRecord(run);
+  if (record === undefined) return '';
+  return wfPermText(record.label) ?? wfPermText(record.name) ?? wfPermText(record.title) ?? '';
+}
+
+/** Display value of one argument, the way the dialog prints saved arguments. */
+function wfPermArgText(value) {
+  if (value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return String(value);
+  }
+}
+
+/**
+ * Flatten one run into the fields the confirmation shows.
+ * @param {unknown} run
+ */
+function wfPermView(run) {
+  const source = wfPermSource(run);
+  const envelope = source.envelope;
+  const outer = source.run ?? {};
+  const input = wfPermRecord(envelope.input)
+    ?? wfPermRecord(envelope.toolInput)
+    ?? wfPermRecord(envelope.detail)
+    ?? wfPermRecord(outer.input)
+    ?? {};
+  const display = wfPermRecord(envelope.display) ?? wfPermRecord(outer.display) ?? {};
+  const toolName = (wfPermText(envelope.toolName) ?? wfPermText(outer.toolName) ?? '').toLowerCase();
+  const holeRecord = wfPermRecord(input.hole);
+  const fill = wfPermRecord(display.fill);
+  const saved = wfPermRecord(input.saved);
+  const predecessor = wfPermRecord(input.predecessor);
+  const adjustable = wfPermRecord(input.adjustable_settings)
+    ?? wfPermRecord(input.adjustableSettings)
+    ?? wfPermRecord(input.adjustable)
+    ?? {};
+  const graph = wfPermRecord(display.causalityGraph)
+    ?? wfPermRecord(input.causalityGraph)
+    ?? wfPermRecord(outer.causalityGraph);
+  const holeId = wfPermText(input.hole_id) ?? wfPermText(input.holeId) ?? wfPermText(holeRecord?.siteId) ?? wfPermText(fill?.siteId);
+  const holeName = wfPermText(input.hole_name)
+    ?? wfPermText(holeRecord?.name)
+    ?? wfPermText(fill?.name)
+    ?? wfPermText(display.name);
+  const amendRunId = wfPermText(input.run_id) ?? wfPermText(input.runId);
+  const script = wfPermText(input.script) ?? wfPermText(envelope.script) ?? '';
+  const scriptName = wfPermText(input.name) ?? wfPermText(input.script_name) ?? wfPermText(envelope.name);
+  const kind = holeId !== undefined || toolName === 'fillworkflowhole'
+    ? 'hole'
+    : toolName === 'amendworkflow' || amendRunId !== undefined || predecessor !== undefined
+      ? 'amend'
+      : 'create';
+  const catalog = wfPermCatalog(envelope, outer, input);
+  return {
+    kind,
+    sessionId: wfPermText(envelope.sessionId) ?? wfPermText(outer.sessionId) ?? '',
+    runId: wfPermRunId(run),
+    name: scriptName ?? holeName ?? '',
+    scriptName,
+    script,
+    holeId,
+    holeName,
+    amendRunId,
+    graph,
+    graphTruncated: graph !== undefined && (graph.truncated === true || display.truncated === true),
+    savedName: wfPermText(saved?.name),
+    savedScope: wfPermText(saved?.scope) === 'global' ? 'global' : 'project',
+    savedPath: wfPermText(saved?.path),
+    savedArgs: wfPermRecord(saved?.args) ?? {},
+    subagentModel: wfPermText(input.subagent_model) ?? wfPermText(input.subagentModel) ?? '',
+    modelDefault: wfPermBool(input.subagent_model_default) ?? wfPermBool(input.subagentModelDefault) ?? false,
+    maxConcurrency: wfPermLimit(input.max_concurrency) ?? wfPermLimit(input.maxConcurrency),
+    ceiling: wfPermLimit(adjustable.concurrency_ceiling) ?? wfPermLimit(adjustable.concurrencyCeiling),
+    modelEditable: wfPermBool(adjustable.subagent_model) === true || wfPermBool(adjustable.subagentModel) === true,
+    predecessorStatus: wfPermText(predecessor?.status) ?? '',
+    predecessorName: wfPermText(predecessor?.name) ?? '',
+    predecessorLive: WF_PERM_LIVE.includes(wfPermText(predecessor?.status) ?? ''),
+    scriptInherited: wfPermBool(predecessor?.script_inherited) === true
+      || wfPermBool(predecessor?.scriptInherited) === true
+      || (predecessor !== undefined && script === ''),
+    catalog,
+    status: wfPermText(outer.status) ?? '',
+    currentPhase: wfPermText(outer.currentPhase) ?? '',
+    phases: Array.isArray(outer.phases) ? outer.phases : [],
+  };
+}
+
+function wfPermBool(value) {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
+
+/**
+ * The model list the dialog may offer, when the host published one.
+ * @returns {{ id: string, label: string, efforts?: { id: string, label: string }[] }[]}
+ */
+function wfPermCatalog(envelope, outer, input) {
+  const raw = envelope.models
+    ?? envelope.modelCatalog
+    ?? outer.models
+    ?? outer.modelCatalog
+    ?? input.models
+    ?? input.model_catalog;
+  if (!Array.isArray(raw)) return [];
+  const rows = [];
+  for (const entry of raw) {
+    const record = wfPermRecord(entry);
+    if (record === undefined) {
+      const id = wfPermText(entry);
+      if (id !== undefined) rows.push({ id, label: id });
+      continue;
+    }
+    const id = wfPermText(record.id) ?? wfPermText(record.model) ?? wfPermText(record.value);
+    if (id === undefined) continue;
+    const label = wfPermText(record.label) ?? wfPermText(record.name) ?? id;
+    const effortsRaw = Array.isArray(record.efforts) ? record.efforts : Array.isArray(record.levels) ? record.levels : [];
+    const efforts = [];
+    for (const effort of effortsRaw) {
+      const effortRecord = wfPermRecord(effort);
+      const effortId = effortRecord === undefined ? wfPermText(effort) : wfPermText(effortRecord.id) ?? wfPermText(effortRecord.value);
+      if (effortId === undefined) continue;
+      const effortLabel = effortRecord === undefined ? effortId : wfPermText(effortRecord.label) ?? effortId;
+      efforts.push({ id: effortId, label: effortLabel });
+    }
+    rows.push({ id, label, ...(efforts.length === 0 ? {} : { efforts }) });
+  }
+  return rows;
+}
+
+/* ---------------------------------- graph ---------------------------------- */
+
+const WF_PERM_LAMP_TONE = {
+  done: 'done',
+  running: 'running',
+  failed: 'failed',
+  pending: 'pending',
+  ahead: 'ahead',
+};
+
+/**
+ * Stations of the phase graph, with the steps each one owns.
+ * @param {Record<string, any> | undefined} graph `display.causalityGraph`
+ * @param {{ currentPhase: string, phases: any[] }} view
+ */
+function wfPermStations(graph, view) {
+  const record = wfPermRecord(graph);
+  const phases = record !== undefined && Array.isArray(record.phases) ? record.phases : [];
+  const steps = record !== undefined && Array.isArray(record.steps) ? record.steps : [];
+  const holes = record !== undefined && Array.isArray(record.holes) ? record.holes : [];
+  const rows = [];
+  const byphase = new Map();
+  for (const phase of phases) {
+    const phaseRecord = wfPermRecord(phase);
+    if (phaseRecord === undefined) continue;
+    const id = wfPermText(phaseRecord.id) ?? wfPermText(phaseRecord.name);
+    if (id === undefined) continue;
+    const name = wfPermText(phaseRecord.name) ?? id;
+    const holeIds = [];
+    if (Array.isArray(phaseRecord.alongside)) {
+      for (const entry of phaseRecord.alongside) {
+        const text = wfPermText(entry);
+        if (text !== undefined) holeIds.push(text);
+      }
+    }
+    const fillSite = wfPermText(phaseRecord.fill);
+    const row = { id, name, holes: holeIds, fillSite, steps: [] };
+    byphase.set(id, row);
+    rows.push(row);
+  }
+  for (const step of steps) {
+    const stepRecord = wfPermRecord(step);
+    if (stepRecord === undefined) continue;
+    const phaseId = wfPermText(stepRecord.phase);
+    const target = phaseId === undefined ? undefined : byphase.get(phaseId);
+    if (target === undefined) continue;
+    target.steps.push({
+      id: wfPermText(stepRecord.id) ?? '',
+      kind: wfPermText(stepRecord.kind) ?? 'ask',
+      label: wfPermText(stepRecord.label) ?? '',
+      fill: wfPermText(stepRecord.fill),
+    });
+  }
+  const index = rows.findIndex((row) => row.name === view.currentPhase || row.id === view.currentPhase);
+  for (let position = 0; position < rows.length; position += 1) {
+    const row = rows[position];
+    const holeNames = [];
+    for (const hole of holes) {
+      const holeRecord = wfPermRecord(hole);
+      if (holeRecord === undefined) continue;
+      const phaseId = wfPermText(holeRecord.phase);
+      if (phaseId !== row.id) continue;
+      holeNames.push(wfPermText(holeRecord.name) ?? wfPermText(holeRecord.siteId) ?? '');
+    }
+    row.holeNames = holeNames;
+    row.status = index === -1 ? 'ahead' : position < index ? 'done' : position === index ? 'running' : 'ahead';
+  }
+  return rows;
+}
+
+/**
+ * Connectors of the graph: one arrow per phase edge, drawn in its own lane so nested jumps stay
+ * readable. A stream between adjacent phases is a chevron in the gap instead of an arc.
+ * @returns {{ from: number, to: number, back: boolean }[]}
+ */
+function wfPermEdges(graph) {
+  const record = wfPermRecord(graph);
+  if (record === undefined) return [];
+  const phases = Array.isArray(record.phases) ? record.phases : [];
+  const position = new Map();
+  phases.forEach((phase, index) => {
+    const phaseRecord = wfPermRecord(phase);
+    const id = wfPermText(phaseRecord?.id) ?? wfPermText(phaseRecord?.name);
+    if (id !== undefined) position.set(id, index);
+  });
+  const edges = [];
+  const seen = new Set();
+  const push = (fromRaw, toRaw, back) => {
+    const from = wfPermText(fromRaw);
+    const to = wfPermText(toRaw);
+    if (from === undefined || to === undefined) return;
+    const left = position.get(from);
+    const right = position.get(to);
+    if (left === undefined || right === undefined || left === right) return;
+    const key = `${left}:${right}:${back === true ? 'back' : 'on'}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    edges.push({ from: Math.min(left, right), to: Math.max(left, right), back: back === true || right < left });
+  };
+  const phaseEdges = Array.isArray(record.phaseEdges) ? record.phaseEdges : [];
+  for (const edge of phaseEdges) {
+    const edgeRecord = wfPermRecord(edge);
+    if (edgeRecord === undefined) continue;
+    push(edgeRecord.from, edgeRecord.to, edgeRecord.back === true);
+  }
+  const streams = Array.isArray(record.phaseStreams) ? record.phaseStreams : [];
+  for (const stream of streams) {
+    const streamRecord = wfPermRecord(stream);
+    if (streamRecord === undefined) continue;
+    push(streamRecord.from, streamRecord.to, false);
+  }
+  return edges;
+}
+
+/** One chevron group: the stream marker drawn between two adjacent stations. */
+function WfPermissionChevrons() {
+  return WF_H('svg', {
+    className: 'zwf-perm-chevrons',
+    width: 16,
+    height: 12,
+    viewBox: '0 0 16 12',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true',
+  },
+  WF_H('path', { d: 'M3 2.5 6.5 6 3 9.5', key: 'a' }),
+  WF_H('path', { d: 'M7.5 2.5 11 6 7.5 9.5', key: 'b' }),
+  WF_H('path', { d: 'M11.5 2.5 15 6 11.5 9.5', key: 'c' }));
+}
+
+/**
+ * The phase graph: connectors above, one station head per phase, the phase's steps below.
+ * @param {{ graph: Record<string, any> | undefined, view: object, variant: string, t: Function | undefined }} props
+ */
+function WfPermissionGraph(props) {
+  const stations = React.useMemo(() => wfPermStations(props.graph, props.view), [props.graph, props.view]);
+  const edges = React.useMemo(() => wfPermEdges(props.graph), [props.graph]);
+  const compact = props.variant === 'block';
+  if (stations.length === 0) return null;
+  const lanes = edges.length === 0 ? 0 : Math.min(WF_PERM_LANES, edges.length);
+  const arcHeight = lanes === 0 ? 0 : lanes * WF_PERM_LANE + WF_PERM_LANE_TOP;
+  const width = stations.length * WF_PERM_PITCH - (WF_PERM_PITCH - WF_PERM_STATION);
+  const arcs = [];
+  if (arcHeight > 0) {
+    edges.forEach((edge, index) => {
+      if (edge.to - edge.from === 1 && edge.back !== true) return;
+      const lane = index % lanes;
+      const y = arcHeight - WF_PERM_LANE_TOP - lane * WF_PERM_LANE;
+      const x1 = edge.from * WF_PERM_PITCH + 5;
+      const x2 = edge.to * WF_PERM_PITCH + 5;
+      const top = arcHeight;
+      arcs.push(WF_H('path', {
+        key: `arc-${edge.from}-${edge.to}-${String(index)}`,
+        className: 'zwf-perm-arc',
+        d: `M${x1} ${top} V${y + 3} Q${x1} ${y} ${x1 + 3} ${y} H${x2 - 3} Q${x2} ${y} ${x2} ${y + 3} V${top}`,
+      }));
+      arcs.push(WF_H('path', {
+        key: `head-${edge.from}-${edge.to}-${String(index)}`,
+        className: 'zwf-perm-arc-head',
+        d: `M${x2 - 3} ${top - 5} L${x2} ${top} L${x2 + 3} ${top - 5}`,
+      }));
+    });
+  }
+  const columns = stations.map((station) => {
+    const hole = station.holeNames !== undefined && station.holeNames.length > 0;
+    const chips = station.steps.slice(0, compact ? 2 : WF_PERM_PIN);
+    const rest = station.steps.length - chips.length;
+    return WF_H('div', { className: 'zwf-perm-station', key: station.id, style: { width: `${WF_PERM_STATION}px` } },
+      WF_H('div', { className: 'zwf-perm-station-head', style: { height: `${WF_PERM_ROW}px` } },
+        WF_H('span', {
+          className: `zwf-perm-lamp zwf-perm-lamp-${hole ? 'hole' : WF_PERM_LAMP_TONE[station.status] ?? 'ahead'}`,
+          'data-testid': 'workflow-timeline-station-head',
+        }),
+        WF_H('span', { className: 'zwf-perm-station-name', title: station.name }, station.name)),
+      chips.length === 0 && rest <= 0
+        ? null
+        : WF_H('div', { className: 'zwf-perm-pills' },
+          chips.map((chip, chipIndex) => WF_H('span', {
+            className: 'zwf-perm-pill',
+            key: `${chip.id === '' ? String(chipIndex) : chip.id}`,
+            title: chip.label,
+          },
+          WF_H('span', { className: 'zwf-perm-pill-glyph' }, chip.kind === 'ask' ? WF_H(WF_ICON.agent, { size: 12 }) : WF_H(WF_ICON.log, { size: 12 })),
+          WF_H('span', { className: 'zwf-perm-pill-text' }, chip.kind === 'ask' && chip.label !== '' ? chip.label : wfPermSay(props.t, 'chat.permission.workflow.script')))),
+          rest > 0
+            ? WF_H('span', { className: 'zwf-perm-pill zwf-perm-pill-more', key: 'more' }, `+${String(rest)}`)
+            : null));
+  });
+  return WF_H('div', { className: 'zwf-perm-graph' },
+    WF_H('div', { className: 'zwf-perm-graph-scroll' },
+      WF_H('div', { className: 'zwf-perm-graph-inner', style: { width: `${width}px` } },
+        arcHeight === 0
+          ? null
+          : WF_H('svg', {
+            className: 'zwf-perm-arcs',
+            width: width,
+            height: arcHeight,
+            viewBox: `0 0 ${width} ${arcHeight}`,
+            fill: 'none',
+            stroke: 'currentColor',
+            strokeWidth: 1,
+            strokeLinecap: 'round',
+            'aria-hidden': 'true',
+          }, arcs),
+        WF_H('div', { className: 'zwf-perm-stations' },
+          columns.map((column, index) => {
+            const next = stations[index + 1];
+            const stream = next !== undefined && edges.some((edge) => edge.from === index && edge.to === index + 1 && edge.back !== true);
+            return WF_H(WF_FRAGMENT, { key: `cell-${stations[index].id}` },
+              column,
+              stream ? WF_H('span', { className: 'zwf-perm-gap' }, WF_H(WfPermissionChevrons)) : WF_H('span', { className: 'zwf-perm-gap' }));
+          })))));
+}
+
+/* --------------------------------- settings -------------------------------- */
+
+/**
+ * The two settings the dialog may still change, or the two lines it only reports.
+ * The draft lives in the surface so the submit control reads the same values these rows show.
+ * @param {{ view: object, t: Function | undefined, initial: { model: string, bound: number | undefined }, draft: { model: string, bound: string }, onChange: Function }} props
+ */
+function WfPermissionSettings(props) {
+  const view = props.view;
+  const say = (key, params) => wfPermSay(props.t, key, params);
+  const initial = props.initial;
+  const model = props.draft.model;
+  const bound = props.draft.bound;
+  const setModel = (next) => props.onChange({ ...props.draft, model: next });
+  const setBound = (next) => props.onChange({ ...props.draft, bound: next });
+  const settingsRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const root = settingsRef.current;
+    if (root === null || typeof root.querySelectorAll !== 'function') return;
+    const focusable = root.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled)');
+    const last = focusable[focusable.length - 1];
+    if (last !== undefined && typeof last.focus === 'function') last.focus();
+  }, []);
+
+  const boundValue = wfPermLimit(bound);
+  const boundChanged = boundValue !== initial.bound && !(boundValue === undefined && initial.bound === undefined);
+  const modelChanged = model !== '' && model !== initial.model;
+  const concurrency = boundValue;
+  const modelRow = view.modelEditable === true && view.catalog.length > 0
+    ? WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-settings-model' },
+      WF_H('span', { className: 'zwf-perm-settings-lead' }, say(view.modelDefault ? 'chat.permission.workflow.settings.model.leadDefault' : 'chat.permission.workflow.settings.model.lead')),
+      WF_H('select', {
+        className: 'zwf-perm-select',
+        'data-testid': 'workflow-permission-settings-model-trigger',
+        value: model,
+        onChange: (event) => setModel(event.target.value),
+      },
+      model === ''
+        ? WF_H('option', { value: '', key: 'none' }, say('chat.permission.workflow.settings.model.noCatalog'))
+        : null,
+      view.catalog.map((entry) => WF_H('option', { key: entry.id, value: entry.id }, entry.label))),
+      view.catalog.some((entry) => entry.id === model)
+        ? null
+        : WF_H('span', { className: 'zwf-perm-badge', 'data-testid': 'workflow-permission-settings-model-unavailable' }, say('chat.permission.workflow.settings.model.unavailable')))
+    : WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-subagent-model', title: say('chat.permission.workflow.settings.model.noCatalogReason') },
+      view.modelEditable === true
+        ? say(view.modelDefault ? 'chat.permission.workflow.settings.model.noCatalogDefault' : 'chat.permission.workflow.settings.model.noCatalog')
+        : view.subagentModel === ''
+          ? say('chat.permission.workflow.settings.model.noCatalog')
+          : say(view.modelDefault ? 'chat.permission.workflow.subagentModelDefault' : 'chat.permission.workflow.subagentModel', { model: view.subagentModel }));
+
+  const tail = view.ceiling === undefined
+    ? say('chat.permission.workflow.settings.limit.none')
+    : concurrency === view.ceiling
+      ? say('chat.permission.workflow.settings.limit.atDefault')
+      : say('chat.permission.workflow.settings.limit.default', { n: view.ceiling });
+  const boundRow = view.ceiling === undefined && view.maxConcurrency === undefined
+    ? WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-max-concurrency' },
+      say('chat.permission.workflow.settings.limit.none'))
+    : WF_H('div', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-settings-bound' },
+      WF_H('span', { className: 'zwf-perm-settings-lead' }, say('chat.permission.workflow.settings.limit.lead')),
+      WF_H('div', { className: 'zwf-perm-stepper' },
+        WF_H('button', {
+          type: 'button',
+          className: 'zwf-perm-step',
+          'data-testid': 'workflow-permission-settings-bound-decrease',
+          'aria-label': say('chat.permission.workflow.settings.limit.decrease'),
+          disabled: concurrency === undefined || concurrency <= 1,
+          onClick: () => setBound(String(Math.max(1, (concurrency ?? 1) - 1))),
+        }, '\u2212'),
+        WF_H('input', {
+          className: 'zwf-perm-bound',
+          'data-testid': 'workflow-permission-settings-bound-value',
+          type: 'text',
+          inputMode: 'numeric',
+          value: bound,
+          placeholder: '\u2014',
+          'aria-label': say('chat.permission.workflow.maxConcurrency', { count: concurrency ?? 0 }),
+          onChange: (event) => {
+            const next = event.target.value.replace(/[^0-9]/gu, '');
+            setBound(next);
+          },
+          onKeyDown: (event) => {
+            event.stopPropagation();
+          },
+        }),
+        WF_H('button', {
+          type: 'button',
+          className: 'zwf-perm-step',
+          'data-testid': 'workflow-permission-settings-bound-increase',
+          'aria-label': say('chat.permission.workflow.settings.limit.increase'),
+          disabled: view.ceiling !== undefined && concurrency !== undefined && concurrency >= view.ceiling,
+          onClick: () => setBound(String(Math.min(view.ceiling ?? Number.MAX_SAFE_INTEGER, (concurrency ?? 0) + 1))),
+        }, '+')),
+      WF_H('span', { className: 'zwf-perm-settings-trail' }, say('chat.permission.workflow.settings.limit.trail')),
+      WF_H('span', { className: 'zwf-perm-settings-tail', 'data-testid': 'workflow-permission-settings-bound-tail' }, `\u00b7 ${tail}`),
+      boundChanged
+        ? WF_H('span', { className: 'zwf-perm-was' },
+          `\u00b7 ${say('chat.permission.workflow.settings.was', { value: initial.bound === undefined ? say('chat.permission.workflow.settings.limit.none') : String(initial.bound) })}`,
+          WF_H('button', {
+            type: 'button',
+            className: 'zwf-perm-reset',
+            title: say('chat.permission.workflow.settings.reset'),
+            'aria-label': say('chat.permission.workflow.settings.reset'),
+            onClick: () => setBound(initial.bound === undefined ? '' : String(initial.bound)),
+          }, WF_H(WF_ICON.refresh, { size: 12 })))
+        : null);
+
+  return WF_H('div', {
+    className: 'zwf-perm-settings',
+    'data-testid': 'workflow-permission-settings',
+    ref: settingsRef,
+  },
+  modelRow,
+  boundRow,
+  modelChanged
+    ? WF_H('p', { className: 'zwf-perm-was-row' },
+      `\u00b7 ${say('chat.permission.workflow.settings.was', { value: initial.model === '' ? say('chat.permission.workflow.settings.model.noCatalog') : initial.model })}`,
+      WF_H('button', {
+        type: 'button',
+        className: 'zwf-perm-reset',
+        title: say('chat.permission.workflow.settings.reset'),
+        'aria-label': say('chat.permission.workflow.settings.reset'),
+        onClick: () => setModel(initial.model),
+      }, WF_H(WF_ICON.refresh, { size: 12 })))
+    : null);
+}
+
+/* --------------------------------- bodies ---------------------------------- */
+
+/** Hole chips: every hole the script leaves for the agent to fill. */
+function WfPermissionHoles(props) {
+  const holes = Array.isArray(props.holes) ? props.holes : [];
+  if (holes.length === 0) return null;
+  return WF_H('div', { className: 'zwf-perm-holes', 'data-testid': 'workflow-permission-holes' },
+    WF_H('span', { className: 'zwf-perm-holes-label' }, wfPermSay(props.t, 'chat.permission.workflow.holes.label')),
+    holes.map((hole, index) => WF_H('span', {
+      className: 'zwf-perm-hole',
+      key: hole.id === undefined || hole.id === '' ? `hole-${String(index)}` : hole.id,
+      'data-testid': 'workflow-permission-hole',
+      'data-hole-id': hole.id,
+      title: hole.name,
+    },
+    WF_H('span', { className: 'zwf-perm-hole-glyph' }, WF_H(WF_ICON.spark, { size: 14 })),
+    WF_H('span', { className: 'zwf-perm-hole-name' }, hole.name === '' ? hole.id : hole.name))),
+    WF_H('span', { className: 'zwf-perm-holes-note' }, wfPermSay(props.t, 'chat.permission.workflow.holes.note')));
+}
+
+/** The saved workflow the run was started from: name, path and the arguments it was given. */
+function WfPermissionSaved(props) {
+  const view = props.view;
+  if (view.savedName === undefined) return null;
+  const args = Object.entries(view.savedArgs);
+  return WF_H('div', { className: 'zwf-perm-saved', 'data-testid': 'workflow-saved-source', 'data-workflow-saved-source': 'true' },
+    WF_H('div', { className: 'zwf-perm-saved-head' },
+      WF_H('span', { className: 'zwf-perm-saved-badge' }, wfPermSay(props.t, 'chat.permission.workflow.saved.badge')),
+      WF_H('span', { className: 'zwf-perm-saved-scope' }, `\u00b7 ${wfPermSay(props.t, `chat.permission.workflow.saved.scope.${view.savedScope}`)}`),
+      WF_H('span', { className: 'zwf-perm-saved-name', 'data-testid': 'workflow-saved-name', 'data-workflow-saved-name': 'true', title: view.savedName }, view.savedName)),
+    view.savedPath === undefined
+      ? null
+      : WF_H('p', { className: 'zwf-perm-saved-path', 'data-testid': 'workflow-saved-path', 'data-workflow-saved-path': 'true', title: view.savedPath }, view.savedPath),
+    args.length === 0
+      ? null
+      : WF_H('dl', { className: 'zwf-perm-saved-args', 'data-testid': 'workflow-saved-args', 'data-workflow-saved-args': 'true' },
+        WF_H('dt', { key: 'label' }, wfPermSay(props.t, 'chat.permission.workflow.saved.args')),
+        WF_H('dd', { key: 'values' }, args.map(([name, value]) => WF_H('code', { key: name, title: `${name} = ${wfPermArgText(value)}` },
+          `${name}: ${wfPermArgText(value)}`)).reduce((left, right) => (left === null ? right : [left, WF_H('span', { key: `sep-${String(right.key)}`, className: 'zwf-perm-sep' }, '\u00b7'), right]), null))));
+}
+
+/** The amend notice: which run is replaced, whether it is live, and whether the script changed. */
+function WfPermissionAmends(props) {
+  const view = props.view;
+  if (view.kind !== 'amend') return null;
+  const id = view.amendRunId ?? view.predecessorName ?? '';
+  return WF_H('div', { className: 'zwf-perm-amends', 'data-testid': 'workflow-amends', 'data-workflow-amends': 'true' },
+    WF_H('span', { className: 'zwf-perm-amends-label' }, wfPermSay(props.t, 'chat.permission.workflow.amends')),
+    id === '' ? null : WF_H('code', { className: 'zwf-perm-amends-id', title: id }, id),
+    view.scriptInherited
+      ? WF_H('span', { className: 'zwf-perm-amends-note', 'data-testid': 'workflow-amends-script-inherited', 'data-workflow-amends-script-inherited': 'true' },
+        `\u00b7 ${wfPermSay(props.t, 'chat.permission.workflow.amends.scriptUnchanged')}`)
+      : null,
+    view.predecessorLive
+      ? WF_H('span', { className: 'zwf-perm-amends-live', 'data-testid': 'workflow-amends-live', 'data-workflow-amends-live': 'true' },
+        `\u00b7 ${wfPermSay(props.t, 'chat.permission.workflow.amends.running')}`)
+      : null);
+}
+
+/** The folded script body. */
+function WfPermissionScript(props) {
+  const open = props.open;
+  if (props.script === '') return null;
+  const say = (key) => wfPermSay(props.t, key);
+  return WF_H('div', { className: 'zwf-perm-script-wrap' },
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-perm-script-toggle',
+      'data-testid': 'workflow-script-toggle',
+      'aria-expanded': open ? 'true' : 'false',
+      onClick: () => props.onToggle(),
+      onKeyDown: (event) => {
+        event.stopPropagation();
+      },
+    },
+    WF_H('span', { className: `zwf-perm-caret${open ? ' zwf-perm-caret-open' : ''}` }, WF_H(WF_ICON.chevronRight, { size: 13 })),
+    WF_H('span', null, open ? say('chat.permission.workflow.hideScript') : say('chat.permission.workflow.showScript'))),
+    open
+      ? WF_H('div', { className: 'zwf-perm-script-body', 'data-testid': 'workflow-script-scroll' },
+        WF_H('pre', { className: 'zwf-perm-script-code', 'data-testid': 'workflow-script-codeblock' }, props.script))
+      : null);
+}
+
+/* -------------------------------- decisions -------------------------------- */
+
+/**
+ * Send one decision for a waiting run.
+ * @param {{ sessionId: string, runId: string, optionId: string, freeText?: string, adjustments?: object }} answer
+ */
+async function wfPermissionAnswer(answer) {
+  const body = {
+    sessionId: answer.sessionId,
+    runId: answer.runId,
+    optionId: answer.optionId,
+  };
+  if (typeof answer.freeText === 'string' && answer.freeText !== '') body.freeText = answer.freeText;
+  if (answer.adjustments !== undefined) body.adjustments = answer.adjustments;
+  return WF_API.approveRun(body);
+}
+
+/** Failure copy for one rejected answer. */
+function wfPermissionFailure(error) {
+  const message = wfPermRecord(error) !== undefined && typeof error.message === 'string' && error.message !== ''
+    ? error.message
+    : typeof error === 'string' ? error : '';
+  return message;
+}
+
+/* -------------------------------- the sheet -------------------------------- */
+
+/**
+ * One confirmation surface: the compact block inside a tool card, and the dialog it expands into.
+ * @param {{ variant: 'block' | 'overlay', run: unknown, sessionId: string, t: Function | undefined, onClose?: Function, onDecided?: Function }} props
+ */
+function WfPermissionSheet(props) {
+  const t = props.t;
+  const say = (key, params) => wfPermSay(t, key, params);
+  const view = React.useMemo(() => wfPermView(props.run), [props.run]);
+  const stations = React.useMemo(() => wfPermStations(view.graph, view), [view]);
+  const scriptOpenDefault = view.graph === undefined;
+  const [scriptOpen, setScriptOpen] = React.useState(scriptOpenDefault);
+  const [selected, setSelected] = React.useState(WF_PERM_OPTION_IDS[0]);
+  const [refine, setRefine] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [failure, setFailure] = React.useState(null);
+  const [answered, setAnswered] = React.useState(undefined);
+  const initial = React.useMemo(() => ({
+    model: view.subagentModel,
+    bound: view.maxConcurrency ?? view.ceiling,
+  }), [view.subagentModel, view.maxConcurrency, view.ceiling]);
+  const [draft, setDraft] = React.useState(() => ({
+    model: initial.model,
+    bound: initial.bound === undefined ? '' : String(initial.bound),
+  }));
+  React.useEffect(() => {
+    setDraft({
+      model: initial.model,
+      bound: initial.bound === undefined ? '' : String(initial.bound),
+    });
+  }, [initial.model, initial.bound]);
+  const listRef = React.useRef(null);
+  const overlay = props.variant === 'overlay';
+
+  const holes = React.useMemo(() => {
+    const rows = [];
+    for (const station of stations) {
+      if (station.holeNames === undefined) continue;
+      station.holeNames.forEach((name, index) => rows.push({ id: `${station.id}-${String(index)}`, name }));
+    }
+    return rows;
+  }, [stations]);
+
+  const sessionId = props.sessionId !== '' ? props.sessionId : view.sessionId;
+  const runId = view.runId;
+  const canSubmit = runId !== '' && sessionId !== '' && busy !== true && (selected !== 'workflowRefine' || refine.trim() !== '');
+
+  const boundDraft = wfPermLimit(draft.bound);
+  const modelChanged = draft.model !== '' && draft.model !== initial.model;
+  const boundChanged = boundDraft !== initial.bound && !(boundDraft === undefined && initial.bound === undefined);
+  const changed = modelChanged || boundChanged;
+  const adjustments = (() => {
+    if (!changed) return undefined;
+    const payload = {};
+    if (view.modelEditable === true && modelChanged) payload.subagentModel = draft.model;
+    if (boundChanged && boundDraft !== undefined) payload.maxConcurrency = boundDraft;
+    return Object.keys(payload).length === 0 ? undefined : payload;
+  })();
+
+  const submit = async (optionId) => {
+    if (!canSubmit) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      await wfPermissionAnswer({
+        sessionId,
+        runId,
+        optionId: optionId ?? selected,
+        ...(selected === 'workflowRefine' ? { freeText: refine.trim() } : {}),
+        ...(adjustments === undefined ? {} : { adjustments }),
+      });
+    } catch (error) {
+      console.warn('zcode-workflow: answering the launch confirmation failed', error);
+      setFailure(say('chat.permission.submitFailed', { reason: wfPermissionFailure(error) }));
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    setAnswered(optionId ?? selected);
+    if (typeof props.onDecided === 'function') props.onDecided(optionId ?? selected);
+  };
+
+  const onListKeyDown = (event) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      const index = WF_PERM_OPTION_IDS.indexOf(selected);
+      const next = WF_PERM_OPTION_IDS[(index + step + WF_PERM_OPTION_IDS.length) % WF_PERM_OPTION_IDS.length];
+      setSelected(next);
+      const row = listRef.current?.querySelector(`[data-option-id="${next}"]`);
+      if (row !== undefined && row !== null && typeof row.focus === 'function') row.focus();
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      event.stopPropagation();
+      void submit(selected);
+    }
+  };
+
+  if (view.script === '' && stations.length === 0 && view.savedName === undefined && view.holeId === undefined && runId === '') {
+    return null;
+  }
+
+  const titleKey = view.kind === 'hole'
+    ? 'chat.permission.workflow.hole.title'
+    : view.kind === 'amend'
+      ? 'chat.permission.workflow.amend.title'
+      : 'chat.permission.workflow.title';
+  const displayName = view.kind === 'hole'
+    ? view.holeName ?? view.name
+    : view.name !== '' ? view.name : wfPermRunName(props.run);
+
+  const header = WF_H('div', { className: 'zwf-perm-head' },
+    WF_H('div', { className: 'zwf-perm-headline' },
+      WF_H('span', { className: 'zwf-perm-glyph' }, WF_H(WF_ICON.workflow, { size: overlay ? 16 : 15 })),
+      WF_H('span', { className: 'zwf-perm-title' }, say(titleKey)),
+      displayName === undefined || displayName === ''
+        ? null
+        : WF_H('span', { className: 'zwf-perm-name', title: displayName }, displayName),
+      WF_H('span', { className: 'zwf-perm-count' },
+        say('chat.permission.workflow.stagesCount', { count: stations.length }),
+        holes.length === 0 ? '' : ` \u00b7 ${say('chat.permission.workflow.holesCount', { count: holes.length })}`)),
+    view.kind === 'hole' && view.holeName !== undefined
+      ? WF_H('p', { className: 'zwf-perm-hole-target', 'data-testid': 'workflow-fill-hole-name' }, view.holeName)
+      : null);
+
+  if (answered !== undefined) {
+    const answerKey = answered === 'allow_once'
+      ? 'chat.permission.approve'
+      : answered === 'allow_session'
+        ? 'chat.permission.workflow.allowForSession'
+        : answered === 'workflowRefine'
+          ? 'chat.permission.workflow.refine'
+          : 'chat.permission.deny';
+    return WF_H('div', { className: `zwf-perm-sheet zwf-perm-sheet-${props.variant}` },
+      header,
+      WF_H('p', { className: 'zwf-perm-answered', role: 'status' },
+        WF_H('span', { className: 'zwf-perm-lamp zwf-perm-lamp-running' }),
+        WF_H('span', null, say(answerKey))));
+  }
+
+  const options = [
+    {
+      id: 'allow_once',
+      label: say('chat.permission.approve'),
+      description: say(changed ? 'chat.permission.workflow.allowOnce.adjusted' : 'chat.permission.allowOnce.description'),
+    },
+    {
+      id: 'allow_session',
+      label: say('chat.permission.workflow.allowForSession'),
+      description: say(changed ? 'chat.permission.workflow.allowForSession.adjusted' : 'chat.permission.workflow.allowForSession.description'),
+    },
+    {
+      id: 'deny',
+      label: say('chat.permission.deny'),
+      description: say('chat.permission.deny.description'),
+    },
+  ];
+
+  const optionRows = options.map((option, index) => WF_H('button', {
+    type: 'button',
+    key: option.id,
+    className: `zwf-perm-option${selected === option.id ? ' zwf-perm-option-active' : ''}`,
+    role: 'radio',
+    'aria-checked': selected === option.id,
+    'data-option-id': option.id,
+    tabIndex: selected === option.id ? 0 : -1,
+    onClick: () => setSelected(option.id),
+    onDoubleClick: () => {
+      void submit(option.id);
+    },
+  },
+  WF_H('span', { className: 'zwf-perm-option-index' }, String(index + 1)),
+  WF_H('span', { className: 'zwf-perm-option-label' }, option.label),
+  WF_H('span', { className: 'zwf-perm-option-desc' }, option.description)));
+
+  optionRows.push(WF_H('div', {
+    key: 'workflowRefine',
+    className: `zwf-perm-option zwf-perm-option-refine${selected === 'workflowRefine' ? ' zwf-perm-option-active' : ''}`,
+    role: 'radio',
+    'aria-checked': selected === 'workflowRefine',
+    'data-option-id': 'workflowRefine',
+    tabIndex: selected === 'workflowRefine' ? 0 : -1,
+    onClick: () => setSelected('workflowRefine'),
+    onKeyDown: (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      setSelected('workflowRefine');
+    },
+  },
+  WF_H('span', { className: 'zwf-perm-option-index' }, '4'),
+  WF_H('span', { className: 'zwf-perm-option-label' }, say('chat.permission.workflow.refine')),
+  WF_H('input', {
+    className: 'zwf-perm-refine',
+    type: 'text',
+    value: refine,
+    placeholder: say('chat.permission.workflow.refine.placeholder'),
+    'aria-label': say('chat.permission.workflow.refine'),
+    onChange: (event) => {
+      setRefine(event.target.value);
+      setSelected('workflowRefine');
+    },
+    onKeyDown: (event) => {
+      event.stopPropagation();
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      void submit('workflowRefine');
+    },
+  })));
+
+  const body = WF_H('div', { className: `zwf-perm-body zwf-perm-body-${props.variant}` },
+    WF_H(WfPermissionHoles, { holes, t }),
+    WF_H(WfPermissionAmends, { view, t }),
+    WF_H(WfPermissionSettings, { view, t, initial, draft, onChange: setDraft }),
+    WF_H(WfPermissionSaved, { view, t }),
+    WF_H(WfPermissionGraph, { graph: view.graph, view, variant: props.variant, t }),
+    view.graphTruncated
+      ? WF_H('p', { className: 'zwf-perm-truncated' }, say('chat.permission.workflow.graph.truncated'))
+      : null,
+    WF_H(WfPermissionScript, {
+      script: view.script,
+      open: scriptOpen,
+      t,
+      onToggle: () => setScriptOpen((value) => value !== true),
+    }),
+    WF_H('div', {
+      className: 'zwf-perm-options',
+      role: 'radiogroup',
+      'aria-label': say(titleKey),
+      ref: listRef,
+      onKeyDown: onListKeyDown,
+    }, optionRows),
+    WF_H('div', { className: 'zwf-perm-foot' },
+      WF_H('span', { className: 'zwf-perm-hint' },
+        WF_H('span', { className: 'zwf-perm-hint-glyph' }, WF_H(WF_ICON.alert, { size: 13 })),
+        WF_H('span', null, say('chat.permission.keyboardHint'))),
+      failure === null ? null : WF_H('span', { className: 'zwf-perm-failure', role: 'alert' }, failure),
+      WF_H(WF_UI.Button, {
+        variant: 'primary',
+        size: overlay ? 'md' : 'sm',
+        disabled: !canSubmit,
+        onClick: () => {
+          void submit(selected);
+        },
+      }, say('chat.permission.confirm'))));
+
+  return WF_H('div', { className: `zwf-perm-sheet zwf-perm-sheet-${props.variant}` }, header, body);
+}
+
+/**
+ * The compact confirmation inside a workflow tool card.
+ * @param {{ sessionId?: string, run?: unknown, t?: Function, onDecided?: Function }} props
+ */
+function WfPermissionBlock(props) {
+  const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+  return WF_H('div', { className: 'zwf-perm-block', 'data-testid': 'workflow-permission-block', 'data-workflow-permission-block': 'true' },
+    WF_H('div', { className: 'zwf-perm-block-label' },
+      WF_H('span', { className: 'zwf-perm-block-glyph' }, WF_H(WF_ICON.alert, { size: 14 })),
+      WF_H('span', null, wfPermSay(props?.t, 'chat.permission.title')),
+      WF_H('span', { className: 'zwf-perm-block-status' }, wfPermSay(props?.t, 'chat.permission.awaitingApproval'))),
+    WF_H(WfPermissionSheet, {
+      variant: 'block',
+      run: props?.run,
+      sessionId,
+      t: props?.t,
+      onDecided: props?.onDecided,
+    }));
+}
+
+/* --------------------------------- overlay --------------------------------- */
+
+/** Which run, in which Session, the dialog is showing. */
+const WF_PERMISSION_OVERLAY = (() => {
   let current;
   const listeners = new Set();
   const publish = () => {
@@ -2454,1203 +9357,1050 @@ const WF_DETAIL_OVERLAY = (() => {
   };
 })();
 
-/** One locale string for this surface, with the embedded English fragment as fallback. */
-function wfDetailSay(t, key, params) {
-  return WF_UI.say(t, UI_EN, key, params);
-}
-
-/** Pick a `…One` variant when the count is exactly one and the fragment carries one. */
-function wfDetailCountSay(t, key, count, params) {
-  const oneKey = `${key}One`;
-  const useOne = count === 1 && Object.prototype.hasOwnProperty.call(UI_EN, oneKey);
-  return wfDetailSay(t, useOne ? oneKey : key, { ...(params ?? {}), count });
-}
-
-/* ---------------------------------- readers -------------------------------- */
-
-/** Narrow an opener's value to this tab's navigation parameters. */
-function wfDetailParams(value) {
-  if (value === null || typeof value !== 'object') return undefined;
-  const runId = typeof value.runId === 'string' && value.runId !== '' ? value.runId : undefined;
-  if (runId === undefined) return undefined;
-  const sessionId = typeof value.sessionId === 'string' && value.sessionId !== '' ? value.sessionId : undefined;
-  const projectRoot = typeof value.projectRoot === 'string' && value.projectRoot !== '' ? value.projectRoot : undefined;
-  if (sessionId === undefined && projectRoot === undefined) return undefined;
-  const name = typeof value.name === 'string' && value.name.trim() !== '' ? value.name.trim() : undefined;
-  return {
-    runId,
-    ...(sessionId === undefined ? {} : { sessionId }),
-    ...(projectRoot === undefined ? {} : { projectRoot }),
-    ...(name === undefined ? {} : { name }),
-  };
-}
-
-/** The opener's parameters from a tab record; the record omits them after a reload. */
-function wfDetailTabParams(tab) {
-  const navigation = tab?.navigation;
-  if (navigation === null || typeof navigation !== 'object') return undefined;
-  return wfDetailParams(navigation.params);
-}
-
-const WF_DETAIL_STATUSES = ['pending', 'running', 'completed', 'errored', 'stopped', 'superseded'];
-
-/** Unknown or missing status words keep a neutral label instead of leaking a wire value. */
-function wfDetailStatusWord(t, status) {
-  const key = WF_DETAIL_STATUSES.includes(status) ? `detail.status.${status}` : 'detail.status.unknown';
-  return wfDetailSay(t, key);
-}
-
-function wfDetailIsTerminal(status) {
-  return status === 'completed' || status === 'errored' || status === 'stopped' || status === 'superseded';
-}
-
-function wfDetailCanStop(status) {
-  return status === 'pending' || status === 'running';
-}
-
-const WF_DETAIL_STOP_REASONS = ['user', 'model', 'provider', 'interrupted', 'superseded'];
-
-function wfDetailStopReasonLabel(t, reason) {
-  const key = WF_DETAIL_STOP_REASONS.includes(reason) ? `detail.stopReason.${reason}` : 'detail.stopReason.other';
-  return wfDetailSay(t, key);
-}
-
-const WF_DETAIL_ARTIFACT_KINDS = ['file', 'markdown', 'chart', 'table', 'metrics', 'board'];
-
-function wfDetailArtifactKind(t, kind) {
-  return wfDetailSay(t, WF_DETAIL_ARTIFACT_KINDS.includes(kind) ? `detail.artifact.kind.${kind}` : 'detail.artifact.kind.file');
-}
-
-/** Minute-level relative copy for the subagent rows; the pane re-renders on the shared clock. */
-function wfDetailRelative(t, timestamp, now) {
-  const value = Number(timestamp);
-  const current = Number(now);
-  if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(current)) return '';
-  const diff = Math.max(0, current - value);
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return wfDetailSay(t, 'detail.relative.justNow');
-  if (minutes < 60) return wfDetailSay(t, 'detail.relative.minutesAgo', { count: minutes });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return wfDetailSay(t, 'detail.relative.hoursAgo', { count: hours });
-  return wfDetailSay(t, 'detail.relative.daysAgo', { count: Math.floor(hours / 24) });
-}
-
-/** Compact elapsed copy in the surface's own units, with no dependency on another part's keys. */
-function wfDetailDuration(t, from, to) {
-  const start = Number(from);
-  const end = Number(to);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '';
-  const seconds = Math.max(0, Math.round((end - start) / 1000));
-  if (seconds < 60) return wfDetailSay(t, 'detail.duration.seconds', { seconds });
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return wfDetailSay(t, 'detail.duration.minutes', { minutes, seconds: seconds % 60 });
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return wfDetailSay(t, 'detail.duration.hours', { hours, minutes: minutes % 60 });
-  return wfDetailSay(t, 'detail.duration.days', { days: Math.floor(hours / 24), hours: hours % 24 });
-}
-
-function wfDetailClock(timestamp) {
-  const value = Number(timestamp);
-  if (!Number.isFinite(value) || value <= 0) return '';
-  try {
-    return new Date(value).toLocaleTimeString();
-  } catch {
-    return '';
-  }
-}
-
-function wfDetailJsonText(value) {
-  if (typeof value === 'string') return value;
-  if (value === undefined) return '';
-  return WF_UI.json(value);
-}
-
-function wfDetailArgText(value) {
-  if (typeof value === 'string') return value;
-  try {
-    const text = JSON.stringify(value);
-    return typeof text === 'string' ? text : String(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function wfDetailArgsText(args) {
-  if (args === undefined) return '';
-  if (!Array.isArray(args)) return wfDetailArgText(args);
-  return args.map(wfDetailArgText).join(' ');
-}
-
-const WF_DETAIL_TEXTUAL = /^(?:text\/|application\/json$)/u;
-
-function wfDetailIsTextual(contentType) {
-  return typeof contentType === 'string' && WF_DETAIL_TEXTUAL.test(contentType);
-}
-
-function wfDetailIsImage(contentType) {
-  return typeof contentType === 'string' && contentType.startsWith('image/');
-}
-
-/** Group the manifest rows by artifact id and keep the newest version's row. */
-function wfDetailArtifacts(run) {
-  const rows = Array.isArray(run?.artifacts) ? run.artifacts : [];
-  const byId = new Map();
-  for (const row of rows) {
-    if (row === null || typeof row !== 'object') continue;
-    if (typeof row.id !== 'string' || row.id === '') continue;
-    const list = byId.get(row.id);
-    if (list === undefined) byId.set(row.id, [row]);
-    else list.push(row);
-  }
-  const groups = [];
-  for (const [id, list] of byId) {
-    const ordered = [...list].sort((left, right) => Number(left.version ?? 0) - Number(right.version ?? 0));
-    groups.push({ id, row: ordered[ordered.length - 1], versions: ordered.length });
-  }
-  return groups;
-}
-
-/** Workflow arguments travel only when a Host exposes them; nothing is composed in the client. */
-function wfDetailRunArgs(run) {
-  const args = run?.args;
-  if (args === null || typeof args !== 'object' || Array.isArray(args)) return undefined;
-  return Object.keys(args).length === 0 ? undefined : args;
-}
-
-/**
- * One copyable JSON block of the run's parameters.
- *
- * Workflow arguments keep their own names because the script author chose them; the engine
- * facts the Host always records use product labels instead of wire field names.
- */
-function wfDetailRunParams(run, say) {
-  if (run === undefined) return undefined;
-  const params = {};
-  const args = wfDetailRunArgs(run);
-  if (args !== undefined) {
-    for (const [key, value] of Object.entries(args)) params[key] = value;
-  }
-  if (typeof run.cwd === 'string' && run.cwd !== '') params[say('detail.cwd')] = run.cwd;
-  if (typeof run.scriptPath === 'string' && run.scriptPath !== '') params[say('detail.scriptTitle')] = run.scriptPath;
-  const cap = Number(run.maxConcurrency);
-  if (Number.isFinite(cap) && cap > 0) params[say('detail.config.maxConcurrency')] = cap;
-  if (typeof run.subagentModel === 'string' && run.subagentModel !== '') params[say('detail.config.model')] = run.subagentModel;
-  if (typeof run.resumedFrom === 'string' && run.resumedFrom !== '') params[say('detail.resumedFrom')] = run.resumedFrom;
-  return Object.keys(params).length === 0 ? undefined : params;
-}
-
-async function wfDetailCopy(text) {
-  if (typeof text !== 'string' || text === '') return false;
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
-
-/* ----------------------------------- hooks --------------------------------- */
-
-function useWfDetailOverlay() {
-  const [value, setValue] = React.useState(WF_DETAIL_OVERLAY.read);
-  React.useEffect(() => WF_DETAIL_OVERLAY.subscribe(() => setValue(WF_DETAIL_OVERLAY.read())), []);
+function useWfPermissionTarget() {
+  const [value, setValue] = React.useState(WF_PERMISSION_OVERLAY.read);
+  React.useEffect(() => WF_PERMISSION_OVERLAY.subscribe(() => setValue(WF_PERMISSION_OVERLAY.read())), []);
   return value;
 }
 
-/** A short-lived confirmation token shared by every copy control in the pane. */
-function useWfDetailCopy() {
-  const [token, setToken] = React.useState('');
-  const timer = React.useRef(undefined);
-  React.useEffect(() => () => {
-    if (timer.current !== undefined) clearTimeout(timer.current);
-  }, []);
-  const flash = React.useCallback((next) => {
-    setToken(next);
-    if (timer.current !== undefined) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToken(''), WF_DETAIL_COPY_MS);
-  }, []);
-  return [token, flash];
+/**
+ * The full-size dialog: the same confirmation, enlarged, over the whole shell.
+ * @param {{ t?: Function }} props
+ */
+function WfPermissionOverlay(props) {
+  const target = useWfPermissionTarget();
+  const sessionId = wfPermText(target?.sessionId) ?? '';
+  const runId = wfPermText(target?.runId) ?? '';
+  const given = target?.run;
+  const [state, setState] = React.useState({ phase: 'idle', run: undefined });
+  const say = (key, params) => wfPermSay(props?.t, key, params);
+
+  React.useEffect(() => {
+    if (target === undefined) {
+      setState({ phase: 'idle', run: undefined });
+      return undefined;
+    }
+    if (given !== undefined) {
+      setState({ phase: 'ready', run: given });
+      return undefined;
+    }
+    let active = true;
+    setState({ phase: 'loading', run: undefined });
+    WF_API.runs({ sessionId, limit: 60 })
+      .then((payload) => {
+        if (!active) return;
+        const rows = wfPermRecord(payload) !== undefined && Array.isArray(payload.runs) ? payload.runs : [];
+        const found = rows.find((row) => wfPermRunId(row) === runId);
+        setState(found === undefined ? { phase: 'missing', run: undefined } : { phase: 'ready', run: found });
+      })
+      .catch((error) => {
+        console.warn('zcode-workflow: reading the pending confirmation failed', error);
+        if (active) setState({ phase: 'missing', run: undefined });
+      });
+    return () => {
+      active = false;
+    };
+  }, [target, given, sessionId, runId]);
+
+  React.useEffect(() => {
+    if (target === undefined) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      WF_PERMISSION_OVERLAY.close();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [target]);
+
+  if (target === undefined) return null;
+  const close = () => WF_PERMISSION_OVERLAY.close();
+
+  let content;
+  if (state.phase === 'loading') {
+    content = WF_H('div', { className: 'zwf-perm-overlay-note' }, WF_H(WF_UI.Spinner), WF_H('span', null, say('chat.permission.loading')));
+  } else if (state.phase === 'ready') {
+    content = WF_H(WfPermissionSheet, {
+      variant: 'overlay',
+      run: state.run,
+      sessionId,
+      t: props?.t,
+      onDecided: () => close(),
+    });
+  } else if (state.phase === 'missing') {
+    content = WF_H('div', { className: 'zwf-perm-overlay-note' }, say('chat.permission.notFound'));
+  } else {
+    content = null;
+  }
+
+  return WF_H('div', {
+    className: 'zwf-perm-layer',
+    onPointerDown: (event) => {
+      if (event.target === event.currentTarget) close();
+    },
+  },
+  WF_H('div', {
+    className: 'zwf-perm-dialog',
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-label': say('chat.permission.title'),
+  },
+  WF_H('div', { className: 'zwf-perm-dialog-head' },
+    WF_H('span', { className: 'zwf-perm-dialog-title' }, say('chat.permission.title')),
+    WF_H('span', { className: 'zwf-perm-dialog-badge' }, say('chat.permission.awaitingApproval')),
+    WF_H(WF_UI.IconButton, {
+      icon: WF_H(WF_ICON.close, { size: 15 }),
+      label: say('chat.permission.close'),
+      title: say('chat.permission.close'),
+      onClick: close,
+    })),
+  WF_H('div', { className: 'zwf-perm-dialog-body' }, content)));
+}
+
+/* ------------------------------ registration ------------------------------- */
+
+/**
+ * Open the confirmation dialog for one run.
+ * @param {{ sessionId: string, runId: string, run?: unknown }} params
+ * @returns {boolean} false when the call lacks the identity the dialog needs
+ */
+WF_PERMISSION.open = function open(params) {
+  const record = wfPermRecord(params);
+  if (record === undefined) return false;
+  const sessionId = wfPermText(record.sessionId) ?? '';
+  const runId = wfPermText(record.runId) ?? wfPermRunId(record.run);
+  if (sessionId === '' || runId === '') return false;
+  WF_PERMISSION_OVERLAY.open({ sessionId, runId, run: record.run });
+  return true;
+};
+
+/** Close the dialog without answering; the run keeps waiting for a decision. */
+WF_PERMISSION.close = function close() {
+  WF_PERMISSION_OVERLAY.close();
+};
+
+/** The compact block a tool card renders while a run waits for its confirmation. */
+WF_PERMISSION.Block = WfPermissionBlock;
+
+/**
+ * Register the dialog seat and bind the workspace dictionary.
+ * @param {object} ctx client plugin context
+ * @param {(callback: Function, label?: string) => unknown} effect effect registrar
+ */
+WF_PERMISSION.register = function register(ctx, effect) {
+  if (ctx === null || typeof ctx !== 'object') return;
+  if (ctx.locale !== undefined && ctx.locale !== null && typeof ctx.locale.bind === 'function') {
+    try {
+      WF_PERMISSION_UI = ctx.locale.bind(UI_NS);
+    } catch (error) {
+      console.warn('zcode-workflow: permission dictionary bind failed', error);
+    }
+  }
+  if (typeof effect === 'function') {
+    effect(() => () => WF_PERMISSION_OVERLAY.close(), 'zcode-workflow: launch confirmation');
+  }
+  const slots = ctx.slots;
+  if (slots === undefined || slots === null || typeof slots.inject !== 'function' || typeof slots.register !== 'function') return;
+  slots.inject('shell.overlay', () => slots.register({
+    name: 'shell.overlay',
+    id: 'zcode-workflow-permission',
+    locale: UI_NS,
+  }, WfPermissionOverlay));
+};
+
+/* ---------------------------------- styles --------------------------------- */
+
+const WF_PERMISSION_CSS = `
+.zwf-perm-block{box-sizing:border-box;display:flex;flex-direction:column;gap:8px;min-width:0;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1)}
+.zwf-perm-block-label{display:flex;align-items:center;gap:6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-block-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-state-warn-primary)}
+.zwf-perm-block-status{margin-left:auto;padding:0 7px;height:18px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 12%,transparent);color:var(--dsw-alias-state-warn-primary);font-size:11px;line-height:18px}
+.zwf-perm-sheet{box-sizing:border-box;display:flex;flex-direction:column;gap:10px;min-width:0}
+.zwf-perm-head{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-perm-headline{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.zwf-perm-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-title{font-size:14px;line-height:22px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap}
+.zwf-perm-name{min-width:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-perm-count{margin-left:auto;flex:none;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-perm-hole-target{margin:0;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.zwf-perm-body{display:flex;flex-direction:column;gap:10px;min-width:0}
+.zwf-perm-holes{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-width:0}
+.zwf-perm-holes-label{flex:none;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-hole{display:inline-flex;align-items:center;gap:6px;height:24px;max-width:100%;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px}
+.zwf-perm-hole-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-hole-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-perm-holes-note{flex:1 1 100%;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-amends{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-amends-label{flex:none}
+.zwf-perm-amends-id{min-width:0;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;color:var(--dsw-alias-label-primary)}
+.zwf-perm-amends-live{color:var(--dsw-alias-state-warn-primary)}
+.zwf-perm-settings{display:flex;flex-direction:column;gap:5px;min-width:0}
+.zwf-perm-settings-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:0;min-width:0;font-size:12px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.zwf-perm-settings-lead{flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-settings-trail{flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-settings-tail{flex:none;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-perm-select{box-sizing:border-box;max-width:260px;height:24px;padding:0 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:20px;cursor:pointer}
+.zwf-perm-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}
+.zwf-perm-badge{flex:none;height:18px;padding:0 6px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary);font-size:11px;line-height:18px}
+.zwf-perm-stepper{display:inline-flex;align-items:center;gap:2px;flex:none}
+.zwf-perm-step{box-sizing:border-box;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;cursor:pointer}
+.zwf-perm-step:hover:not(:disabled){background:color-mix(in oklab,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-label-primary)}
+.zwf-perm-step:disabled{opacity:.4;cursor:default}
+.zwf-perm-step:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-perm-bound{box-sizing:border-box;width:30px;height:24px;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;line-height:20px;text-align:center;font-variant-numeric:tabular-nums}
+.zwf-perm-bound:hover{border-color:var(--dsw-alias-border-l1)}
+.zwf-perm-bound:focus{border-color:transparent;outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px;background:var(--dsw-alias-bg-base)}
+.zwf-perm-was,.zwf-perm-was-row{display:inline-flex;align-items:center;gap:4px;flex:none;margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-reset{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.zwf-perm-reset:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-label-primary)}
+.zwf-perm-reset:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-perm-saved{display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2)}
+.zwf-perm-saved-head{display:flex;align-items:baseline;gap:6px;min-width:0;font-size:12px;line-height:18px}
+.zwf-perm-saved-badge{flex:none;font-weight:500;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-saved-scope{flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-saved-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;color:var(--dsw-alias-label-primary)}
+.zwf-perm-saved-path{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-saved-args{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;margin:0;font-size:12px;line-height:18px;min-width:0}
+.zwf-perm-saved-args dt{color:var(--dsw-alias-label-secondary)}
+.zwf-perm-saved-args dd{display:flex;flex-wrap:wrap;gap:4px 6px;margin:0;min-width:0}
+.zwf-perm-saved-args code{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.zwf-perm-sep{color:var(--dsw-alias-label-secondary)}
+.zwf-perm-graph{display:flex;flex-direction:column;min-width:0;padding:2px 0}
+.zwf-perm-graph-scroll{overflow-x:auto;overflow-y:hidden;min-width:0}
+.zwf-perm-graph-inner{display:flex;flex-direction:column;min-width:0}
+.zwf-perm-arcs{display:block;color:var(--dsw-alias-border-l2)}
+.zwf-perm-arc{stroke:currentColor;fill:none}
+.zwf-perm-arc-head{stroke:currentColor;fill:none}
+.zwf-perm-stations{display:flex;align-items:flex-start;min-width:0}
+.zwf-perm-station{box-sizing:border-box;display:flex;flex-direction:column;gap:6px;min-width:0;flex:none}
+.zwf-perm-gap{display:inline-flex;align-items:center;justify-content:center;flex:none;width:24px;height:24px;color:var(--dsw-alias-label-secondary);opacity:.6}
+.zwf-perm-chevrons{display:block}
+.zwf-perm-station-head{display:flex;align-items:center;gap:7px;min-width:0}
+.zwf-perm-station-name{min-width:0;font-size:12.5px;line-height:18px;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-perm-lamp{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
+.zwf-perm-lamp-running{background:var(--dsw-alias-state-warn-primary);animation:zwf-perm-pulse 1.6s ease-in-out infinite}
+.zwf-perm-lamp-pending,.zwf-perm-lamp-ahead{background:transparent;border:1.5px solid var(--dsw-alias-border-l2)}
+.zwf-perm-lamp-failed{background:var(--dsw-alias-state-error-primary);box-shadow:0 0 0 2px color-mix(in oklab,var(--dsw-alias-state-error-primary) 28%,transparent)}
+.zwf-perm-lamp-hole{background:transparent;border:1.5px dashed var(--dsw-alias-state-warn-primary)}
+@keyframes zwf-perm-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.zwf-perm-pills{display:flex;flex-direction:column;gap:6px;min-width:0}
+.zwf-perm-pill{box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;max-width:100%;padding:0 8px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;min-width:0}
+.zwf-perm-pill-glyph{display:inline-flex;flex:none}
+.zwf-perm-pill-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-perm-pill-more{justify-content:center;color:var(--dsw-alias-label-secondary);border:1px dashed var(--dsw-alias-border-l2);background:transparent}
+.zwf-perm-truncated{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-answered{display:flex;align-items:center;gap:8px;margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-script-wrap{display:flex;flex-direction:column;gap:6px;min-width:0}
+.zwf-perm-script-toggle{display:inline-flex;align-items:center;gap:5px;align-self:flex-start;max-width:100%;padding:2px 0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;font-weight:500;cursor:pointer}
+.zwf-perm-script-toggle:hover{color:var(--dsw-alias-label-primary)}
+.zwf-perm-script-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px;border-radius:5px}
+.zwf-perm-caret{display:inline-flex;flex:none;transition:transform .12s}
+.zwf-perm-caret-open{transform:rotate(90deg)}
+.zwf-perm-script-body{box-sizing:border-box;max-height:288px;overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
+.zwf-perm-script-code{margin:0;padding:9px 11px;color:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;white-space:pre;tab-size:2}
+.zwf-perm-options{display:flex;flex-direction:column;gap:2px;min-width:0;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);padding:4px;background:var(--dsw-alias-bg-layer-1)}
+.zwf-perm-option{box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;min-width:0;min-height:34px;padding:6px 10px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
+.zwf-perm-option:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent)}
+.zwf-perm-option:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.zwf-perm-option-active{background:var(--dsw-alias-bg-layer-2)}
+.zwf-perm-option-index{flex:none;width:16px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-perm-option-label{flex:none;font-weight:500;color:var(--dsw-alias-label-primary);white-space:nowrap}
+.zwf-perm-option-desc{min-width:0;font-size:12.5px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-perm-option-refine{flex-wrap:wrap;cursor:default}
+.zwf-perm-option-refine:hover{background:transparent}
+.zwf-perm-option-refine.zwf-perm-option-active{background:var(--dsw-alias-bg-layer-2)}
+.zwf-perm-refine{box-sizing:border-box;flex:1 1 auto;min-width:120px;height:26px;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px}
+.zwf-perm-refine:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px;border-color:transparent}
+.zwf-perm-refine::placeholder{color:var(--dsw-alias-label-secondary);opacity:.75}
+.zwf-perm-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.zwf-perm-hint{display:inline-flex;align-items:center;gap:6px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-perm-hint-glyph{display:inline-flex;flex:none}
+.zwf-perm-failure{flex:1 1 100%;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
+.zwf-perm-foot .zwf-btn:last-child{margin-left:auto}
+.zwf-perm-layer{position:fixed;z-index:90;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgb(0 0 0 / .42)}
+.zwf-perm-dialog{box-sizing:border-box;display:flex;flex-direction:column;width:min(880px,100%);max-height:min(88vh,900px);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,14px);background:var(--dsw-alias-bg-overlay);box-shadow:0 24px 64px rgb(0 0 0 / .3);overflow:hidden}
+.zwf-perm-dialog-head{display:flex;align-items:center;gap:8px;flex:none;padding:14px 16px 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.zwf-perm-dialog-title{flex:none;font-size:14px;line-height:22px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.zwf-perm-dialog-badge{flex:none;height:20px;padding:0 8px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 12%,transparent);color:var(--dsw-alias-state-warn-primary);font-size:11px;line-height:20px}
+.zwf-perm-dialog-head .zwf-btn{margin-left:auto}
+.zwf-perm-dialog-body{display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;padding:14px 16px 18px}
+.zwf-perm-overlay-note{display:flex;align-items:center;gap:8px;padding:12px 2px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
+@media (prefers-reduced-motion:reduce){.zwf-perm-caret{transition:none}.zwf-perm-lamp-running{animation:none}}
+@media (max-width:560px){.zwf-perm-option{flex-wrap:wrap}.zwf-perm-option-desc{flex:1 1 100%;white-space:normal}.zwf-perm-dialog{width:100%;max-height:92vh}}
+`;
+
+WF_STYLE_PARTS.push(WF_PERMISSION_CSS);
+
+/* ---- client-src/46-workspace.js ---- */
+/*
+ * The script-steps workspace: one card per world operation (`world.read` / `world.run`) the run
+ * performed, grouped into chapters by the phase that issued it.
+ *
+ * This surface shows the workspace ledger, not the script text and not agent nodes: the Host
+ * records what touched the project, and one card's result is fetched only when it is expanded.
+ */
+
+/** Card entrance stagger: the product waits 24 ms per card, up to 360 ms. */
+const WF_WORKSPACE_STAGGER_MS = 24;
+const WF_WORKSPACE_STAGGER_MAX_MS = 360;
+
+/** Clock label: `+m:ss` under an hour, `+h:mm:ss` past it. */
+function wfWorkspaceOffset(origin, at) {
+  const start = wfNum(origin);
+  const value = wfNum(at);
+  if (start === undefined || value === undefined) return '';
+  const seconds = Math.max(0, Math.round((value - start) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (minutes < 60) return `+${minutes}:${String(rest).padStart(2, '0')}`;
+  const hours = Math.floor(minutes / 60);
+  return `+${hours}:${String(minutes % 60).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+}
+
+/** One world operation, normalized from the workspace ledger. */
+function wfWorkspaceNode(node, index) {
+  const args = Array.isArray(node.args) ? node.args : [];
+  return {
+    key: `${wfText(node.siteId) ?? 'site'}-${wfNum(node.ordinal) ?? index}`,
+    siteId: wfText(node.siteId) ?? '',
+    ordinal: wfNum(node.ordinal) ?? index,
+    kind: wfText(node.kind) ?? 'world-run',
+    op: wfText(node.op),
+    args,
+    inputTruncated: node.inputTruncated === true,
+    status: ['running', 'completed', 'failed'].includes(node.status) ? node.status : 'completed',
+    error: node.error !== null && typeof node.error === 'object'
+      ? { code: wfText(node.error.code), message: wfText(node.error.message) }
+      : undefined,
+    summary: node.summary !== null && typeof node.summary === 'object' ? node.summary : {},
+    phaseName: wfText(node.phaseName) ?? wfText(node.phase),
+    createdAt: wfNum(node.createdAt),
+    updatedAt: wfNum(node.updatedAt),
+  };
 }
 
 /**
- * Read one run snapshot, polling only while the tab is visible and the run is in flight.
- *
- * The first read seeds the header before any action is available; terminal states stop the
- * cadence and keep the snapshot until a manual refresh. A hidden tab issues no requests.
+ * Chapters: consecutive nodes of one phase belong to one chapter, numbered per phase entry.
+ * @param {object[]} nodes normalised nodes, in ledger order
  */
-function useWfDetailRun(scope) {
-  const { runId, sessionId, projectRoot, visible } = scope;
-  const usable = runId !== undefined && (sessionId !== undefined || projectRoot !== undefined);
-  const scopeKey = [sessionId ?? '', projectRoot ?? '', runId ?? ''].join('\u0000');
-  const [state, setState] = React.useState({ scopeKey: '', run: undefined, error: undefined, loading: usable });
-  const [revision, setRevision] = React.useState(0);
-  React.useEffect(() => {
-    if (!usable) {
-      setState({ scopeKey, run: undefined, error: undefined, loading: false });
-      return undefined;
+function wfWorkspaceChapters(nodes) {
+  const chapters = [];
+  for (const node of nodes) {
+    const name = node.phaseName ?? '';
+    const last = chapters[chapters.length - 1];
+    if (last !== undefined && last.name === name) {
+      last.nodes.push(node);
+      last.startedAt = Math.min(last.startedAt ?? node.createdAt ?? Infinity, node.createdAt ?? Infinity);
+      last.endedAt = Math.max(last.endedAt ?? 0, node.updatedAt ?? node.createdAt ?? 0);
+      continue;
     }
-    if (!visible) {
-      setState((current) => (current.scopeKey === scopeKey
-        ? current
-        : { scopeKey, run: undefined, error: undefined, loading: true }));
-      return undefined;
-    }
-    let cancelled = false;
-    let timer;
-    setState((current) => (current.scopeKey === scopeKey
-      ? { ...current, loading: true }
-      : { scopeKey, run: undefined, error: undefined, loading: true }));
-    const tick = async () => {
-      let nextRun;
-      let nextError;
-      try {
-        const payload = await WF_API.run({ sessionId, projectRoot, runId });
-        nextRun = payload !== null && typeof payload === 'object' ? payload.run : undefined;
-        if (nextRun === undefined) {
-          nextError = new Error('run snapshot is missing');
-          nextError.code = 'run-not-found';
-        }
-      } catch (error) {
-        nextError = error;
-      }
-      if (cancelled) return;
-      if (nextRun !== undefined) setState({ scopeKey, run: nextRun, error: undefined, loading: false });
-      else setState((current) => ({ ...current, scopeKey, error: nextError, loading: false }));
-      const missing = nextError !== undefined && (nextError.status === 404 || nextError.code === 'run-not-found');
-      const terminal = nextRun !== undefined && wfDetailIsTerminal(nextRun.status);
-      // A network failure retries, a missing run does not, and the cadence follows the status
-      // the last answer carried rather than the status this render started from.
-      const continues = nextRun === undefined ? nextError !== undefined : !terminal;
-      if (!cancelled && visible && continues && !missing) timer = setTimeout(tick, WF_DETAIL_POLL_MS);
-    };
-    void tick();
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) clearTimeout(timer);
-    };
-  }, [runId, sessionId, projectRoot, usable, visible, revision]);
-  const reload = React.useCallback(() => setRevision((value) => value + 1), []);
-  const replace = React.useCallback((run) => {
-    if (run === undefined || run === null) return;
-    setState((current) => ({ ...current, run, error: undefined, loading: false }));
-  }, []);
-  const current = state.scopeKey === scopeKey
-    ? state
-    : { scopeKey, run: undefined, error: undefined, loading: usable };
-  return { run: current.run, error: current.error, loading: current.loading, reload, replace };
+    const round = chapters.filter((chapter) => chapter.name === name).length + 1;
+    chapters.push({
+      key: `${name === '' ? 'unphased' : name}#${round}-${node.key}`,
+      name,
+      round,
+      nodes: [node],
+      startedAt: node.createdAt,
+      endedAt: node.updatedAt ?? node.createdAt,
+    });
+  }
+  return chapters.map((chapter) => ({
+    ...chapter,
+    startedAt: Number.isFinite(chapter.startedAt) ? chapter.startedAt : undefined,
+    endedAt: Number.isFinite(chapter.endedAt) ? chapter.endedAt : undefined,
+  }));
 }
 
-/** Load the payload behind the artifact preview modal; images use their byte URL directly. */
-function useWfDetailArtifact(scope, target) {
-  const id = target === undefined ? undefined : target.id;
-  const version = target === undefined ? undefined : target.version;
-  const contentType = target !== undefined && typeof target.contentType === 'string' ? target.contentType : '';
-  const image = target !== undefined && wfDetailIsImage(contentType);
-  const textual = target !== undefined && wfDetailIsTextual(contentType);
-  const [state, setState] = React.useState({ kind: 'idle', text: undefined, error: undefined });
-  const [revision, setRevision] = React.useState(0);
+/** The action word for one operation. */
+function wfWorkspaceVerb(t, node) {
+  if (node.kind === 'world-read') {
+    const op = (node.op ?? '').toLowerCase();
+    if (op.includes('search') || op.includes('grep') || op.includes('find')) return WF_UI.say(t, UI_EN, 'script.verb.searched');
+    return WF_UI.say(t, UI_EN, 'script.verb.read');
+  }
+  return node.op ?? WF_UI.say(t, UI_EN, 'script.kind.step');
+}
+
+/** The main argument of one operation: the path, pattern or command. */
+function wfWorkspaceSubject(node) {
+  for (const value of node.args) {
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return node.op ?? '';
+}
+
+/** Summary counts under the card head: what the operation produced. */
+function wfWorkspaceResultParts(t, node) {
+  const parts = [];
+  const summary = node.summary ?? {};
+  const exit = wfNum(summary.exitCode);
+  if (exit !== undefined) parts.push(WF_UI.say(t, UI_EN, 'script.status.exit', { code: exit }));
+  const count = wfNum(summary.resultCount);
+  if (count !== undefined) {
+    const key = node.kind === 'world-read'
+      ? ((node.op ?? '').toLowerCase().includes('search') ? 'script.result.matches' : 'script.result.files')
+      : 'script.result.lines';
+    parts.push(WF_UI.say(t, UI_EN, key, { count }));
+  }
+  const bytes = wfArtifactSize(summary.resultBytes ?? summary.stdoutBytes);
+  if (bytes !== undefined) parts.push(bytes);
+  return parts;
+}
+
+/** Fetch one node's recorded result; only an expanded card asks. */
+function useWfNodeResult(scope, node, enabled) {
+  const [state, setState] = React.useState({ kind: 'idle' });
+  const key = [scope?.sessionId ?? '', scope?.runId ?? '', node?.siteId ?? '', node?.ordinal ?? '', enabled ? '1' : '0'].join('\u0000');
   React.useEffect(() => {
-    if (target === undefined) {
+    if (!enabled || node === undefined) {
       setState({ kind: 'idle' });
-      return undefined;
-    }
-    if (image) {
-      setState({ kind: 'image' });
-      return undefined;
-    }
-    if (!textual) {
-      setState({ kind: 'unsupported' });
       return undefined;
     }
     let cancelled = false;
     setState({ kind: 'loading' });
-    WF_API.artifact({
+    WF_API.runNode({
       sessionId: scope.sessionId,
-      projectRoot: scope.projectRoot,
       runId: scope.runId,
-      artifactId: id,
-      version,
+      siteId: node.siteId,
+      ordinal: node.ordinal,
+      maxBytes: 32 * 1024,
     }).then((payload) => {
       if (cancelled) return;
-      const text = payload !== null && typeof payload === 'object' && typeof payload.text === 'string'
-        ? payload.text
-        : wfDetailJsonText(payload === null || typeof payload !== 'object' ? payload : payload.text);
-      setState({ kind: 'text', text });
+      setState({
+        kind: 'loaded',
+        status: payload?.status,
+        result: payload?.result,
+        error: payload?.error,
+        truncated: payload?.truncated === true,
+        totalBytes: wfNum(payload?.totalBytes),
+      });
     }).catch((error) => {
       if (!cancelled) setState({ kind: 'error', error });
     });
-    return () => {
-      cancelled = true;
+    return () => { cancelled = true; };
+  }, [key, enabled, scope?.sessionId, scope?.runId, node?.siteId, node?.ordinal]);
+  return state;
+}
+
+/** Result body: running, failed, list-shaped or plain text. */
+function WfWorkspaceResult(props) {
+  const { node, t, result } = props;
+  if (result.kind === 'loading') {
+    return WF_H('p', { className: 'zwf-ws-result-line' }, WF_UI.say(t, UI_EN, 'script.result.loading'));
+  }
+  if (result.kind === 'error') {
+    return WF_H('p', { className: 'zwf-ws-result-error' }, WF_UI.say(t, UI_EN, 'script.result.loadFailed', { error: wfText(result.error?.message) ?? wfText(result.error?.code) ?? '' }));
+  }
+  if (result.kind !== 'loaded') return null;
+  const payload = result.result;
+  if (result.status === 'failed') {
+    const message = wfText(result.error?.message) ?? wfText(result.error?.code) ?? WF_UI.say(t, UI_EN, 'run.result.noError');
+    return WF_H('pre', { className: 'zwf-ws-result-error' }, message);
+  }
+  if (result.status === 'running') {
+    return WF_H('p', { className: 'zwf-ws-result-line' }, WF_UI.say(t, UI_EN, 'run.status.running'));
+  }
+  if (payload === undefined || payload === null) {
+    return WF_H('p', { className: 'zwf-ws-result-line' }, WF_UI.say(t, UI_EN, 'script.result.empty'));
+  }
+  const lines = typeof payload === 'string'
+    ? payload.split('\n')
+    : Array.isArray(payload?.lines) ? payload.lines.map(String)
+      : Array.isArray(payload) ? payload.map((entry) => (typeof entry === 'string' ? entry : WF_UI.json(entry))) : [];
+  if (lines.length > 0) {
+    return WF_H('ul', { className: 'zwf-ws-lines' },
+      lines.slice(0, 200).map((line, index) => WF_H('li', { key: String(index) },
+        WF_H('span', { className: 'zwf-ws-line-no zwf-mono' }, String(index + 1)),
+        WF_H('span', { className: 'zwf-ws-line-text' }, line))),
+      lines.length > 200
+        ? WF_H('li', { className: 'zwf-ws-line-more' }, WF_UI.say(t, UI_EN, 'script.result.more', { count: lines.length - 200 }))
+        : null);
+  }
+  return WF_H('pre', { className: 'zwf-ws-pre' }, WF_UI.json(payload));
+}
+
+/** One operation card. */
+function WfWorkspaceCard(props) {
+  const { node, t, scope, origin, delay, open, onToggle } = props;
+  const result = useWfNodeResult(scope, node, open);
+  const [copied, setCopied] = React.useState(false);
+  const subject = wfWorkspaceSubject(node);
+  const parts = wfWorkspaceResultParts(t, node);
+  const stdout = open && result.kind === 'loaded' && typeof result.result === 'string' ? result.result : '';
+  const stderr = open && result.kind === 'loaded' && typeof result.error?.message === 'string' ? result.error.message : '';
+  const copy = () => {
+    const text = [node.op ?? '', ...node.args.map((value) => (typeof value === 'string' ? value : WF_UI.json(value)))].join(' ');
+    const done = () => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     };
-  }, [id, version, contentType, image, textual, scope.runId, scope.sessionId, scope.projectRoot, revision]);
-  const reload = React.useCallback(() => setRevision((value) => value + 1), []);
-  const url = image
-    ? WF_API.artifactUrl({ sessionId: scope.sessionId, projectRoot: scope.projectRoot, runId: scope.runId, artifactId: id, version })
-    : undefined;
-  return { kind: state.kind, text: state.text, error: state.error, url, reload };
-}
-
-/* --------------------------------- sections -------------------------------- */
-
-function WfDetailSection(props) {
-  return WF_H('section', { className: 'zwf-detail-section', 'data-testid': props.testId },
-    WF_H('div', { className: 'zwf-run-section-head' },
-      WF_H('h3', { className: 'zwf-detail-section-title' }, props.title),
-      props.count === undefined ? null : WF_H('span', { className: 'zwf-run-section-count' }, String(props.count))),
-    props.children);
-}
-
-function WfDetailHoles(props) {
-  const { t } = props;
-  return WF_H('div', { className: 'zwf-stack' }, props.holes.map((hole, index) => WF_H('div', {
-    className: 'zwf-run-hole',
-    key: `hole-${index}`,
-  },
-  WF_H('div', { className: 'zwf-run-hole-head' },
-    WF_H('span', { className: 'zwf-run-hole-name' }, typeof hole.name === 'string' && hole.name !== '' ? hole.name : String(index + 1)),
-    WF_H('span', { className: 'zwf-run-hole-state' }, wfDetailSay(t, 'detail.hole.waiting'))),
-  typeof hole.phase === 'string' && hole.phase !== ''
-    ? WF_H('span', { className: 'zwf-caption' }, wfDetailSay(t, 'detail.meta.phase', { name: hole.phase }))
-    : null,
-  typeof hole.prompt === 'string' && hole.prompt !== ''
-    ? WF_H('p', { className: 'zwf-run-hole-prompt' }, hole.prompt)
-    : null)));
-}
-
-function WfDetailPhases(props) {
-  const { t, phases, currentIndex } = props;
-  return WF_H('div', { className: 'zwf-stack', 'data-testid': 'workflow-run-phase-list' }, phases.map((phase, index) => {
-    const asks = Number(phase?.asks);
-    const failed = Number(phase?.failed);
-    const current = index === currentIndex;
-    const tone = Number.isFinite(failed) && failed > 0 ? 'error' : current ? 'success' : 'idle';
-    const name = typeof phase?.name === 'string' && phase.name !== '' ? phase.name : String(index + 1);
-    const meta = [];
-    const startedAt = Number(phase?.startedAt);
-    if (Number.isFinite(startedAt) && startedAt > 0) meta.push(wfDetailSay(t, 'detail.phase.startedAt', { time: WF_UI.date(startedAt) }));
-    if (Number.isFinite(asks) && asks > 0) meta.push(wfDetailCountSay(t, 'detail.phase.steps', asks));
-    if (Number.isFinite(failed) && failed > 0) meta.push(wfDetailCountSay(t, 'detail.phase.failed', failed));
-    return WF_H('div', {
-      className: 'zwf-run-phase',
-      key: `phase-${index}`,
-      'data-testid': 'workflow-run-phase',
-      'data-phase-status': Number.isFinite(failed) && failed > 0 ? 'failed' : current ? 'running' : 'pending',
-      'data-current': current ? 'true' : 'false',
-    },
-    WF_H('span', { className: 'zwf-run-phase-dot' }, WF_H(WF_UI.StatusDot, { tone })),
-    WF_H('div', { className: 'zwf-run-phase-main' },
-      WF_H('span', { className: 'zwf-run-phase-name', title: name }, name),
-      meta.length === 0 ? null : WF_H('span', { className: 'zwf-run-phase-meta' }, meta.join(' · '))),
-    current ? WF_H('span', { className: 'zwf-run-tag zwf-run-tag-success' }, wfDetailSay(t, 'detail.phase.current')) : null);
-  }));
-}
-
-function WfDetailAgents(props) {
-  const { t, agents, now } = props;
-  return WF_H('div', { className: 'zwf-stack' }, agents.map((agent, index) => {
-    const asks = Number(agent?.asks) || 0;
-    const settled = Number(agent?.settled) || 0;
-    const failed = Number(agent?.failed) || 0;
-    const name = typeof agent?.name === 'string' && agent.name !== '' && agent.name !== '(anonymous)'
-      ? agent.name
-      : wfDetailSay(t, 'detail.agent.anonymous');
-    const tone = failed > 0 ? 'error' : asks > 0 && settled >= asks ? 'success' : 'idle';
-    const meta = [];
-    if (asks > 0) meta.push(wfDetailCountSay(t, 'detail.agent.steps', asks));
-    if (settled > 0) meta.push(wfDetailCountSay(t, 'detail.agent.settled', settled));
-    if (failed > 0) meta.push(wfDetailCountSay(t, 'detail.agent.failed', failed));
-    const last = wfDetailRelative(t, agent?.lastEvent, now);
-    if (last !== '') meta.push(wfDetailSay(t, 'detail.agent.lastAt', { time: last }));
-    return WF_H('div', { className: 'zwf-run-agent', key: `agent-${index}` },
-      WF_H('span', { className: 'zwf-run-agent-glyph' }, WF_H(WF_UI.icons.agent, { size: 15 })),
-      WF_H('div', { className: 'zwf-run-agent-main' },
-        WF_H('span', { className: 'zwf-run-agent-name', title: name }, name),
-        meta.length === 0 ? null : WF_H('span', { className: 'zwf-run-agent-meta' }, meta.join(' · '))),
-      WF_H(WF_UI.StatusDot, { tone }));
-  }));
-}
-
-function WfDetailArtifacts(props) {
-  const { t, groups, onOpen } = props;
-  return WF_H('div', { className: 'zwf-run-artifacts' }, groups.map((group) => {
-    const row = group.row ?? {};
-    const title = typeof row.title === 'string' && row.title.trim() !== ''
-      ? row.title.trim()
-      : (typeof row.id === 'string' ? row.id : wfDetailSay(t, 'detail.section.artifacts'));
-    const kind = wfDetailArtifactKind(t, row.kind);
-    const version = Number(row.version);
-    const size = WF_UI.fileSize(row.bytes);
-    const meta = [kind];
-    if (Number.isFinite(version) && version > 0) meta.push(wfDetailSay(t, 'detail.artifact.version', { version }));
-    if (group.versions > 1) meta.push(wfDetailSay(t, 'detail.artifact.versions', { count: group.versions }));
-    if (size !== '') meta.push(size);
-    return WF_H('button', {
-      key: group.id,
-      type: 'button',
-      className: 'zwf-run-artifact',
-      'data-testid': 'workflow-run-artifact',
-      'data-workflow-artifact-id': group.id,
-      title: `${kind} · ${title}`,
-      onClick: () => onOpen(group.row),
-    },
-    WF_H('span', { className: 'zwf-run-artifact-glyph' }, WF_H(WF_UI.artifactIcon(row.kind), { size: 15 })),
-    WF_H('span', { className: 'zwf-run-artifact-main' },
-      WF_H('span', { className: 'zwf-run-artifact-title' }, title),
-      WF_H('span', { className: 'zwf-run-artifact-meta' }, meta.join(' · '))),
-    row.primary === true
-      ? WF_H('span', { className: 'zwf-run-tag zwf-run-tag-brand' }, wfDetailSay(t, 'detail.artifact.primary'))
-      : null,
-    WF_H('span', { className: 'zwf-run-artifact-chevron' }, WF_H(WF_UI.icons.chevronRight, { size: 14 })));
-  }));
-}
-
-function WfDetailReports(props) {
-  const { t, reports } = props;
-  return WF_H('div', { className: 'zwf-stack' }, reports.map((report, index) => {
-    const meta = [];
-    if (typeof report?.phase === 'string' && report.phase !== '') meta.push(wfDetailSay(t, 'detail.meta.phase', { name: report.phase }));
-    const at = wfDetailClock(report?.at);
-    if (at !== '') meta.push(at);
-    return WF_H('div', { className: 'zwf-run-report', key: `report-${index}` },
-      meta.length === 0 ? null : WF_H('div', { className: 'zwf-run-report-meta' }, meta.join(' · ')),
-      WF_H('pre', { className: 'zwf-code zwf-run-report-body' }, wfDetailJsonText(report?.item)));
-  }));
-}
-
-function WfDetailLog(props) {
-  return WF_H('div', { className: 'zwf-log zwf-run-log', 'data-testid': 'workflow-run-log' }, props.entries.map((entry, index) => {
-    const at = wfDetailClock(entry?.at);
-    return WF_H('div', { className: 'zwf-log-row', key: `log-${index}` },
-      typeof entry?.phase === 'string' && entry.phase !== ''
-        ? WF_H('span', { className: 'zwf-log-phase' }, entry.phase)
-        : null,
-      at === '' ? null : WF_H('span', { className: 'zwf-run-time' }, at),
-      WF_H('span', { className: 'zwf-log-text' }, typeof entry?.text === 'string' ? entry.text : ''));
-  }));
-}
-
-function WfDetailWorld(props) {
-  const { t, entries } = props;
-  return WF_H('div', { className: 'zwf-run-world' }, entries.map((entry, index) => {
-    const command = [typeof entry?.cmd === 'string' ? entry.cmd : wfDetailArgText(entry?.cmd), wfDetailArgsText(entry?.args)]
-      .filter((text) => text !== '')
-      .join(' ');
-    const code = Number(entry?.exitCode);
-    const meta = [];
-    if (typeof entry?.phase === 'string' && entry.phase !== '') meta.push(entry.phase);
-    const at = wfDetailClock(entry?.at);
-    if (at !== '') meta.push(at);
-    return WF_H('div', { className: 'zwf-run-world-row', key: `world-${index}` },
-      WF_H('code', { className: 'zwf-run-world-cmd' }, command),
-      WF_H('span', { className: 'zwf-run-world-meta' },
-        meta.length === 0 ? null : WF_H('span', { className: 'zwf-caption' }, meta.join(' · ')),
-        Number.isFinite(code)
-          ? WF_H('span', { className: `zwf-run-tag${code === 0 ? '' : ' zwf-run-tag-error'}` }, wfDetailSay(t, 'detail.world.exitCode', { code }))
-          : null));
-  }));
-}
-
-/** The three result shapes the Host can report once a run is no longer in flight. */
-function wfDetailHasOutcome(run) {
-  if (run === undefined) return false;
-  return run.status === 'completed' || run.status === 'errored' || run.status === 'stopped' || run.status === 'superseded';
-}
-
-function WfDetailOutcome(props) {
-  const { t, run } = props;
-  if (!wfDetailHasOutcome(run)) return null;
-  if (run.status === 'errored' || run.status === 'stopped' || run.status === 'superseded') {
-    const errored = run.status === 'errored';
-    const reason = typeof run.stopReason === 'string' && run.stopReason !== '' ? run.stopReason : undefined;
-    const message = typeof run.error === 'string' && run.error !== '' ? run.error : undefined;
-    return WF_H(WfDetailSection, {
-      title: wfDetailSay(t, errored ? 'detail.result.errored' : 'detail.result.stopped'),
-      testId: 'workflow-run-error',
-    },
-    reason === undefined || errored
-      ? null
-      : WF_H('div', { className: 'zwf-wrap' }, WF_H('span', { className: 'zwf-run-tag zwf-run-tag-warn' }, wfDetailStopReasonLabel(t, reason))),
-    WF_H('p', { className: 'zwf-run-error-body', 'data-testid': 'workflow-run-error-message' }, message ?? wfDetailSay(t, 'detail.result.noError')));
-  }
-  if (run.status === 'completed') {
-    return WF_H(WfDetailSection, {
-      title: wfDetailSay(t, 'detail.section.result'),
-      testId: 'workflow-run-result',
-    },
-    run.result === undefined
-      ? WF_H('p', { className: 'zwf-caption' }, wfDetailSay(t, 'detail.result.empty'))
-      : WF_H('pre', { className: 'zwf-code', 'data-testid': 'workflow-run-result-json' }, wfDetailJsonText(run.result)));
-  }
-  return null;
-}
-
-function WfDetailRunArgs(props) {
-  return WF_H(WfDetailSection, { title: wfDetailSay(props.t, 'detail.section.args') },
-    WF_H('pre', { className: 'zwf-code' }, WF_UI.json(props.params)));
-}
-
-/* ---------------------------------- header --------------------------------- */
-
-function WfDetailChip(props) {
-  return WF_H('span', { className: `zwf-chip zwf-run-chip${props.tone === undefined ? '' : ` zwf-run-chip-${props.tone}`}` },
-    props.icon === undefined ? null : WF_H('span', { className: 'zwf-run-chip-glyph' }, props.icon),
-    WF_H('span', { className: 'zwf-run-chip-text' }, props.text));
-}
-
-function WfDetailHeader(props) {
-  const { t, run, params, copied, loading, stopping } = props;
-  const say = props.say;
-  const name = typeof run?.name === 'string' && run.name.trim() !== ''
-    ? run.name.trim()
-    : (params?.name ?? say('detail.title'));
-  const status = typeof run?.status === 'string' ? run.status : undefined;
-  const tone = WF_UI.statusTone(status);
-  const statusWord = status === undefined ? undefined : wfDetailStatusWord(t, status);
-  const canStop = wfDetailCanStop(status);
-  const created = Number(run?.createdAt);
-  const finished = Number(run?.finishedAt);
-  const duration = Number.isFinite(created) && created > 0
-    ? wfDetailDuration(t, created, Number.isFinite(finished) && finished > 0 ? finished : Date.now())
-    : '';
-  const steps = run !== undefined && run.steps !== null && typeof run.steps === 'object' ? run.steps : undefined;
-  const started = Number(steps?.started);
-  const settled = Number(steps?.settled);
-  const failed = Number(steps?.failed);
-  const running = Number(steps?.running);
-  const chips = [];
-  if (Number.isFinite(started) && started > 0) {
-    const done = Number.isFinite(settled) ? settled : 0;
-    chips.push(WF_H(WfDetailChip, {
-      key: 'steps',
-      icon: WF_H(WF_UI.icons.check, { size: 12 }),
-      text: wfDetailCountSay(t, 'detail.stepsValue', started, { settled: done, started }),
-    }));
-  }
-  if (Number.isFinite(running) && running > 0) {
-    chips.push(WF_H(WfDetailChip, { key: 'running', icon: WF_H(WF_UI.icons.run, { size: 12 }), text: say('detail.stepsRunning', { count: running }) }));
-  }
-  if (Number.isFinite(failed) && failed > 0) {
-    chips.push(WF_H(WfDetailChip, { key: 'failed', icon: WF_H(WF_UI.icons.alert, { size: 12 }), tone: 'error', text: say('detail.stepsFailed', { count: failed }) }));
-  }
-  if (typeof run?.subagentModel === 'string' && run.subagentModel !== '') {
-    chips.push(WF_H(WfDetailChip, { key: 'model', icon: WF_H(WF_UI.icons.spark, { size: 12 }), text: say('detail.modelShort', { model: run.subagentModel }) }));
-  }
-  const cap = Number(run?.maxConcurrency);
-  if (Number.isFinite(cap) && cap > 0) {
-    chips.push(WF_H(WfDetailChip, { key: 'concurrency', icon: WF_H(WF_UI.icons.workflow, { size: 12 }), text: say('detail.concurrency', { cap }) }));
-  }
-  const facts = [];
-  const id = typeof run?.id === 'string' && run.id !== '' ? run.id : params?.runId;
-  if (typeof id === 'string' && id !== '') {
-    facts.push({ key: 'detail.runId', label: say('detail.runId'), value: id, mono: true, wide: true });
-  }
-  if (duration !== '') facts.push({ key: 'detail.duration', label: say('detail.duration'), value: duration });
-  if (Number.isFinite(created) && created > 0) facts.push({ key: 'detail.createdAt', label: say('detail.createdAt'), value: WF_UI.date(created) });
-  if (Number.isFinite(finished) && finished > 0) facts.push({ key: 'detail.finishedAt', label: say('detail.finishedAt'), value: WF_UI.date(finished) });
-  if (typeof run?.resumedFrom === 'string' && run.resumedFrom !== '') {
-    facts.push({ key: 'detail.resumedFrom', label: say('detail.resumedFrom'), value: run.resumedFrom, mono: true, wide: true });
-  }
-  const scriptPath = typeof run?.scriptPath === 'string' && run.scriptPath !== '' ? run.scriptPath : undefined;
-  const copyTitle = copied === 'runId' ? say('detail.copied') : copied === 'error' ? say('detail.copyFailed') : say('detail.copyRunId');
-  return WF_H('header', { className: 'zwf-detail-head' },
-    WF_H('div', { className: 'zwf-detail-headline' },
-      WF_H('h2', { className: 'zwf-detail-title', title: name }, name),
-      WF_H('div', { className: 'zwf-detail-actions' },
-        WF_H(WF_UI.Button, {
-          variant: 'ghost',
-          size: 'sm',
-          className: 'zwf-run-stop',
-          icon: WF_H(WF_UI.icons.stop, { size: 13 }),
-          disabled: !canStop || stopping,
-          title: canStop ? say('detail.stopHint') : say('detail.stopDisabled'),
-          ariaLabel: say('detail.stop'),
-          onClick: props.onStop,
-        }, stopping ? say('detail.stopPending') : say('detail.stop')),
-        WF_H(WF_UI.IconButton, {
-          icon: loading ? WF_H(WF_UI.Spinner) : WF_H(WF_UI.icons.refresh, { size: 15 }),
-          label: say('detail.refresh'),
-          title: say('detail.refresh'),
-          onClick: props.onRefresh,
-        }),
-        WF_H(WF_UI.IconButton, {
-          icon: copied === 'runId'
-            ? WF_H(WF_UI.icons.check, { size: 15 })
-            : copied === 'error' ? WF_H(WF_UI.icons.alert, { size: 15 }) : WF_H(WF_UI.icons.copy, { size: 15 }),
-          label: copyTitle,
-          title: copyTitle,
-          disabled: typeof id !== 'string' || id === '',
-          onClick: props.onCopyRunId,
-        }),
-        WF_H(WF_UI.IconButton, {
-          icon: WF_H(WF_UI.icons.file, { size: 15 }),
-          label: say('detail.scriptOpen'),
-          title: say('detail.scriptOpen'),
-          disabled: scriptPath === undefined,
-          onClick: props.onOpenScript,
-        }))),
-    statusWord === undefined && chips.length === 0
-      ? null
-      : WF_H('div', { className: 'zwf-detail-sub' },
-        statusWord === undefined
-          ? null
-          : WF_H('span', { className: 'zwf-inline' },
-            WF_H(WF_UI.StatusDot, { tone }),
-            WF_H('span', { className: `zwf-status-word${tone === 'idle' ? '' : ` zwf-status-word-${tone}`}`, 'data-testid': 'workflow-run-status' }, statusWord)),
-        chips),
-    facts.length === 0
-      ? null
-      : WF_H('div', { className: 'zwf-run-facts' }, facts.map((fact, index) => WF_H('div', {
-        className: `zwf-run-fact${fact.wide === true ? ' zwf-run-fact-wide' : ''}`,
-        key: `${fact.key}-${index}`,
-      },
-      WF_H('span', { className: 'zwf-run-fact-key' }, fact.label),
-      WF_H('span', { className: `zwf-run-fact-value${fact.mono === true ? ' zwf-run-mono' : ''}`, title: fact.value }, fact.value)))));
-}
-
-/* ---------------------------------- modals --------------------------------- */
-
-function WfDetailScriptModal(props) {
-  const { t, run, onClose } = props;
-  const say = (key, params) => wfDetailSay(t, key, params);
-  const [copied, flash] = useWfDetailCopy();
-  const scriptPath = typeof run?.scriptPath === 'string' && run.scriptPath !== '' ? run.scriptPath : undefined;
-  const cwd = typeof run?.cwd === 'string' && run.cwd !== '' ? run.cwd : undefined;
-  const rows = [];
-  if (scriptPath !== undefined) rows.push({ label: say('detail.scriptTitle'), value: scriptPath });
-  if (cwd !== undefined) rows.push({ label: say('detail.cwd'), value: cwd });
-  const onCopy = async () => {
-    const text = scriptPath ?? cwd ?? '';
-    const ok = await wfDetailCopy(text);
-    flash(ok ? 'path' : 'error');
-  };
-  return WF_H(WF_UI.Modal, {
-    open: true,
-    title: say('detail.scriptTitle'),
-    closeLabel: say('detail.close'),
-    onClose,
-    footer: WF_H(WF_FRAGMENT, null,
-      scriptPath === undefined
-        ? null
-        : WF_H(WF_UI.Button, {
-          key: 'copy',
-          variant: 'ghost',
-          size: 'sm',
-          icon: WF_H(WF_UI.icons.copy, { size: 14 }),
-          onClick: () => {
-            void onCopy();
-          },
-        }, copied === 'path' ? say('detail.copied') : copied === 'error' ? say('detail.copyFailed') : say('detail.copyPath')),
-      WF_H(WF_UI.Button, { key: 'close', variant: 'subtle', size: 'sm', onClick: onClose }, say('detail.close'))),
-  },
-  WF_H('p', { className: 'zwf-caption' }, rows.length === 0 ? say('detail.scriptMissing') : say('detail.scriptBody')),
-  rows.length === 0
-    ? null
-    : WF_H('div', { className: 'zwf-run-paths' }, rows.map((row) => WF_H('div', { className: 'zwf-run-fact', key: row.label },
-      WF_H('span', { className: 'zwf-run-fact-key' }, row.label),
-      WF_H('span', { className: 'zwf-run-fact-value zwf-run-mono' }, row.value)))));
-}
-
-function WfDetailArtifactModal(props) {
-  const { t, scope, target, onClose } = props;
-  const say = (key, params) => wfDetailSay(t, key, params);
-  const [copied, flash] = useWfDetailCopy();
-  const artifact = useWfDetailArtifact(scope, target);
-  const [imageBroken, setImageBroken] = React.useState(false);
-  const row = target ?? {};
-  const title = typeof row.title === 'string' && row.title.trim() !== ''
-    ? row.title.trim()
-    : (typeof row.id === 'string' ? row.id : say('detail.section.artifacts'));
-  const kind = wfDetailArtifactKind(t, row.kind);
-  const version = Number(row.version);
-  const size = WF_UI.fileSize(row.bytes);
-  const meta = [kind];
-  if (Number.isFinite(version) && version > 0) meta.push(say('detail.artifact.version', { version }));
-  if (size !== '') meta.push(size);
-  const file = typeof row.file === 'string' && row.file !== '' ? row.file : undefined;
-  const text = artifact.kind === 'text' && typeof artifact.text === 'string' ? artifact.text : '';
-  const clipped = text.length > WF_DETAIL_PREVIEW_CHARS;
-  const shown = clipped ? text.slice(0, WF_DETAIL_PREVIEW_CHARS) : text;
-  const copyValue = async (token, value) => {
-    const ok = await wfDetailCopy(value);
-    flash(ok ? token : 'error');
-  };
-  let body;
-  if (artifact.kind === 'image' && imageBroken) {
-    body = WF_H(WF_UI.ErrorNotice, {
-      message: say('detail.artifact.loadError'),
-      onRetry: () => setImageBroken(false),
-      retryLabel: say('detail.retry'),
-    });
-  } else if (artifact.kind === 'image') {
-    body = WF_H('img', {
-      className: 'zwf-run-preview-image',
-      src: artifact.url,
-      alt: title,
-      onError: () => setImageBroken(true),
-    });
-  } else if (artifact.kind === 'loading') {
-    body = WF_H('div', { className: 'zwf-empty-inline' },
-      WF_H(WF_UI.Spinner, { inline: true }),
-      say('detail.artifact.loading'));
-  } else if (artifact.kind === 'error') {
-    body = WF_H(WF_UI.ErrorNotice, {
-      message: say('detail.artifact.loadError'),
-      onRetry: artifact.reload,
-      retryLabel: say('detail.retry'),
-    });
-  } else if (artifact.kind === 'text') {
-    body = WF_H('div', { className: 'zwf-run-preview' },
-      WF_H('pre', { className: 'zwf-code zwf-run-preview-text' }, shown),
-      clipped ? WF_H('p', { className: 'zwf-caption' }, say('detail.artifact.truncated')) : null);
-  } else if (artifact.kind === 'unsupported') {
-    body = WF_H('div', { className: 'zwf-run-preview' },
-      WF_H('p', { className: 'zwf-caption' }, say('detail.artifact.unsupported')),
-      file === undefined
-        ? null
-        : WF_H('div', { className: 'zwf-run-fact' },
-          WF_H('span', { className: 'zwf-run-fact-key' }, say('detail.artifact.file')),
-          WF_H('span', { className: 'zwf-run-fact-value zwf-run-mono zwf-run-break' }, file)));
-  } else {
-    body = null;
-  }
-  const footer = WF_H(WF_FRAGMENT, null,
-    artifact.kind === 'text' && text !== ''
-      ? WF_H(WF_UI.Button, {
-        key: 'copy',
-        variant: 'ghost',
-        size: 'sm',
-        icon: WF_H(WF_UI.icons.copy, { size: 14 }),
-        onClick: () => {
-          void copyValue('text', text);
-        },
-      }, copied === 'text' ? say('detail.copied') : copied === 'error' ? say('detail.copyFailed') : say('detail.artifact.copyText'))
-      : null,
-    artifact.kind === 'unsupported' && file !== undefined
-      ? WF_H(WF_UI.Button, {
-        key: 'copy-path',
-        variant: 'ghost',
-        size: 'sm',
-        icon: WF_H(WF_UI.icons.copy, { size: 14 }),
-        onClick: () => {
-          void copyValue('path', file);
-        },
-      }, copied === 'path' ? say('detail.copied') : copied === 'error' ? say('detail.copyFailed') : say('detail.copyPath'))
-      : null,
-    WF_H(WF_UI.Button, { key: 'close', variant: 'subtle', size: 'sm', onClick: onClose }, say('detail.close')));
-  return WF_H(WF_UI.Modal, {
-    open: true,
-    wide: true,
-    title,
-    closeLabel: say('detail.close'),
-    onClose,
-    footer,
-  },
-  WF_H('div', { className: 'zwf-run-preview-meta' },
-    WF_H('span', {}, meta.join(' · ')),
-    row.primary === true ? WF_H('span', { className: 'zwf-run-tag zwf-run-tag-brand' }, say('detail.artifact.primary')) : null),
-  body);
-}
-
-/* ---------------------------------- pane ----------------------------------- */
-
-function WfDetailPane(props) {
-  const { t, params, visible } = props;
-  const say = React.useCallback((key, values) => wfDetailSay(t, key, values), [t]);
-  const sessionId = params === undefined ? undefined : params.sessionId;
-  const projectRoot = params === undefined ? undefined : params.projectRoot;
-  const runId = params === undefined ? undefined : params.runId;
-  const scope = React.useMemo(() => ({ sessionId, projectRoot, runId, visible }), [sessionId, projectRoot, runId, visible]);
-  const state = useWfDetailRun(scope);
-  const now = useWfClock();
-  const [copied, flash] = useWfDetailCopy();
-  const [stopOpen, setStopOpen] = React.useState(false);
-  const [stopping, setStopping] = React.useState(false);
-  const [stopError, setStopError] = React.useState(undefined);
-  const [scriptOpen, setScriptOpen] = React.useState(false);
-  const [preview, setPreview] = React.useState(undefined);
-  React.useEffect(() => {
-    setPreview(undefined);
-    setScriptOpen(false);
-    setStopOpen(false);
-    setStopError(undefined);
-  }, [runId]);
-  const run = state.run;
-  const artifactScope = React.useMemo(() => ({ sessionId, projectRoot, runId }), [sessionId, projectRoot, runId]);
-  const onCopyRunId = async () => {
-    const ok = await wfDetailCopy(runId ?? '');
-    flash(ok ? 'runId' : 'error');
-  };
-  const onStop = async () => {
-    if (stopping || runId === undefined) return;
-    setStopping(true);
-    setStopError(undefined);
     try {
-      const payload = await WF_API.stopRun({ runId, sessionId, projectRoot });
-      const next = payload !== null && typeof payload === 'object' ? payload.run : undefined;
-      if (next !== undefined) state.replace(next);
-      setStopOpen(false);
-      state.reload();
-    } catch (error) {
-      setStopError(error);
-    } finally {
-      setStopping(false);
+      void navigator.clipboard?.writeText(text).then(done).catch(done);
+    } catch {
+      done();
     }
   };
-  const closeStop = () => {
-    if (stopping) return;
-    setStopOpen(false);
-    setStopError(undefined);
-  };
-  if (runId === undefined) {
-    return WF_H('div', { className: 'zwf-run' },
-      WF_H('header', { className: 'zwf-detail-head' },
-        WF_H('div', { className: 'zwf-detail-headline' }, WF_H('h2', { className: 'zwf-detail-title' }, say('detail.title')))),
-      WF_H('div', { className: 'zwf-detail-body' },
-        WF_H(WF_UI.EmptyState, {
-          icon: WF_H(WF_UI.icons.workflow, { size: 20 }),
-          title: say('detail.missing.title'),
-          body: say('detail.missing.body'),
-        })));
-  }
-  const sections = [];
-  let empty = true;
-  if (state.error !== undefined && run !== undefined) {
-    const detail = Number(state.error.status) === 404 ? undefined : (typeof state.error.message === 'string' ? state.error.message : undefined);
-    sections.push(WF_H('div', { className: 'zwf-stack', key: 'refresh-error' },
-      WF_H(WF_UI.ErrorNotice, {
-        message: say('detail.loadError'),
-        onRetry: state.reload,
-        retryLabel: say('detail.retry'),
-      }),
-      detail === undefined ? null : WF_H('p', { className: 'zwf-caption zwf-run-mono' }, detail)));
-    empty = false;
-  }
-  if (run !== undefined) {
-    if (wfDetailHasOutcome(run)) {
-      sections.push(WF_H(WfDetailOutcome, { key: 'outcome', t, run }));
-      empty = false;
+  const tone = node.status === 'failed' ? 'failed' : node.status === 'running' ? 'running' : 'completed';
+  return WF_H('div', {
+    className: `zwf-ws-card zwf-ws-card-${tone}`,
+    'data-testid': 'workflow-workspace-card',
+    'data-card-key': node.key,
+    'data-open': open ? 'true' : 'false',
+    'data-ordinal': node.ordinal,
+    'data-phase-id': node.phaseName ?? '',
+    'data-site-id': node.siteId,
+    'data-status': node.status,
+    style: delay > 0 ? { animationDelay: `${delay}ms` } : undefined,
+  },
+  WF_H('span', { className: 'zwf-ws-glyph' }, WF_H(node.kind === 'world-read' ? WF_UI.icons.file : WF_UI.icons.log, { size: 14 })),
+  WF_H('div', {
+    className: 'zwf-ws-main',
+    role: 'button',
+    tabIndex: 0,
+    'aria-expanded': open,
+    onClick: () => onToggle?.(node.key),
+    onKeyDown: (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      onToggle?.(node.key);
+    },
+  },
+  WF_H('div', { className: 'zwf-ws-head', 'data-testid': 'workflow-workspace-open' },
+    WF_H('span', { className: 'zwf-ws-verb' }, wfWorkspaceVerb(t, node)),
+    WF_H('span', { className: 'zwf-ws-subject zwf-mono', title: subject }, subject),
+    WF_H('span', { className: `zwf-chevron${open ? ' zwf-chevron-open' : ''}`, 'aria-hidden': 'true' }, WF_H(WF_UI.icons.chevronRight, { size: 12 }))),
+  WF_H('div', { className: 'zwf-ws-result', 'data-testid': 'workflow-workspace-result' },
+    WF_H('span', { className: `zwf-ws-status zwf-ws-status-${tone}`, 'data-testid': 'workflow-workspace-status' },
+      node.status === 'running' ? WF_H('span', { className: 'zwf-lamp zwf-lamp-running' }) : null,
+      node.status === 'failed' ? WF_H(WF_UI.icons.alert, { size: 11 }) : null,
+      node.status === 'completed' ? WF_H(WF_UI.icons.check, { size: 11 }) : null),
+    parts.map((part, index) => WF_H('span', { key: String(index), className: 'zwf-ws-part zwf-mono' }, part)),
+    node.error?.code === undefined ? null : WF_H('span', { className: 'zwf-ws-part zwf-ws-part-error zwf-mono' }, node.error.code)),
+  node.status === 'completed' && !open && parts.length === 0
+    ? WF_H('span', { className: 'zwf-ws-peek', 'data-testid': 'workflow-workspace-peek' }, WF_UI.say(t, UI_EN, 'script.result.empty'))
+    : null,
+  open
+    ? WF_H('div', { className: 'zwf-ws-body', 'data-testid': 'workflow-workspace-card-body' },
+      WF_H('div', { className: 'zwf-ws-command' },
+        WF_H('span', { className: 'zwf-ws-prompt zwf-mono' }, '$'),
+        WF_H('pre', { className: 'zwf-ws-command-text' }, [node.op ?? '', ...node.args.map((value) => (typeof value === 'string' ? value : WF_UI.json(value)))].join(' ')),
+        node.inputTruncated
+          ? WF_H('span', { className: 'zwf-ws-args-truncated', 'data-testid': 'workflow-workspace-truncated' }, WF_UI.say(t, UI_EN, 'script.args.truncated'))
+          : null),
+      WF_H(WfWorkspaceResult, { node, t, result }),
+      stderr === ''
+        ? null
+        : WF_H('pre', { className: 'zwf-ws-stderr', 'data-testid': 'workflow-workspace-stderr' },
+          WF_H('span', { className: 'zwf-ws-stderr-label' }, WF_UI.say(t, UI_EN, 'script.result.stderr')),
+          stderr),
+      result.kind === 'loaded' && result.truncated === true
+        ? WF_H('p', { className: 'zwf-ws-note' }, WF_UI.say(t, UI_EN, 'script.result.truncated', { shown: stdout.length, total: result.totalBytes ?? '' }))
+        : null,
+      WF_H('div', { className: 'zwf-ws-footer', 'data-testid': 'workflow-workspace-card-footer' },
+        WF_H('span', { className: 'zwf-ws-parts' }, parts.join(' · ')),
+        node.status === 'completed' && node.summary?.exitCode === 0
+          ? WF_H('span', { className: 'zwf-ws-replayed', 'data-testid': 'workflow-workspace-replayed', title: WF_UI.say(t, UI_EN, 'script.status.replayedHint') }, WF_UI.say(t, UI_EN, 'script.status.replayed'))
+          : null,
+        WF_H('button', { type: 'button', className: 'zwf-link', 'data-testid': 'workflow-workspace-copy', onClick: copy },
+          copied ? WF_UI.say(t, UI_EN, 'run.artifacts.copied') : WF_UI.say(t, UI_EN, 'run.artifacts.copy'))))
+    : null),
+  WF_H('span', { className: 'zwf-ws-when zwf-mono', 'data-testid': 'workflow-workspace-when' },
+    node.status === 'running'
+      ? WF_H(WF_FRAGMENT, null, WF_H('span', { className: 'zwf-lamp zwf-lamp-running' }), WF_UI.say(t, UI_EN, 'script.now'))
+      : wfWorkspaceOffset(origin, node.createdAt)));
+}
+
+/** One chapter: a phase (and its round) with the operations it issued. */
+function WfWorkspaceChapter(props) {
+  const { chapter, t } = props;
+  const duration = chapter.startedAt === undefined || chapter.endedAt === undefined
+    ? ''
+    : WF_UI.duration(chapter.startedAt, chapter.endedAt);
+  return WF_H('section', { className: 'zwf-ws-chapter', 'data-testid': 'workflow-workspace-chapter' },
+    WF_H('div', { className: 'zwf-ws-chapter-head' },
+      WF_H('span', { className: 'zwf-ws-chapter-name' },
+        chapter.name === '' ? WF_UI.say(t, UI_EN, 'graph.phase.unphased') : chapter.name),
+      chapter.round > 1
+        ? WF_H('span', { className: 'zwf-ws-round', title: WF_UI.say(t, UI_EN, 'timeline.rounds', { count: chapter.round }) },
+          WF_H(WF_UI.icons.clock, { size: 10 }),
+          WF_H('span', { className: 'zwf-mono' }, String(chapter.round)))
+        : null,
+      WF_H('span', { className: 'zwf-ws-rule' }),
+      WF_H('span', { className: 'zwf-ws-chapter-meta zwf-mono' },
+        WF_UI.say(t, UI_EN, chapter.nodes.length === 1 ? 'script.summary.steps.one' : 'script.summary.steps', { count: chapter.nodes.length }),
+        duration === '' ? '' : ` · ${duration}`)),
+    chapter.nodes.map((node) => WF_H(WfWorkspaceCard, {
+      key: node.key,
+      node,
+      t,
+      scope: props.scope,
+      origin: props.origin,
+      delay: props.delayOf(node),
+      open: props.opened?.has(node.key) === true,
+      onToggle: props.onToggle,
+    })));
+}
+
+/** Load the workspace ledger of one run, refreshed whenever the run records a new event. */
+function useWfWorkspace(scope, refreshKey) {
+  const [state, setState] = React.useState({ nodes: [], truncated: false, unavailable: false, loading: true, error: undefined });
+  const [revision, setRevision] = React.useState(0);
+  const sessionId = scope?.sessionId;
+  const runId = scope?.runId;
+  React.useEffect(() => {
+    if (typeof sessionId !== 'string' || typeof runId !== 'string') {
+      setState({ nodes: [], truncated: false, unavailable: true, loading: false, error: undefined });
+      return undefined;
     }
-    const holes = Array.isArray(run.holes) ? run.holes.filter((hole) => hole !== null && typeof hole === 'object') : [];
-    if (holes.length > 0) {
-      sections.push(WF_H(WfDetailSection, { key: 'holes', title: say('detail.section.holes'), count: holes.length, testId: 'workflow-run-holes' },
-        WF_H(WfDetailHoles, { t, holes })));
-      empty = false;
-    }
-    const phases = Array.isArray(run.phasesDetail) ? run.phasesDetail.filter((phase) => phase !== null && typeof phase === 'object') : [];
-    if (phases.length > 0) {
-      // The Host records a phase start but never an end, so only an in-flight run has a phase
-      // that can honestly be called current: its last one.
-      const currentIndex = run.status === 'running' ? phases.length - 1 : -1;
-      sections.push(WF_H(WfDetailSection, { key: 'phases', title: say('detail.section.phases'), count: phases.length, testId: 'workflow-run-phases' },
-        WF_H(WfDetailPhases, { t, phases, currentIndex })));
-      empty = false;
-    }
-    const agents = Array.isArray(run.agents) ? run.agents.filter((agent) => agent !== null && typeof agent === 'object') : [];
-    if (agents.length > 0) {
-      sections.push(WF_H(WfDetailSection, { key: 'agents', title: say('detail.section.agents'), count: agents.length, testId: 'workflow-run-agents' },
-        WF_H(WfDetailAgents, { t, agents, now })));
-      empty = false;
-    }
-    const artifacts = wfDetailArtifacts(run);
-    if (artifacts.length > 0) {
-      sections.push(WF_H(WfDetailSection, { key: 'artifacts', title: say('detail.section.artifacts'), count: artifacts.length, testId: 'workflow-run-artifacts' },
-        WF_H(WfDetailArtifacts, { t, groups: artifacts, onOpen: (target) => setPreview(target) })));
-      empty = false;
-    }
-    const reports = Array.isArray(run.reports) ? run.reports.filter((report) => report !== null && typeof report === 'object') : [];
-    if (reports.length > 0) {
-      sections.push(WF_H(WfDetailSection, { key: 'reports', title: say('detail.section.reports'), count: reports.length, testId: 'workflow-run-reports' },
-        WF_H(WfDetailReports, { t, reports })));
-      empty = false;
-    }
-    const log = Array.isArray(run.log) ? run.log.filter((entry) => entry !== null && typeof entry === 'object') : [];
-    if (log.length > 0) {
-      sections.push(WF_H(WfDetailSection, { key: 'log', title: say('detail.section.log'), count: log.length, testId: 'workflow-run-logs' },
-        WF_H(WfDetailLog, { entries: log })));
-      empty = false;
-    }
-    const world = Array.isArray(run.world) ? run.world.filter((entry) => entry !== null && typeof entry === 'object') : [];
-    if (world.length > 0) {
-      sections.push(WF_H(WfDetailSection, { key: 'world', title: say('detail.section.world'), count: world.length, testId: 'workflow-run-world' },
-        WF_H(WfDetailWorld, { t, entries: world })));
-      empty = false;
-    }
-    const runParams = wfDetailRunParams(run, say);
-    if (runParams !== undefined) {
-      sections.push(WF_H(WfDetailRunArgs, { key: 'args', t, params: runParams }));
-      empty = false;
-    }
-  }
+    let cancelled = false;
+    setState((current) => ({ ...current, loading: true }));
+    WF_API.runWorkspace({ sessionId, runId }).then((payload) => {
+      if (cancelled) return;
+      const rows = Array.isArray(payload?.nodes) ? payload.nodes : [];
+      setState({
+        nodes: rows.map(wfWorkspaceNode),
+        truncated: payload?.truncated === true,
+        unavailable: payload?.unavailable === true,
+        loading: false,
+        error: undefined,
+      });
+    }).catch((error) => {
+      if (cancelled) return;
+      setState({ nodes: [], truncated: false, unavailable: false, loading: false, error });
+    });
+    return () => { cancelled = true; };
+  }, [sessionId, runId, refreshKey, revision]);
+  return { ...state, reload: () => setRevision((value) => value + 1) };
+}
+
+/**
+ * The script-steps pane.
+ * @param {{ t: Function, params?: { runId?: string, sessionId?: string, workflowName?: string, projectRoot?: string },
+ *   run?: object, visible?: boolean }} props
+ */
+function WfWorkspacePane(props) {
+  const { t, params } = props;
+  const sessionId = wfText(params?.sessionId) ?? wfText(props.scope?.sessionId);
+  const runId = wfText(params?.runId);
+  const scope = React.useMemo(() => ({ sessionId, runId }), [sessionId, runId]);
+  const refreshKey = wfNum(props.run?.lastEventSequence) ?? 0;
+  const workspace = useWfWorkspace(scope, refreshKey);
+  const [opened, setOpened] = React.useState(() => new Set());
+  const [loadedCount, setLoadedCount] = React.useState(0);
+  React.useEffect(() => {
+    if (!workspace.loading && workspace.nodes.length > 0 && loadedCount === 0) setLoadedCount(workspace.nodes.length);
+  }, [workspace.loading, workspace.nodes.length, loadedCount]);
+  const chapters = React.useMemo(() => wfWorkspaceChapters(workspace.nodes), [workspace.nodes]);
+  const origin = workspace.nodes.reduce((min, node) => (node.createdAt === undefined ? min : Math.min(min, node.createdAt)), Infinity);
+  const delayOf = React.useCallback((node) => {
+    const index = workspace.nodes.indexOf(node);
+    if (index < 0 || index >= loadedCount) return 0;
+    return Math.min(WF_WORKSPACE_STAGGER_MAX_MS, index * WF_WORKSPACE_STAGGER_MS);
+  }, [workspace.nodes, loadedCount]);
+  const toggle = React.useCallback((key) => {
+    setOpened((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+  const statusWord = WF_UI.statusText(t, UI_EN, wfDetailRunStatus(props.run));
+  const phases = new Set(workspace.nodes.map((node) => node.phaseName).filter(Boolean)).size;
+  const elapsed = wfDuration(props.run?.createdAt, props.run?.finishedAt ?? Date.now());
+  const header = WF_H('header', { className: 'zwf-ws-head-block' },
+    WF_H('div', { className: 'zwf-ws-headline' },
+      WF_H('span', { className: 'zwf-ws-brand' }, WF_H(WF_UI.icons.log, { size: 15 })),
+      WF_H('div', { className: 'zwf-ws-titles' },
+        WF_H('span', { className: 'zwf-ws-eyebrow' }, WF_UI.say(t, UI_EN, 'script.title')),
+        WF_H('span', { className: 'zwf-ws-title', 'data-testid': 'workflow-workspace-title' },
+          wfDetailRunName(props.run, params) ?? WF_UI.say(t, UI_EN, 'script.title'))),
+      WF_H('span', {
+        className: `zwf-ws-run-status zwf-status-word zwf-status-word-${WF_UI.statusTone(wfDetailRunStatus(props.run))}`,
+        'data-testid': 'workflow-workspace-run-status',
+      }, statusWord)),
+    WF_H('div', { className: 'zwf-ws-summary', 'data-testid': 'workflow-workspace-summary' },
+      WF_H('span', {}, WF_UI.say(t, UI_EN, phases === 1 ? 'script.summary.phases.one' : 'script.summary.phases', { count: phases })),
+      WF_H('span', { className: 'zwf-ws-dot', 'aria-hidden': 'true' }),
+      WF_H('span', {}, WF_UI.say(t, UI_EN, workspace.nodes.length === 1 ? 'script.summary.steps.one' : 'script.summary.steps', { count: workspace.nodes.length })),
+      elapsed === '' ? null : WF_H('span', { className: 'zwf-ws-dot', 'aria-hidden': 'true' }),
+      elapsed === '' ? null : WF_H('span', { className: 'zwf-mono' }, elapsed)));
   let body;
-  if (run === undefined) {
-    if (state.error !== undefined) {
-      const notFound = Number(state.error.status) === 404 || state.error.code === 'run-not-found';
-      const detail = notFound || typeof state.error.message !== 'string' ? undefined : state.error.message;
-      body = WF_H('div', { className: 'zwf-stack' },
-        WF_H(WF_UI.ErrorNotice, {
-          message: say(notFound ? 'detail.notFound' : 'detail.loadError'),
-          onRetry: state.reload,
-          retryLabel: say('detail.retry'),
-        }),
-        detail === undefined ? null : WF_H('p', { className: 'zwf-caption zwf-run-mono' }, detail));
-    } else if (state.loading) {
-      body = WF_H('div', { className: 'zwf-empty-inline' }, WF_H(WF_UI.Spinner, { inline: true }), say('detail.loading'));
-    } else {
-      body = WF_H('div', { className: 'zwf-empty-inline' }, say('detail.emptyBody'));
-    }
-  } else if (empty) {
-    body = WF_H('div', { className: 'zwf-empty-inline' }, say('detail.emptyBody'));
+  if (workspace.error !== undefined) {
+    body = WF_H('div', { className: 'zwf-ws-state', 'data-testid': 'workflow-workspace-error' },
+      WF_H(WF_UI.ErrorNotice, {
+        message: WF_UI.say(t, UI_EN, 'script.loadFailed', { error: wfText(workspace.error.message) ?? '' }),
+        onRetry: workspace.reload,
+        retryLabel: WF_UI.say(t, UI_EN, 'ui.retry'),
+      }));
+  } else if (workspace.unavailable) {
+    body = WF_H('div', { className: 'zwf-ws-state', 'data-testid': 'workflow-workspace-unavailable' },
+      WF_H(WF_UI.EmptyState, {
+        icon: WF_H(WF_UI.icons.log, { size: 18 }),
+        title: WF_UI.say(t, UI_EN, 'script.unavailable'),
+      }));
+  } else if (workspace.loading) {
+    body = WF_H('div', { className: 'zwf-empty-inline' }, WF_H(WF_UI.Spinner, { inline: true }), WF_UI.say(t, UI_EN, 'script.result.loading'));
+  } else if (workspace.nodes.length === 0) {
+    body = WF_H('div', { className: 'zwf-ws-state', 'data-testid': 'workflow-workspace-not-started' },
+      WF_H(WF_UI.EmptyState, {
+        icon: WF_H(WF_UI.icons.log, { size: 18 }),
+        title: WF_UI.say(t, UI_EN, 'script.notStarted.title'),
+        body: WF_UI.say(t, UI_EN, 'script.notStarted.body'),
+      }));
   } else {
-    body = WF_H(WF_FRAGMENT, null, sections);
+    body = WF_H('div', { className: 'zwf-ws-list', 'data-testid': 'workflow-workspace-list' },
+      chapters.map((chapter) => WF_H(WfWorkspaceChapter, {
+        key: chapter.key,
+        chapter,
+        t,
+        scope,
+        origin: Number.isFinite(origin) ? origin : undefined,
+        opened,
+        toggle,
+        onToggle: toggle,
+        delayOf,
+      })),
+      workspace.truncated
+        ? WF_H('p', { className: 'zwf-ws-truncated', 'data-testid': 'workflow-workspace-truncated' }, WF_UI.say(t, UI_EN, 'script.listTruncated', { count: workspace.nodes.length }))
+        : null);
   }
   return WF_H('div', {
-    className: 'zwf-run',
+    className: 'zwf-ws',
+    'data-testid': 'workflow-workspace',
     'data-workflow-run-id': runId,
-    'data-workflow-run-status': run === undefined ? 'absent' : (typeof run.status === 'string' ? run.status : 'unknown'),
   },
-  WF_H(WfDetailHeader, {
-    t,
-    say,
-    run,
-    params,
-    copied,
-    loading: state.loading,
-    stopping,
-    onCopyRunId: () => {
-      void onCopyRunId();
-    },
-    onRefresh: state.reload,
-    onStop: () => {
-      setStopError(undefined);
-      setStopOpen(true);
-    },
-    onOpenScript: () => setScriptOpen(true),
-  }),
-  WF_H('div', { className: 'zwf-detail-body' }, body),
-  WF_H(WF_UI.Modal, {
-    open: stopOpen,
-    title: say('detail.stopConfirm.title'),
-    closeLabel: say('detail.close'),
-    onClose: closeStop,
-    footer: WF_H(WF_FRAGMENT, null,
-      WF_H(WF_UI.Button, { key: 'cancel', variant: 'ghost', size: 'sm', disabled: stopping, onClick: closeStop }, say('detail.cancel')),
-      WF_H(WF_UI.Button, {
-        key: 'stop',
-        variant: 'danger',
-        size: 'sm',
-        icon: WF_H(WF_UI.icons.stop, { size: 13 }),
-        disabled: stopping,
-        onClick: () => {
-          void onStop();
-        },
-      }, stopping ? say('detail.stopPending') : say('detail.stopConfirm.confirm'))),
-  },
-  WF_H('p', { className: 'zwf-caption' }, say('detail.stopConfirm.body')),
-  stopError === undefined
-    ? null
-    : WF_H(WF_FRAGMENT, null,
-      WF_H(WF_UI.ErrorNotice, { message: say('detail.stopError') }),
-      typeof stopError.message === 'string' && stopError.message !== ''
-        ? WF_H('p', { className: 'zwf-caption zwf-run-mono' }, stopError.message)
-        : null)),
-  scriptOpen ? WF_H(WfDetailScriptModal, { t, run, onClose: () => setScriptOpen(false) }) : null,
-  preview === undefined
-    ? null
-    : WF_H(WfDetailArtifactModal, {
-      t,
-      scope: artifactScope,
-      target: preview,
-      onClose: () => setPreview(undefined),
-    }));
+  WF_H('div', { className: 'zwf-ws-pane', 'data-testid': 'workflow-workspace-pane' }, header, body));
 }
 
-/* ---------------------------------- seats ---------------------------------- */
-
-function WfDetailTab(props) {
-  const info = typeof props.useTabInfo === 'function' ? props.useTabInfo() : undefined;
-  const tab = info === undefined ? undefined : info.tab;
-  return WF_H(WfDetailPane, {
-    t: props.t,
-    params: wfDetailTabParams(tab),
-    visible: tab === undefined || tab.visible !== false,
-  });
-}
-
-function WfDetailTabTitle(props) {
-  const info = typeof props.useTabInfo === 'function' ? props.useTabInfo() : undefined;
-  const params = wfDetailTabParams(info === undefined ? undefined : info.tab);
-  const name = params === undefined || params.name === undefined ? wfDetailSay(props.t, 'detail.title') : params.name;
-  return WF_H('span', { className: 'zwf-run-tab-title' },
-    WF_H('span', { className: 'zwf-run-tab-glyph' }, WF_H(WF_UI.icons.run, { size: 14 })),
-    WF_H('span', { className: 'zwf-run-tab-text', title: name }, name));
-}
-
-/** The no-sidebar fallback: the same pane, centered in the shell overlay. */
-function WfDetailOverlay(props) {
-  const target = useWfDetailOverlay();
-  if (target === undefined) return null;
-  const say = (key, params) => wfDetailSay(props.t, key, params);
-  return WF_H(WF_UI.Modal, {
-    open: true,
-    wide: true,
-    title: say('detail.title'),
-    closeLabel: say('detail.close'),
-    onClose: () => WF_DETAIL_OVERLAY.close(),
-  },
-  WF_H('div', { className: 'zwf-run-overlay' },
-    WF_H(WfDetailPane, { t: props.t, params: target, visible: true })));
-}
-
-/* ---------------------------------- styles --------------------------------- */
-
+/* ---- client-src/47-detail-styles.js ---- */
+/* Styles for the run-detail pane, the timeline, the roster, the artifacts area and the script steps. */
 const WF_DETAIL_CSS = `
+/* ---------------------------------- pane ---------------------------------- */
 .zwf-run{box-sizing:border-box;display:flex;flex-direction:column;height:100%;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+.zwf-run-head{display:flex;flex-direction:column;gap:6px;padding:14px 16px 10px;flex:none}
+.zwf-run-headline{display:flex;align-items:center;gap:10px;min-width:0}
+.zwf-run-title{margin:0;flex:1;min-width:0;font-size:16px;line-height:24px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-run-actions{display:flex;align-items:center;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.zwf-run-stop:not(:disabled){color:var(--dsw-alias-state-error-primary)}
+.zwf-run-idline{display:flex;align-items:center;gap:8px;min-width:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-run-id{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
+.zwf-run-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:0 16px 24px}
 .zwf-run-tab-title{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
 .zwf-run-tab-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-brand-primary)}
 .zwf-run-tab-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-stop:not(:disabled){color:var(--dsw-alias-state-error-primary)}
-.zwf-run-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;min-width:0}
-.zwf-run-fact{display:flex;flex-direction:column;gap:0;min-width:0}
-.zwf-run-fact-wide{grid-column:1/-1}
-.zwf-run-fact-key{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
-.zwf-run-fact-value{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-mono{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace)}
-.zwf-run-break{white-space:normal;overflow-wrap:anywhere}
-.zwf-run-paths{display:flex;flex-direction:column;gap:8px;min-width:0}
-.zwf-run-paths .zwf-run-fact-value{white-space:normal;overflow-wrap:anywhere}
-.zwf-run-section-head{display:flex;align-items:baseline;gap:6px;min-width:0}
-.zwf-run-section-count{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.zwf-run-chip{cursor:default;max-width:100%}
-.zwf-run-chip:hover{color:var(--dsw-alias-label-secondary);border-color:var(--dsw-alias-border-l1)}
-.zwf-run-chip-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
-.zwf-run-chip-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-chip-error{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in oklab,var(--dsw-alias-state-error-primary) 35%,transparent)}
-.zwf-run-chip-error:hover{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in oklab,var(--dsw-alias-state-error-primary) 45%,transparent)}
-.zwf-run-chip-error .zwf-run-chip-glyph{color:inherit}
-.zwf-run-tag{display:inline-flex;align-items:center;flex:none;height:18px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:18px;font-weight:500;white-space:nowrap}
-.zwf-run-tag-brand{background:color-mix(in oklab,var(--dsw-alias-brand-primary) 12%,transparent);color:var(--dsw-alias-brand-primary)}
-.zwf-run-tag-success{background:color-mix(in oklab,var(--dsw-alias-state-success-primary) 12%,transparent);color:var(--dsw-alias-state-success-primary)}
-.zwf-run-tag-warn{background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 14%,transparent);color:var(--dsw-alias-state-warn-primary)}
-.zwf-run-tag-error{background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
-.zwf-run-phase{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:var(--dsw-radius-sm,8px);min-width:0}
-.zwf-run-phase[data-current=true]{background:color-mix(in oklab,var(--dsw-alias-state-success-primary) 7%,transparent)}
-.zwf-run-phase-dot{display:inline-flex;flex:none;margin-top:6px}
-.zwf-run-phase-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
-.zwf-run-phase-name{font-size:13px;line-height:19px;font-weight:500;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-phase-meta{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.zwf-run-agent{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:var(--dsw-radius-sm,8px);min-width:0}
-.zwf-run-agent-glyph{display:inline-flex;flex:none;margin-top:2px;color:var(--dsw-alias-label-secondary)}
-.zwf-run-agent-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
-.zwf-run-agent-name{font-size:13px;line-height:19px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-agent-meta{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.zwf-run-artifacts{display:flex;flex-direction:column;gap:4px;min-width:0}
-.zwf-run-artifact{box-sizing:border-box;display:flex;align-items:center;gap:9px;width:100%;min-width:0;padding:8px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.zwf-run-artifact:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent);border-color:var(--dsw-alias-border-l2)}
-.zwf-run-artifact:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}
-.zwf-run-artifact-glyph{display:inline-flex;align-items:center;justify-content:center;flex:none;width:26px;height:26px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-brand-primary)}
-.zwf-run-artifact-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
-.zwf-run-artifact-title{font-size:13px;line-height:19px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-artifact-meta{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-run-artifact-chevron{display:inline-flex;flex:none;color:var(--dsw-alias-label-tertiary)}
-.zwf-run-hole{display:flex;flex-direction:column;gap:3px;padding:7px 9px;border:1px solid color-mix(in oklab,var(--dsw-alias-state-warn-primary) 32%,transparent);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 6%,transparent);min-width:0}
-.zwf-run-hole-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
-.zwf-run-hole-name{font-size:13px;line-height:19px;font-weight:500;color:var(--dsw-alias-label-primary)}
-.zwf-run-hole-state{font-size:11px;line-height:16px;color:var(--dsw-alias-state-warn-primary)}
-.zwf-run-hole-prompt{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}
-.zwf-run-report{display:flex;flex-direction:column;gap:5px;padding:7px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);min-width:0}
-.zwf-run-report-meta{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.zwf-run-report-body{margin:0;max-height:180px}
-.zwf-run-log{max-height:260px;overflow:auto;padding:8px 10px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
-.zwf-run-time{flex:none;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
-.zwf-run-world{display:flex;flex-direction:column;gap:4px;min-width:0}
-.zwf-run-world-row{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 9px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
-.zwf-run-world-cmd{flex:1;min-width:0;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;overflow-wrap:anywhere;color:var(--dsw-alias-label-primary)}
-.zwf-run-world-meta{display:flex;align-items:center;gap:6px;flex:none}
-.zwf-run-error-body{margin:0;padding:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto}
-.zwf-run-preview{display:flex;flex-direction:column;gap:8px;min-width:0}
-.zwf-run-preview-meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
-.zwf-run-preview-text{margin:0;max-height:min(52vh,420px)}
-.zwf-run-preview-image{display:block;max-width:100%;max-height:min(52vh,420px);margin:0 auto;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);object-fit:contain;background:var(--dsw-alias-bg-layer-1)}
-.zwf-run-overlay{display:flex;flex-direction:column;min-height:0;height:min(68vh,620px)}
-.zwf-run-overlay .zwf-run{height:100%}
+.zwf-run-overlay{display:flex;flex-direction:column;min-height:0;height:min(72vh,680px)}
+.zwf-run-overlay .zwf-run,.zwf-run-overlay .zwf-ws{height:100%}
+/* status row */
+.zwf-status-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-run-status{display:inline-flex;align-items:center;gap:6px;flex:none;font-weight:500;color:var(--dsw-alias-label-primary)}
+.zwf-run-status-success .zwf-run-status-word{color:var(--dsw-alias-state-success-primary)}
+.zwf-run-status-error .zwf-run-status-word{color:var(--dsw-alias-state-error-primary)}
+.zwf-run-status-warn .zwf-run-status-word{color:var(--dsw-alias-state-warn-primary)}
+.zwf-run-status-reason{color:var(--dsw-alias-label-secondary)}
+.zwf-status-sep{opacity:.5}
+.zwf-chip-inline{display:inline-flex;align-items:center;gap:5px;flex:none;max-width:100%;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;min-width:0}
+.zwf-chip-inline-glyph{display:inline-flex;flex:none;opacity:.8}
+.zwf-chip-inline-warn{color:var(--dsw-alias-state-warn-primary)}
+.zwf-chip-inline-link{cursor:pointer;color:var(--dsw-alias-brand-primary)}
+.zwf-chip-inline-link:hover{text-decoration:underline}
+.zwf-status-rejection{display:flex;flex-direction:column;gap:2px;width:100%;color:var(--dsw-alias-state-warn-primary);font-size:12px;line-height:18px}
+.zwf-status-rejection-detail{margin:0;max-height:96px;overflow:auto;padding:4px 6px;border-radius:6px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 5%,transparent);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;line-height:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-health{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-health-sep{opacity:.45}
+.zwf-leftover{margin:2px 0 0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-state-warn-primary)}
+/* provenance */
+.zwf-provenance{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:6px 16px 0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-provenance-args{display:grid;grid-template-columns:minmax(64px,auto) 1fr;gap:2px 10px;width:100%;margin:2px 0 0;font-size:11px;line-height:16px}
+.zwf-provenance-args dt{color:var(--dsw-alias-label-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.zwf-provenance-args dd{margin:0;min-width:0;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-provenance-settings{opacity:.9}
+.zwf-tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:10.5px;line-height:18px}
+/* result states */
+.zwf-result-block{display:flex;flex-direction:column;gap:4px;padding:9px 11px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1)}
+.zwf-result-title{margin:0;font-size:12px;line-height:18px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.zwf-result-body{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-result-warn{color:var(--dsw-alias-state-warn-primary)}
+.zwf-result-error{border-color:color-mix(in oklab,var(--dsw-alias-state-error-primary) 35%,transparent);background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 7%,transparent)}
+.zwf-result-message{margin:0;max-height:220px;overflow:auto;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-result-preview{margin:0;max-height:180px;overflow:auto;padding:6px 8px;border-radius:6px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 5%,transparent);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;line-height:16px;white-space:pre-wrap}
+.zwf-result-untracked{border-style:dashed;background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
+.zwf-questions-unknown{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-primary)}
+/* settings popover */
+.zwf-settings-popover{display:flex;flex-direction:column;gap:10px;margin:8px 16px 0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 32px rgb(0 0 0 / .2)}
+.zwf-settings-head{display:flex;align-items:center;gap:8px}
+.zwf-settings-title{flex:1;font-size:13px;line-height:20px;font-weight:600}
+.zwf-settings-row{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-settings-label{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-settings-model{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.zwf-settings-trigger{display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;cursor:pointer}
+.zwf-settings-model-badge{font-size:10.5px;color:var(--dsw-alias-label-secondary)}
+.zwf-settings-note{margin:0;flex-basis:100%;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-settings-bound{display:flex;align-items:center;gap:6px}
+.zwf-settings-step{box-sizing:border-box;width:24px;height:24px;padding:0;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:1;cursor:pointer}
+.zwf-settings-step:disabled{opacity:.4;cursor:default}
+.zwf-settings-bound-value{min-width:24px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}
+.zwf-settings-default{font-size:11px;color:var(--dsw-alias-label-secondary)}
+.zwf-settings-consequence{margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-settings-rejection{margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-state-warn-primary)}
+.zwf-settings-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+/* --------------------------------- timeline -------------------------------- */
+.zwf-timeline{display:flex;flex-direction:column;min-width:0;flex:none}
+.zwf-timeline-frame{position:relative;min-width:0}
+.zwf-timeline-scroller{overflow-x:auto;overflow-y:hidden;padding-bottom:2px;scrollbar-width:none}
+.zwf-timeline-scroller::-webkit-scrollbar{display:none}
+.zwf-timeline-scroller[data-timeline-fade="both"],.zwf-timeline-scroller[data-timeline-fade="left"],.zwf-timeline-scroller[data-timeline-fade="right"]{mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%)}
+.zwf-timeline-scroller[data-timeline-fade="left"]{mask-image:linear-gradient(90deg,transparent 0,#000 18px,#000 100%)}
+.zwf-timeline-scroller[data-timeline-fade="right"]{mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 18px),transparent 100%)}
+.zwf-timeline-canvas{position:relative}
+.zwf-timeline-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
+.zwf-rail{stroke:color-mix(in oklab,var(--dsw-alias-label-primary) 22%,transparent);stroke-width:1;fill:none}
+.zwf-rail-chevron{stroke:color-mix(in oklab,var(--dsw-alias-label-primary) 32%,transparent);stroke-width:1;fill:none}
+.zwf-arc{stroke:color-mix(in oklab,var(--dsw-alias-brand-primary) 45%,transparent);stroke-width:1;fill:none}
+.zwf-fills{position:absolute;top:0;left:0;height:100%;pointer-events:none}
+.zwf-fill-frame{position:absolute;top:0;height:100%;border-radius:8px;background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 8%,transparent)}
+.zwf-fill-heads{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.zwf-fill-head{position:absolute;top:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:14px;color:var(--dsw-alias-state-warn-primary);opacity:.9}
+.zwf-station{position:absolute;top:0;display:flex;flex-direction:column;min-width:0}
+.zwf-station-button{display:block;width:100%;height:24px;padding:0 4px 0 0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.zwf-station-head{display:flex;align-items:center;gap:5px;height:24px;min-width:0}
+.zwf-station-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;font-weight:500}
+.zwf-station-stats{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:auto;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-station-fraction{font-variant-numeric:tabular-nums;opacity:.85}
+.zwf-station-rounds{opacity:.65}
+.zwf-station-caret{flex:none;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:3px solid color-mix(in oklab,var(--dsw-alias-label-primary) 40%,transparent)}
+.zwf-station-hole{flex:none;font-size:10.5px;line-height:16px;color:var(--dsw-alias-state-warn-primary);white-space:nowrap}
+.zwf-station-script{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;cursor:pointer}
+.zwf-station-pills{position:absolute;left:6px;display:flex;flex-direction:column}
+.zwf-timeline-tail{position:absolute;top:6px;width:8px;height:1px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 22%,transparent)}
+.zwf-timeline-leader{display:none}
+.zwf-ledge{position:absolute;top:0;display:inline-flex;align-items:center;gap:2px;height:24px;padding:0 4px;border:0;border-radius:6px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-secondary);font:inherit;font-size:10.5px;cursor:pointer;z-index:2;box-shadow:0 0 0 6px var(--dsw-alias-bg-base)}
+.zwf-ledge-left{left:0}
+.zwf-ledge-right{right:0}
+.zwf-ledge-more{font-family:var(--ds-font-family-code,ui-monospace,monospace)}
+.zwf-ledge-lamp{width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-idle-primary);opacity:.7}
+.zwf-timeline-bar{position:relative;height:3px;margin:4px 2px 0;border-radius:999px;background:var(--dsw-alias-bg-layer-2)}
+.zwf-timeline-thumb{position:absolute;top:0;height:3px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 30%,transparent)}
+/* --------------------------------- roster ---------------------------------- */
+.zwf-pill{box-sizing:border-box;display:inline-flex;align-items:center;min-width:0;max-width:100%;border-radius:999px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left}
+.zwf-pill-row{height:24px;gap:6px;padding:0 6px 0 4px;font-size:12px;line-height:18px}
+.zwf-pill-full{height:32px;gap:8px;padding:0 10px 0 8px;background:var(--dsw-alias-bg-layer-1);font-size:13px;line-height:20px}
+.zwf-pill-open{cursor:pointer;border:1px solid transparent;background:transparent}
+.zwf-pill-open:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent);border-color:var(--dsw-alias-border-l1)}
+.zwf-pill-open:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-pill-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-pill-name-idle{color:var(--dsw-alias-label-secondary)}
+.zwf-pill-note{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-pill-model{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);opacity:.85}
+.zwf-pill-asking{display:inline-flex;flex:none;color:var(--dsw-alias-state-warn-primary)}
+.zwf-pill-tail{display:inline-grid;flex:none;place-items:center;width:14px;height:14px}
+.zwf-pill-tail>*{grid-area:1/1}
+.zwf-pill-go{display:grid;place-items:center;width:14px;height:14px;border-radius:4px;color:var(--dsw-alias-label-secondary);opacity:0}
+.zwf-agent-pill:hover .zwf-pill-go{opacity:1}
+.zwf-pill-status{display:inline-flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}
+.zwf-pill-status-success{color:var(--dsw-alias-state-success-primary)}
+.zwf-pill-status-error{color:var(--dsw-alias-state-error-primary)}
+.zwf-pill-ring{display:inline-block;width:9px;height:9px;border:1.5px solid color-mix(in oklab,var(--dsw-alias-label-primary) 35%,transparent);border-radius:50%}
+.zwf-avatar-stack{display:inline-flex;align-items:center;gap:2px}
+.zwf-avatar-stacked{border-radius:5px;box-shadow:0 0 0 1.5px var(--dsw-alias-bg-base)}
+.zwf-avatar-more{font-size:10.5px;color:var(--dsw-alias-label-secondary)}
+.zwf-meter4{display:inline-flex;align-items:center;gap:1px;width:44px;height:3px;border-radius:999px;overflow:hidden;flex:none}
+.zwf-meter4-mini{width:28px}
+.zwf-meter4-seg{height:3px;border-radius:999px}
+.zwf-meter4-done{background:var(--dsw-alias-state-success-primary)}
+.zwf-meter4-failed{background:var(--dsw-alias-state-error-primary)}
+.zwf-meter4-running{background:var(--dsw-alias-state-warn-primary)}
+.zwf-meter4-pending{background:color-mix(in oklab,var(--dsw-alias-label-primary) 18%,transparent)}
+.zwf-tally{display:inline-flex;align-items:center;gap:8px;flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-tally-item{display:inline-flex;align-items:center;gap:3px}
+.zwf-door{display:flex;align-items:center;gap:8px;width:100%;height:28px;margin-top:2px;padding:0 6px;border:0;border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;text-align:left;cursor:pointer}
+.zwf-door:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 7%,transparent)}
+.zwf-door[data-door="open"]{background:color-mix(in oklab,var(--dsw-alias-label-primary) 7%,transparent)}
+.zwf-door-avatars{display:inline-flex;flex:none}
+.zwf-door-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-door-chevron{display:inline-flex;flex:none;transition:transform .12s}
+.zwf-door-chevron-open{transform:rotate(180deg)}
+.zwf-roll{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 8px;margin-top:4px;min-width:0}
+.zwf-roll-heading{grid-column:1/-1;display:flex;align-items:center;gap:5px;height:22px;margin-top:4px;padding-left:4px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-roll-count{font-weight:600;opacity:.9}
+.zwf-roll-rule{flex:1;height:1px;background:var(--dsw-alias-border-l1)}
+.zwf-roll-unlisted{grid-column:1/-1;margin:2px 0 0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);opacity:.85}
+.zwf-lamp{display:inline-block;flex:none;width:10px;height:10px;border-radius:50%;background:var(--dsw-alias-state-idle-primary)}
+.zwf-lamp-running{background:var(--dsw-alias-state-warn-primary);animation:zwf-lamp-pulse 1.6s ease-in-out infinite}
+.zwf-lamp-done{background:var(--dsw-alias-state-success-primary)}
+.zwf-lamp-failed{background:var(--dsw-alias-state-error-primary)}
+.zwf-lamp-pending{background:var(--dsw-alias-bg-base);box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--dsw-alias-label-primary) 35%,transparent)}
+.zwf-lamp-hole-waiting{box-shadow:inset 0 0 0 1.5px var(--dsw-alias-state-warn-primary)}
+.zwf-lamp-hole-open{box-shadow:inset 0 0 0 1.5px color-mix(in oklab,var(--dsw-alias-label-primary) 25%,transparent)}
+@keyframes zwf-lamp-pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.zwf-lamp-running{animation:none}}
+/* ------------------------------- phase list -------------------------------- */
+.zwf-phases{display:flex;flex-direction:column;min-width:0;position:relative}
+.zwf-phases::before{content:"";position:absolute;left:18px;top:8px;bottom:10px;width:1px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 16%,transparent)}
+.zwf-fill-frames{display:none}
+.zwf-spine{position:absolute;left:18px;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.zwf-fill-heading{display:flex;align-items:center;gap:6px;height:22px;padding-left:14px;min-width:0;color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:17px}
+.zwf-fill-heading-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-state-warn-primary)}
+.zwf-fill-heading-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-phase{display:flex;flex-direction:column;min-width:0;border-radius:8px}
+.zwf-phase[data-phase-open="true"]{background:color-mix(in oklab,var(--dsw-alias-label-primary) 3%,transparent)}
+.zwf-phase-landed{animation:zwf-landed 1.4s ease-out}
+@keyframes zwf-landed{from{background:color-mix(in oklab,var(--dsw-alias-brand-primary) 16%,transparent)}to{background:transparent}}
+.zwf-phase-toggle{display:flex;align-items:center;gap:8px;width:100%;height:36px;padding:0 10px 0 14px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:8px}
+.zwf-phase-toggle:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 5%,transparent)}
+.zwf-phase-toggle:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.zwf-phase-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:20px;font-weight:500}
+.zwf-phase-name-idle{color:var(--dsw-alias-label-secondary);font-weight:400}
+.zwf-phase-fillmark{display:inline-flex;align-items:center;justify-content:center;flex:none;height:16px;padding:0 4px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.zwf-phase-holew{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-state-warn-primary);white-space:nowrap}
+.zwf-phase-right{display:inline-flex;align-items:center;gap:8px;flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-phase-fraction{font-variant-numeric:tabular-nums;opacity:.85}
+.zwf-phase-rounds{opacity:.65}
+.zwf-phase-cluster{display:inline-flex;align-items:center;gap:2px}
+.zwf-chevron{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary);transition:transform .12s}
+.zwf-chevron-open{transform:rotate(90deg)}
+.zwf-phase-body{display:flex;flex-direction:column;gap:4px;padding:0 10px 8px 22px;min-width:0}
+.zwf-roster-pins{display:flex;flex-direction:column;gap:3px;min-width:0}
+.zwf-roster-pin{display:flex;flex-direction:column;gap:2px;min-width:0}
+.zwf-hole-waiting{display:flex;flex-direction:column;gap:2px;padding:4px 0 2px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hole-waiting-text{color:var(--dsw-alias-state-warn-primary)}
+.zwf-hole-prompt{margin:0;color:var(--dsw-alias-label-primary);white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}
+.zwf-question{display:flex;align-items:flex-start;gap:6px;margin-left:2px;padding:5px 8px;border-radius:8px;background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 10%,transparent);font-size:12px;line-height:18px;min-width:0}
+.zwf-question-glyph{display:inline-flex;flex:none;margin-top:2px;color:var(--dsw-alias-state-warn-primary)}
+.zwf-question-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.zwf-question-asker{font-size:10.5px;line-height:16px;font-weight:500}
+.zwf-question-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-question-context{margin:0;font-size:11px;line-height:16px;opacity:.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-question-meta{display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none;font-size:10.5px;line-height:16px;opacity:.8}
+.zwf-question-qid{opacity:.7;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-orphan-questions{display:flex;flex-direction:column;gap:4px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--dsw-alias-border-l1)}
+.zwf-orphan-title{margin:0;font-size:11.5px;line-height:17px;font-weight:600;color:var(--dsw-alias-label-secondary)}
+.zwf-graph-unavailable{margin:0;padding:8px 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+/* ---------------------------------- actor ---------------------------------- */
+.zwf-actor-wrap{padding:0 0 4px}
+.zwf-actor{display:flex;flex-direction:column;gap:4px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);min-width:0}
+.zwf-actor-glyph{display:inline-flex;color:var(--dsw-alias-label-secondary)}
+.zwf-actor-title{margin:0;font-size:13px;line-height:19px;font-weight:500}
+.zwf-actor-body{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-actor-row{display:flex;align-items:center;gap:6px;min-width:0;font-size:11.5px;line-height:17px}
+.zwf-actor-phase{flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-actor-brief{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-actor-meta{flex:none;color:var(--dsw-alias-label-secondary);opacity:.85}
+/* -------------------------------- artifacts -------------------------------- */
+.zwf-artifacts{display:flex;flex-direction:column;min-width:0;border-top:1px solid color-mix(in oklab,var(--dsw-alias-border-l1) 70%,transparent);margin-top:4px}
+.zwf-artifacts-toggle{display:flex;align-items:center;gap:8px;width:100%;height:36px;padding:0 2px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.zwf-artifacts-toggle:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 5%,transparent)}
+.zwf-artifacts-title{font-size:13px;line-height:20px;font-weight:500}
+.zwf-artifacts-count{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-artifacts-primary-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifacts-body{display:flex;flex-direction:column;gap:6px;padding-bottom:10px;min-width:0}
+.zwf-artifact-primary-body{display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto;min-width:0}
+.zwf-artifact-primary{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);min-width:0}
+.zwf-artifact-head{display:flex;align-items:center;gap:7px;min-width:0;flex-wrap:wrap}
+.zwf-artifact-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-brand-primary)}
+.zwf-artifact-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:19px;font-weight:500}
+.zwf-artifact-badge{flex:none;padding:0 5px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-bytes{flex:none;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-chips{display:inline-flex;align-items:center;gap:4px;flex:none}
+.zwf-artifact-chip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);cursor:pointer}
+.zwf-artifact-chip:disabled{opacity:.35;cursor:default}
+.zwf-flip{transform:rotate(180deg)}
+.zwf-artifact-version{font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.zwf-artifact-chips-more{font-size:10.5px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-desc{margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-text{margin:0;max-height:320px;overflow:auto;padding:6px 8px;border-radius:6px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11px;line-height:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-artifact-empty{display:flex;align-items:center;justify-content:center;min-height:72px;padding:8px;border:1px dashed var(--dsw-alias-border-l1);border-radius:8px;color:var(--dsw-alias-label-secondary);font-size:11.5px}
+.zwf-artifact-table{overflow:auto;max-height:320px;min-width:0}
+.zwf-artifact-table table{border-collapse:collapse;width:100%;font-size:11.5px;line-height:17px}
+.zwf-artifact-table th{position:sticky;top:0;background:var(--dsw-alias-bg-layer-1);text-align:left;font-weight:600;color:var(--dsw-alias-label-secondary);padding:4px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);white-space:nowrap}
+.zwf-artifact-table td{padding:3px 8px;border-bottom:.5px solid var(--dsw-alias-border-l1);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-artifact-index{display:flex;flex-direction:column;gap:2px;min-width:0}
+.zwf-artifact-row{display:flex;align-items:center;gap:7px;width:100%;min-width:0;height:30px;padding:0 8px;border:1px solid transparent;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.zwf-artifact-row:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 5%,transparent);border-color:var(--dsw-alias-border-l1)}
+.zwf-artifact-row-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-row-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px}
+.zwf-artifact-row-meta{flex:none;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-row-version{flex:none;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);opacity:.75}
+.zwf-artifact-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,180px));gap:8px;max-height:50vh;overflow:auto;padding-bottom:4px}
+.zwf-artifact-tile{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:9px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}
+.zwf-artifact-tile:hover{border-color:var(--dsw-alias-border-l2)}
+.zwf-artifact-tile-glyph{display:inline-flex;color:var(--dsw-alias-brand-primary)}
+.zwf-artifact-tile-title{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;font-weight:500}
+.zwf-artifact-tile-meta{font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-artifact-tile-version{font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);opacity:.75}
+/* ------------------------------ script steps ------------------------------- */
+.zwf-ws{box-sizing:border-box;display:flex;flex-direction:column;height:100%;min-height:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
+.zwf-ws-pane{display:flex;flex-direction:column;height:100%;min-height:0}
+.zwf-ws-head-block{display:flex;flex-direction:column;gap:6px;flex:none;padding:14px 16px 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.zwf-ws-headline{display:flex;align-items:center;gap:10px;min-width:0}
+.zwf-ws-brand{display:inline-flex;align-items:center;justify-content:center;flex:none;width:30px;height:30px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.zwf-ws-titles{display:flex;flex-direction:column;min-width:0;flex:1}
+.zwf-ws-eyebrow{font-size:10px;line-height:14px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--dsw-alias-label-secondary)}
+.zwf-ws-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;line-height:20px;font-weight:500}
+.zwf-ws-run-status{flex:none;font-weight:500}
+.zwf-ws-summary{display:flex;align-items:center;gap:6px;padding-left:40px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);flex-wrap:wrap}
+.zwf-ws-dot{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.6}
+.zwf-ws-state{padding:8px 0}
+.zwf-ws-list{display:flex;flex-direction:column;min-height:0;flex:1;overflow-y:auto;padding:4px 8px 28px}
+.zwf-ws-chapter{display:flex;flex-direction:column;gap:2px;min-width:0}
+.zwf-ws-chapter-head{display:flex;align-items:center;gap:6px;margin:18px 8px 6px;min-width:0}
+.zwf-ws-chapter-head:first-child{margin-top:8px}
+.zwf-ws-chapter-name{white-space:nowrap;font-size:13px;line-height:19px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.zwf-ws-round{display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px}
+.zwf-ws-rule{flex:1;height:1px;background:var(--dsw-alias-border-l1);min-width:8px}
+.zwf-ws-chapter-meta{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-ws-card{display:grid;grid-template-columns:26px minmax(0,1fr) auto;column-gap:10px;align-items:start;padding:6px 8px 8px;border-radius:9px;min-width:0}
+.zwf-ws-card:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent)}
+.zwf-ws-glyph{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.zwf-ws-card-failed .zwf-ws-glyph{background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 12%,transparent);color:var(--dsw-alias-state-error-primary)}
+.zwf-ws-card-running .zwf-ws-glyph{background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 14%,transparent);color:var(--dsw-alias-state-warn-primary)}
+.zwf-ws-main{display:flex;flex-direction:column;gap:2px;min-width:0;outline:none}
+.zwf-ws-main:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px;border-radius:6px}
+.zwf-ws-head{display:flex;align-items:center;gap:6px;min-width:0}
+.zwf-ws-verb{flex:none;font-size:12.5px;line-height:18px;font-weight:500}
+.zwf-ws-subject{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-ws-result{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);min-width:0}
+.zwf-ws-status{display:inline-flex;align-items:center;gap:3px;flex:none}
+.zwf-ws-status-failed{color:var(--dsw-alias-state-error-primary)}
+.zwf-ws-status-running{color:var(--dsw-alias-state-warn-primary)}
+.zwf-ws-status-completed{color:var(--dsw-alias-state-success-primary)}
+.zwf-ws-part{flex:none;opacity:.9}
+.zwf-ws-part-error{color:var(--dsw-alias-state-error-primary)}
+.zwf-ws-peek{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);opacity:.8}
+.zwf-ws-body{display:flex;flex-direction:column;gap:6px;margin-top:6px;padding:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);min-width:0}
+.zwf-ws-command{display:flex;align-items:flex-start;gap:6px;min-width:0}
+.zwf-ws-prompt{flex:none;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
+.zwf-ws-command-text{margin:0;min-width:0;flex:1;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary)}
+.zwf-ws-args-truncated{flex:none;font-size:10.5px;line-height:16px;color:var(--dsw-alias-state-warn-primary)}
+.zwf-ws-result-line{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-ws-result-error{margin:0;padding:6px 8px;border-radius:6px;background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 8%,transparent);color:var(--dsw-alias-state-error-primary);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto}
+.zwf-ws-lines{list-style:none;margin:0;padding:4px 0;max-height:300px;overflow:auto;font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;line-height:18px}
+.zwf-ws-lines li{display:flex;gap:10px;min-width:0;padding:0 4px}
+.zwf-ws-line-no{flex:none;width:22px;text-align:right;color:var(--dsw-alias-label-secondary);opacity:.7}
+.zwf-ws-line-text{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.zwf-ws-line-more{color:var(--dsw-alias-label-secondary);opacity:.8}
+.zwf-ws-pre{margin:0;max-height:300px;overflow:auto;padding:6px 8px;border-radius:6px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 4%,transparent);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-ws-stderr{margin:0;max-height:200px;overflow:auto;padding:6px 8px;border-radius:6px;background:color-mix(in oklab,var(--dsw-alias-state-error-primary) 8%,transparent);color:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code,ui-monospace,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-ws-stderr-label{display:block;font-size:10px;line-height:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--dsw-alias-state-error-primary)}
+.zwf-ws-note{margin:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-ws-footer{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-ws-parts{flex:1;min-width:0}
+.zwf-ws-replayed{flex:none;padding:0 5px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);font-size:10.5px}
+.zwf-ws-when{display:inline-flex;align-items:center;gap:4px;flex:none;justify-self:end;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-ws-truncated{margin:6px 0 0;text-align:center;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
 `;
 
 WF_STYLE_PARTS.push(WF_DETAIL_CSS);
 
-/* -------------------------------- registration ----------------------------- */
-
-/**
- * Register the page type, both Sidebar seats, and the no-sidebar fallback.
- *
- * @param {object} ctx Client root carrying slots, locale and the Sidebar services.
- * @param {(callback: Function, label: string) => unknown} effect Owner-scoped effect runner.
- */
-WF_DETAIL.register = function register(ctx, effect) {
-  if (ctx === null || typeof ctx !== 'object') return;
-  const runEffect = typeof effect === 'function' ? effect : (callback) => callback();
-  const t = ctx.locale !== undefined && typeof ctx.locale.bind === 'function' ? ctx.locale.bind(UI_NS) : undefined;
-  const slots = ctx.slots;
-  if (slots !== undefined && typeof slots.inject === 'function' && typeof slots.register === 'function') {
-    slots.inject('sidebar.right.pane.tab', () => slots.register({
-      name: 'sidebar.right.pane.tab',
-      key: WF_DETAIL_ID,
-      locale: UI_NS,
-    }, WfDetailTab));
-    slots.inject('sidebar.right.pane.tab.title', () => slots.register({
-      name: 'sidebar.right.pane.tab.title',
-      key: WF_DETAIL_ID,
-      locale: UI_NS,
-    }, WfDetailTabTitle));
-    slots.inject('shell.overlay', () => slots.register({
-      name: 'shell.overlay',
-      id: WF_DETAIL_ID,
-      locale: UI_NS,
-    }, WfDetailOverlay));
-  }
-  if (typeof ctx.inject !== 'function') return;
-  ctx.inject(['sidebarRight', 'sidebarRightTabs'], (child) => {
-    const sidebar = child.sidebarRight;
-    const tabs = child.sidebarRightTabs;
-    if (sidebar !== undefined && typeof sidebar.openTab === 'function') WF_DETAIL_SERVICES.sidebar = sidebar;
-    if (tabs === undefined || typeof tabs.register !== 'function') return;
-    runEffect(() => tabs.register({
-      id: WF_DETAIL_ID,
-      kind: WF_DETAIL_KIND,
-      priority: 'extension',
-      title: () => wfDetailSay(t, 'detail.title'),
-    }), 'zcode-workflow: run detail tab type');
-  });
-};
-
-/**
- * Open one run's detail in the right Sidebar; without a Sidebar (or with no session surface
- * mounted) the same pane opens through the shell overlay instead.
- *
- * @param {{ runId: string, sessionId?: string, projectRoot?: string, name?: string }} value
- * @returns {boolean} whether a surface accepted the request.
- */
-WF_DETAIL.open = function open(value) {
-  const params = wfDetailParams(value);
-  if (params === undefined) return false;
-  const sidebar = WF_DETAIL_SERVICES.sidebar;
-  if (sidebar !== undefined && typeof sidebar.openTab === 'function') {
-    try {
-      sidebar.openTab(WF_DETAIL_KIND, { params });
-      WF_DETAIL_OVERLAY.close();
-      return true;
-    } catch (error) {
-      console.warn('zcode-workflow: cannot open the run detail in the right sidebar', error);
-    }
-  }
-  WF_DETAIL_OVERLAY.open(params);
-  return true;
-};
-
 /* ---- client-src/50-directory.js ---- */
-/* Main-panel workflow directory and its sidebar entry. */
+/* Main-panel workflow hub: the saved workflows of the open project, their detail, and the
+ * dialogs that start, move or delete one.
+ *
+ * The hub is two surfaces in one panel: the list of saved workflows (project scope plus the global
+ * scope every project can see) and the detail of one entry, with its definition and its run
+ * history. Starting a saved workflow opens a new conversation in the target project and hands the
+ * agent the arguments, because a run in this port always belongs to a conversation.
+ */
 
 const WF_DIRECTORY = {};
 
@@ -3660,9 +10410,28 @@ const WF_DIRECTORY_PANEL_ID = 'zcode-workflow';
 /** Sidebar position: after the shipped task panel. */
 const WF_DIRECTORY_ORDER = 20;
 
-/** Copy from the directory dictionary, with the compiled English text as fallback. */
-function wfDirectorySay(t, key, params) {
+/** Runs requested for one workflow's history tab. */
+const WF_HUB_HISTORY_LIMIT = 20;
+
+/** Argument chips a list card shows before the rest collapse into a counter. */
+const WF_HUB_ARG_CHIPS = 3;
+
+/** How long a confirmation line stays on screen. */
+const WF_HUB_TOAST_MS = 2600;
+
+/** Declaration types the metadata editor offers. */
+const WF_HUB_ARG_TYPES = ['string', 'number', 'boolean', 'json'];
+
+/** Copy from the hub dictionary, with the compiled English text as fallback. */
+function wfHubSay(t, key, params) {
   return WF_UI.say(t, UI_EN, key, params);
+}
+
+/** Pick a `…One` variant when the count is exactly one and the fragment carries one. */
+function wfHubCountSay(t, key, count, params) {
+  const oneKey = `${key}One`;
+  const useOne = count === 1 && Object.prototype.hasOwnProperty.call(UI_EN, oneKey);
+  return wfHubSay(t, useOne ? oneKey : key, { ...(params ?? {}), count });
 }
 
 /* -------------------------------- workspace -------------------------------- */
@@ -3672,7 +10441,7 @@ function wfDirectorySay(t, key, params) {
  * @param {object | undefined} snapshot `useWorkspaces` snapshot: `{ phase, items }`
  * @returns {{ key: string, workspaceId: string | undefined, path: string, title: string }[]}
  */
-function wfDirectoryWorkspaces(snapshot) {
+function wfHubWorkspaces(snapshot) {
   const items = snapshot !== null && typeof snapshot === 'object' && Array.isArray(snapshot.items) ? snapshot.items : [];
   const seen = new Set();
   const rows = [];
@@ -3692,22 +10461,22 @@ function wfDirectoryWorkspaces(snapshot) {
   return rows;
 }
 
-function wfDirectoryBasename(value) {
+function wfHubBasename(value) {
   const text = String(value).replace(/[\\/]+$/u, '');
   const parts = text.split(/[\\/]/u);
   const last = parts[parts.length - 1];
   return last === undefined || last === '' ? text : last;
 }
 
-function wfDirectoryWorkspaceLabel(t, row) {
+function wfHubWorkspaceLabel(t, row) {
   if (row === undefined || row === null) return '';
-  if (row.title === 'default-workspace') return wfDirectorySay(t, 'directory.defaultWorkspace');
+  if (row.title === 'default-workspace') return wfHubSay(t, 'workflows.hub.group.current');
   if (row.title !== '') return row.title;
-  return wfDirectoryBasename(row.path);
+  return wfHubBasename(row.path);
 }
 
 /** The Cordis service that opens a new conversation; absent in lighter profiles. */
-function wfDirectoryWorkspaceService(ctx) {
+function wfHubWorkspaceService(ctx) {
   let service;
   if (typeof ctx?.get === 'function') {
     try {
@@ -3726,190 +10495,269 @@ function wfDirectoryWorkspaceService(ctx) {
   return service !== null && typeof service === 'object' ? service : undefined;
 }
 
-/* ---------------------------------- args ----------------------------------- */
+/** The layout service, resolved lazily so this part needs no extra injection. */
+function wfHubLayoutService(ctx) {
+  let service;
+  if (typeof ctx?.get === 'function') {
+    try {
+      service = ctx.get('layout');
+    } catch {
+      service = undefined;
+    }
+  }
+  if (service === undefined || service === null) {
+    try {
+      service = ctx?.layout;
+    } catch {
+      service = undefined;
+    }
+  }
+  return service !== null && typeof service === 'object' ? service : undefined;
+}
 
-function wfDirectoryJsonText(value) {
+/* --------------------------------- entries --------------------------------- */
+
+/** One saved-workflow row, in whichever shape the host published it. */
+function wfHubEntry(raw, fallbackScope) {
+  const record = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : undefined;
+  if (record === undefined) return undefined;
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
+  if (name === '') return undefined;
+  const scope = record.scope === 'global' || fallbackScope === 'global' ? 'global' : 'project';
+  const args = record.args !== null && typeof record.args === 'object' && !Array.isArray(record.args) ? record.args : {};
+  return {
+    name,
+    scope,
+    path: typeof record.path === 'string' ? record.path : '',
+    description: typeof record.description === 'string' ? record.description.trim() : '',
+    whenToUse: typeof record.whenToUse === 'string' ? record.whenToUse.trim() : '',
+    args,
+    lastRun: record.lastRun ?? record.latestRun ?? record.run,
+    raw: record,
+  };
+}
+
+/** The run summary a card may show, normalized to the five states the badge knows. */
+function wfHubRunState(run) {
+  const record = run !== null && typeof run === 'object' ? run : undefined;
+  if (record === undefined) return 'never';
+  const status = typeof record.status === 'string' ? record.status : '';
+  if (status === 'pending' || status === 'running') return 'running';
+  if (status === 'errored' || status === 'failed') return 'errored';
+  if (status === 'stopped' || status === 'cancelled') return 'stopped';
+  if (status === 'completed') return 'completed';
+  return 'never';
+}
+
+/** One run row's identity, in either spelling. */
+function wfHubRunId(row) {
+  const record = row !== null && typeof row === 'object' ? row : undefined;
+  if (record === undefined) return '';
+  for (const value of [record.runId, record.id]) {
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return '';
+}
+
+/** Whatever timestamp a run row carries, newest field first. */
+function wfHubRunTime(row) {
+  const record = row !== null && typeof row === 'object' ? row : undefined;
+  if (record === undefined) return 0;
+  for (const value of [record.updatedAt, record.finishedAt, record.createdAt, record.startedAt]) {
+    const time = Number(value);
+    if (Number.isFinite(time) && time > 0) return time;
+  }
+  return 0;
+}
+
+/** Duration copy of one history row. */
+function wfHubDuration(t, run) {
+  const record = run !== null && typeof run === 'object' ? run : {};
+  const from = Number(record.createdAt ?? record.startedAt);
+  const to = Number(record.updatedAt ?? record.finishedAt);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return '';
+  const seconds = Math.max(0, Math.round((to - from) / 1000));
+  if (seconds < 60) return wfHubSay(t, 'workflows.hub.time.duration.seconds', { seconds });
+  const minutes = Math.floor(seconds / 60);
+  return wfHubSay(t, 'workflows.hub.time.duration.minutes', { minutes, seconds: seconds % 60 });
+}
+
+/** Localized status word of one run row. */
+function wfHubRunStatusWord(t, run) {
+  const status = typeof run?.status === 'string' ? run.status : 'unknown';
+  const key = `chat.toolCall.workflow.run.status.${status}`;
+  return Object.prototype.hasOwnProperty.call(UI_EN, key)
+    ? wfHubSay(t, key)
+    : wfHubSay(t, 'chat.toolCall.workflow.card.ended');
+}
+
+/** Localized stop reason, when the run recorded one. */
+function wfHubStopReasonWord(t, run) {
+  const reason = typeof run?.stopReason === 'string' ? run.stopReason : '';
+  const key = `chat.toolCall.workflow.run.stopReason.${reason}`;
+  return Object.prototype.hasOwnProperty.call(UI_EN, key) ? wfHubSay(t, key) : '';
+}
+
+/** Argument names of one entry, in declaration order. */
+function wfHubArgNames(entry) {
+  return Object.keys(entry?.args ?? {});
+}
+
+/** Copy text to the clipboard; resolves false when the browser refuses. */
+async function wfHubCopyText(text) {
+  if (typeof text !== 'string' || text === '') return false;
   try {
-    const text = JSON.stringify(value, null, 2);
-    return text === undefined ? '' : text;
+    if (typeof navigator !== 'undefined' && navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
   } catch {
-    return '';
+    return false;
   }
+  return false;
 }
 
-function wfDirectoryFieldText(type, enumValues, value) {
-  if (value === undefined) return type === 'boolean' ? 'false' : '';
-  if (enumValues !== undefined) return typeof value === 'string' ? value : String(value);
-  switch (type) {
-    case 'boolean':
-      return value === true ? 'true' : 'false';
-    case 'number':
-      return String(value);
-    case 'json':
-    case 'object':
-    case 'array':
-      return wfDirectoryJsonText(value);
-    default:
-      return typeof value === 'string' ? value : wfDirectoryJsonText(value);
-  }
+/** One console warning per distinct failure. */
+function wfHubWarn(scope, error) {
+  console.warn(`zcode-workflow: ${scope} failed`, error);
 }
 
-/** One editable argument row per declared workflow argument. */
-function wfDirectoryFields(entry) {
-  const declarations = entry !== null && typeof entry === 'object'
-    && entry.args !== null && typeof entry.args === 'object' && !Array.isArray(entry.args)
-    ? entry.args
-    : {};
-  const fields = [];
-  for (const [name, raw] of Object.entries(declarations)) {
-    const declaration = raw !== null && typeof raw === 'object' ? raw : {};
-    const type = typeof declaration.type === 'string' ? declaration.type : 'string';
-    const enumValues = Array.isArray(declaration.enum) && declaration.enum.length > 0 ? declaration.enum : undefined;
-    const hasDefault = declaration.default !== undefined;
-    fields.push({
+/* --------------------------------- readers --------------------------------- */
+
+/** Normalize one `/workflows/list` body into the two groups the page shows. */
+function wfHubGroupPayload(payload, fallbackScope) {
+  const record = payload !== null && typeof payload === 'object' ? payload : {};
+  const rowsRaw = Array.isArray(record.workflows) ? record.workflows : Array.isArray(record.entries) ? record.entries : [];
+  const entries = [];
+  for (const row of rowsRaw) {
+    const entry = wfHubEntry(row, fallbackScope);
+    if (entry !== undefined) entries.push(entry);
+  }
+  const invalidRaw = Array.isArray(record.invalid) ? record.invalid : [];
+  const invalid = [];
+  for (const row of invalidRaw) {
+    if (row === null || typeof row !== 'object') continue;
+    invalid.push({
+      path: typeof row.path === 'string' ? row.path : '',
+      reason: typeof row.reason === 'string' ? row.reason : '',
+    });
+  }
+  return { entries, invalid };
+}
+
+/** A declaration row of the metadata editor. */
+function wfHubArgRows(args) {
+  const rows = [];
+  const source = args !== null && typeof args === 'object' && !Array.isArray(args) ? args : {};
+  for (const [name, raw] of Object.entries(source)) {
+    const record = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const type = typeof record.type === 'string' && WF_HUB_ARG_TYPES.includes(record.type) ? record.type : 'string';
+    rows.push({
+      key: `${name}:${String(rows.length)}`,
       name,
       type,
-      enumValues,
-      required: declaration.required === true,
-      hasDefault,
-      description: typeof declaration.description === 'string' && declaration.description.trim() !== ''
-        ? declaration.description
-        : undefined,
-      value: wfDirectoryFieldText(type, enumValues, hasDefault ? declaration.default : undefined),
+      required: record.required === true,
+      value: wfHubDefaultText(type, record.default),
+      description: typeof record.description === 'string' ? record.description : '',
     });
   }
-  return fields;
+  return rows;
 }
 
-/** Parse one field's text; returns `{ ok: false, error }`, `{ ok: true, omitted }` or `{ ok: true, value }`. */
-function wfDirectoryParseField(field, t) {
-  const text = typeof field.value === 'string' ? field.value : '';
-  if (field.type === 'boolean') return { ok: true, value: text === 'true' };
-  const trimmed = text.trim();
-  if (trimmed === '') {
-    if (field.required && !field.hasDefault) {
-      return { ok: false, error: wfDirectorySay(t, 'directory.launch.requiredError') };
-    }
-    return { ok: true, omitted: true };
-  }
-  if (field.enumValues !== undefined) {
-    const index = field.enumValues.findIndex((option) => String(option) === text);
-    if (index === -1) return { ok: false, error: wfDirectorySay(t, 'directory.launch.invalidChoice') };
-    return { ok: true, value: field.enumValues[index] };
-  }
-  if (field.type === 'number') {
-    const number = Number(trimmed);
-    if (!Number.isFinite(number)) return { ok: false, error: wfDirectorySay(t, 'directory.launch.invalidNumber') };
-    return { ok: true, value: number };
-  }
-  if (field.type === 'json' || field.type === 'object' || field.type === 'array') {
+/** One default value as editable text. */
+function wfHubDefaultText(type, value) {
+  if (value === undefined || value === null) return '';
+  if (type === 'boolean') return value === true || value === 'true' ? 'true' : 'false';
+  if (type === 'json') {
     try {
-      return { ok: true, value: JSON.parse(text) };
+      return JSON.stringify(value);
     } catch {
-      return { ok: false, error: wfDirectorySay(t, 'directory.launch.invalidJson') };
+      return '';
     }
   }
-  return { ok: true, value: text };
+  return String(value);
 }
-
-function wfDirectoryArgsLabel(t, entry) {
-  const declarations = entry !== null && typeof entry === 'object'
-    && entry.args !== null && typeof entry.args === 'object' && !Array.isArray(entry.args)
-    ? entry.args
-    : {};
-  const count = Object.keys(declarations).length;
-  if (count === 0) return wfDirectorySay(t, 'directory.args.zero');
-  if (count === 1) return wfDirectorySay(t, 'directory.args.one');
-  return wfDirectorySay(t, 'directory.args.count', { count });
-}
-
-/** One row of the launch form: name, required marker, control and validation line. */
-function wfDirectoryArgRow(field, error, t, onChange) {
-  const head = WF_H('span', { className: 'zwf-dir-arg-head' },
-    WF_H('span', { className: 'zwf-dir-arg-name' }, field.name),
-    field.required ? WF_H('span', { className: 'zwf-badge zwf-dir-required' }, wfDirectorySay(t, 'directory.launch.required')) : null);
-  const hint = field.description;
-  let control;
-  if (field.type === 'boolean') {
-    control = WF_H('label', { className: 'zwf-dir-check' },
-      WF_H('input', {
-        type: 'checkbox',
-        className: 'zwf-dir-checkbox',
-        checked: field.value === 'true',
-        onChange: (event) => onChange(event.target.checked === true ? 'true' : 'false'),
-      }),
-      WF_H('span', null, field.value === 'true'
-        ? wfDirectorySay(t, 'directory.launch.on')
-        : wfDirectorySay(t, 'directory.launch.off')));
-  } else if (field.enumValues !== undefined) {
-    const options = [];
-    if (field.value === '') {
-      options.push(WF_H('option', { key: '__choose', value: '' }, wfDirectorySay(t, 'directory.launch.choose')));
-    } else if (!field.enumValues.some((option) => String(option) === field.value)) {
-      options.push(WF_H('option', { key: '__current', value: field.value }, field.value));
-    }
-    field.enumValues.forEach((option, index) => {
-      options.push(WF_H('option', { key: String(index), value: String(option) }, String(option)));
-    });
-    control = WF_H('select', {
-      className: 'zwf-select zwf-select-wide',
-      value: field.value,
-      onChange: (event) => onChange(event.target.value),
-    }, options);
-  } else if (field.type === 'json' || field.type === 'object' || field.type === 'array') {
-    control = WF_H(WF_UI.Textarea, {
-      rows: 3,
-      value: field.value,
-      onChange,
-    });
-  } else {
-    control = WF_H(WF_UI.Input, {
-      type: field.type === 'number' ? 'number' : 'text',
-      value: field.value,
-      onChange,
-    });
-  }
-  const errorLine = error === undefined || error === null
-    ? null
-    : WF_H('p', { className: 'zwf-dir-arg-error', role: 'alert' }, error);
-  if (field.type === 'boolean') {
-    return WF_H('div', { className: 'zwf-dir-arg', key: field.name },
-      head,
-      hint === undefined ? null : WF_H('p', { className: 'zwf-field-hint' }, hint),
-      control,
-      errorLine);
-  }
-  return WF_H('div', { className: 'zwf-dir-arg', key: field.name },
-    WF_H(WF_UI.Field, { label: head, hint }, control),
-    errorLine);
-}
-
-/* ---------------------------------- page ----------------------------------- */
 
 /**
- * Global workflow directory: saved workflows for the selected workspace plus the global list.
- * @param {object} props slot props: `t`, `useWorkspaces`, injected `openChat`
+ * Validate the declaration rows and turn them into the wire shape.
+ * @returns {{ args: Record<string, unknown> | undefined, errors: Record<string, string> }}
  */
-function WorkflowDirectoryPage(props) {
+function wfHubValidateArgs(rows, t) {
+  const args = {};
+  const errors = {};
+  const seen = new Set();
+  for (const row of rows) {
+    const name = row.name.trim();
+    if (name === '') {
+      errors[row.key] = wfHubSay(t, 'workflows.hub.detail.args.error.empty_name');
+      continue;
+    }
+    if (seen.has(name)) {
+      errors[row.key] = wfHubSay(t, 'workflows.hub.detail.args.error.duplicate_name');
+      continue;
+    }
+    seen.add(name);
+    const declaration = { type: row.type };
+    if (row.required) declaration.required = true;
+    if (row.description.trim() !== '') declaration.description = row.description.trim();
+    const raw = row.value.trim();
+    if (raw !== '') {
+      if (row.type === 'number') {
+        const number = Number(raw);
+        if (!Number.isFinite(number)) {
+          errors[row.key] = wfHubSay(t, 'workflows.hub.detail.args.error.invalid_default');
+          continue;
+        }
+        declaration.default = number;
+      } else if (row.type === 'boolean') {
+        if (raw !== 'true' && raw !== 'false') {
+          errors[row.key] = wfHubSay(t, 'workflows.hub.detail.args.error.invalid_default');
+          continue;
+        }
+        declaration.default = raw === 'true';
+      } else if (row.type === 'json') {
+        try {
+          declaration.default = JSON.parse(raw);
+        } catch {
+          errors[row.key] = wfHubSay(t, 'workflows.hub.detail.args.error.invalid_default');
+          continue;
+        }
+      } else {
+        declaration.default = raw;
+      }
+    }
+    args[name] = declaration;
+  }
+  return { args: Object.keys(errors).length === 0 ? args : undefined, errors };
+}
+
+/* ----------------------------------- page ---------------------------------- */
+
+/**
+ * The workflow hub page.
+ * @param {object} props slot props: `t`, `useWorkspaces`, injected `openChat`, `openSettings`
+ */
+function WfHubPage(props) {
   if (props === null || typeof props !== 'object' || typeof props.useWorkspaces !== 'function') {
     return WF_H('section', { className: 'zwf-page' },
       WF_H('div', { className: 'zwf-page-scroll' },
         WF_H('div', { className: 'zwf-page-inner' },
           WF_H(WF_UI.EmptyState, {
             icon: WF_H(WF_ICON.folder, { size: 22 }),
-            title: wfDirectorySay(props?.t, 'directory.noWorkspace'),
+            title: wfHubSay(props?.t, 'workflows.hub.noWorkspace'),
           }))));
   }
-  return WF_H(WorkflowDirectoryBody, props);
+  return WF_H(WfHubBody, props);
 }
 
-function WorkflowDirectoryBody(props) {
-  const translate = typeof props.t === 'function' ? props.t : undefined;
+function WfHubBody(props) {
+  const t = typeof props.t === 'function' ? props.t : undefined;
+  const say = (key, params) => wfHubSay(t, key, params);
   const openChat = typeof props.openChat === 'function' ? props.openChat : undefined;
-  const say = (key, params) => wfDirectorySay(translate, key, params);
+  const openSettings = typeof props.openSettings === 'function' ? props.openSettings : undefined;
 
   const snapshot = props.useWorkspaces((value) => value);
-  const rows = React.useMemo(() => wfDirectoryWorkspaces(snapshot), [snapshot]);
+  const rows = React.useMemo(() => wfHubWorkspaces(snapshot), [snapshot]);
   const [selectedKey, setSelectedKey] = React.useState(null);
   const selected = React.useMemo(() => {
     const chosen = selectedKey === null ? undefined : rows.find((row) => row.key === selectedKey);
@@ -3917,73 +10765,153 @@ function WorkflowDirectoryBody(props) {
     return rows.find((row) => row.title === 'default-workspace') ?? rows[0];
   }, [rows, selectedKey]);
   const projectRoot = selected?.path;
-  const loaded = useWfAsync(
-    () => (typeof projectRoot === 'string' && projectRoot !== ''
-      ? WF_API.workflows({ projectRoot })
-      : Promise.resolve(null)),
-    [projectRoot],
-  );
+  const projectLabel = wfHubWorkspaceLabel(t, selected);
+  const [detail, setDetail] = React.useState(null);
   const [dialog, setDialog] = React.useState(null);
-  const [createFailure, setCreateFailure] = React.useState(null);
+  const [toast, setToast] = React.useState(null);
+  const timer = React.useRef(undefined);
 
+  const announce = React.useCallback((text) => {
+    setToast(text);
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToast(null), WF_HUB_TOAST_MS);
+  }, []);
+  React.useEffect(() => () => {
+    if (timer.current !== undefined) clearTimeout(timer.current);
+  }, []);
+
+  const load = React.useCallback(async () => {
+    if (typeof projectRoot !== 'string' || projectRoot === '') return { project: { entries: [], invalid: [] }, global: undefined };
+    const project = await WF_API.workflows({ projectRoot });
+    let global;
+    try {
+      global = await WF_API.workflows({ projectRoot, scope: 'global' });
+    } catch (error) {
+      wfHubWarn('global workflow list', error);
+      global = undefined;
+    }
+    const projectGroup = wfHubGroupPayload(project, 'project');
+    const globalGroup = global === undefined ? undefined : wfHubGroupPayload(global, 'global');
+    const merged = projectGroup.entries.filter((entry) => entry.scope !== 'global');
+    const globalEntries = globalGroup !== undefined
+      ? globalGroup.entries
+      : projectGroup.entries.filter((entry) => entry.scope === 'global');
+    return {
+      project: { entries: merged, invalid: projectGroup.invalid },
+      global: globalGroup === undefined
+        ? { entries: globalEntries, invalid: [], unsupported: true }
+        : { entries: globalEntries, invalid: globalGroup.invalid },
+    };
+  }, [projectRoot]);
+  const loaded = useWfAsync(load, [projectRoot]);
   const payload = loaded.data;
-  const entries = (payload !== null && typeof payload === 'object' && Array.isArray(payload.entries) ? payload.entries : [])
-    .filter((entry) => entry !== null && typeof entry === 'object' && typeof entry.name === 'string' && entry.name !== '');
-  const invalid = payload !== null && typeof payload === 'object' && Array.isArray(payload.invalid) ? payload.invalid : [];
-  const projectEntries = entries.filter((entry) => entry.scope !== 'global');
-  const globalEntries = entries.filter((entry) => entry.scope === 'global');
+  const projectEntries = payload?.project?.entries ?? [];
+  const globalGroup = payload?.global;
+  const globalEntries = globalGroup?.entries ?? [];
+  const invalid = [...(payload?.project?.invalid ?? []), ...(globalGroup?.invalid ?? [])];
   const workspacePhase = snapshot !== null && typeof snapshot === 'object' ? snapshot.phase : undefined;
   const workspacesPending = rows.length === 0 && workspacePhase !== 'ready';
-  const projectLabel = wfDirectoryWorkspaceLabel(translate, selected);
+
+  React.useEffect(() => {
+    setDetail(null);
+    setDialog(null);
+  }, [projectRoot]);
 
   const createInChat = () => {
-    setCreateFailure(null);
-    if (openChat === undefined) {
-      setCreateFailure(say('directory.launch.openFailed'));
-      return;
-    }
-    const opened = openChat(selected?.workspaceId, say('directory.prompt.create'));
-    if (opened !== true) setCreateFailure(say('directory.launch.openFailed'));
+    if (typeof openChat !== 'function') return;
+    const opened = openChat(selected?.workspaceId, say('workflows.hub.prompt.create'));
+    if (opened !== true) announce(say('workflows.hub.launch.error.unsupported'));
   };
+
+  const refresh = () => {
+    loaded.reload();
+    if (detail !== null) setDetail({ ...detail, revision: (detail.revision ?? 0) + 1 });
+  };
+
+  const startEntry = (entry) => setDialog({ kind: 'launch', entry });
+  const openEntry = (entry) => setDetail({ entry, revision: 0 });
 
   const header = WF_H('div', { className: 'zwf-page-head' },
     WF_H('div', { className: 'zwf-page-titles' },
-      WF_H('h1', { className: 'zwf-page-title' }, say('directory.title')),
-      WF_H('p', { className: 'zwf-page-sub' }, say('directory.subtitle'))),
+      WF_H('h1', { className: 'zwf-page-title' }, say('workflows.hub.sectionTitle')),
+      WF_H('p', { className: 'zwf-page-sub' }, say('workflows.hub.description'))),
     WF_H('div', { className: 'zwf-page-actions' },
+      typeof openSettings === 'function'
+        ? WF_H(WF_UI.Button, { variant: 'ghost', size: 'sm', onClick: openSettings }, say('workflows.hub.openSettings'))
+        : null,
+      WF_H(WF_UI.Button, {
+        variant: 'subtle',
+        size: 'sm',
+        icon: WF_H(WF_ICON.plus, { size: 14 }),
+        onClick: createInChat,
+      }, say('workflows.hub.createViaChat')),
       WF_H(WF_UI.IconButton, {
         icon: WF_H(WF_ICON.refresh, { size: 16 }),
-        label: say('directory.refresh'),
-        title: say('directory.refresh'),
+        label: say('workflows.hub.refresh'),
+        title: say('workflows.hub.refresh'),
         disabled: rows.length === 0 || workspacesPending || loaded.loading,
-        onClick: () => loaded.reload(),
+        onClick: refresh,
       })));
 
   const toolbar = rows.length === 0
     ? null
-    : WF_H('div', { className: 'zwf-dir-toolbar' },
-      WF_H('label', { className: 'zwf-dir-field' },
-        WF_H('span', { className: 'zwf-dir-field-label' }, say('directory.project')),
+    : WF_H('div', { className: 'zwf-hub-toolbar' },
+      WF_H('label', { className: 'zwf-hub-field' },
+        WF_H('span', { className: 'zwf-hub-field-label' }, say('workflows.hub.detail.projectColumn')),
         WF_H('select', {
-          className: 'zwf-select',
+          className: 'zwf-hub-select',
+          'data-testid': 'workflow-project-current',
           value: selected?.key ?? '',
           onChange: (event) => setSelectedKey(event.target.value),
-        }, rows.map((row) => WF_H('option', { key: row.key, value: row.key }, wfDirectoryWorkspaceLabel(translate, row))))));
+        }, rows.map((row) => WF_H('option', { key: row.key, value: row.key }, wfHubWorkspaceLabel(t, row))))));
 
-  const work = () => {
-    if (rows.length === 0) {
-      if (workspacesPending) return WF_H('div', { className: 'zwf-dir-loading' }, WF_H(WF_UI.Spinner));
-      return WF_H(WF_UI.EmptyState, {
-        icon: WF_H(WF_ICON.folder, { size: 22 }),
-        title: say('directory.noWorkspace'),
-        body: say('directory.noWorkspaceBody'),
+  const list = () => {
+    if (detail !== null) {
+      return WF_H(WfHubDetail, {
+        key: `${detail.entry.scope}:${detail.entry.name}:${String(detail.revision ?? 0)}`,
+        t,
+        entry: detail.entry,
+        projectRoot: projectRoot ?? '',
+        projectLabel,
+        workspaceId: selected?.workspaceId,
+        onBack: () => setDetail(null),
+        onRun: startEntry,
+        onRevise: (entry) => {
+          if (typeof openChat !== 'function') return;
+          openChat(selected?.workspaceId, say('workflows.hub.prompt.revise', { name: entry.name }));
+        },
+        onDelete: (entry) => setDialog({ kind: 'delete', entry }),
+        onCopyPath: async (entry) => {
+          if (await wfHubCopyText(entry.path)) announce(say('workflows.hub.copied'));
+        },
+        onOpenRun: (run) => {
+          const runId = wfHubRunId(run);
+          const sessionId = typeof run?.parentSessionId === 'string' ? run.parentSessionId : undefined;
+          if (runId === '' || typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return;
+          try {
+            WF_DETAIL.open({ runId, sessionId });
+          } catch (error) {
+            wfHubWarn('run detail', error);
+          }
+        },
+        onSaved: (text) => {
+          announce(text);
+          refresh();
+        },
       });
     }
-    if (loaded.loading) return WF_H('div', { className: 'zwf-dir-loading' }, WF_H(WF_UI.Spinner));
+    if (rows.length === 0) {
+      if (workspacesPending) return WF_H('div', { className: 'zwf-hub-loading' }, WF_H(WF_UI.Spinner));
+      return WF_H(WF_UI.EmptyState, {
+        icon: WF_H(WF_ICON.folder, { size: 22 }),
+        title: say('workflows.hub.noWorkspace'),
+      });
+    }
+    if (loaded.loading && payload === undefined) return WF_H('div', { className: 'zwf-hub-loading' }, WF_H(WF_UI.Spinner));
     if (loaded.error !== undefined && payload === undefined) {
       return WF_H(WF_UI.ErrorNotice, {
-        message: say('directory.loadError'),
-        retryLabel: say('directory.retry'),
+        message: say('workflows.hub.loadError', { error: wfHubFailure(loaded.error) }),
+        retryLabel: say('ui.retry'),
         onRetry: () => loaded.reload(),
       });
     }
@@ -3991,109 +10919,147 @@ function WorkflowDirectoryBody(props) {
     if (loaded.error !== undefined) {
       nodes.push(WF_H(WF_UI.ErrorNotice, {
         key: 'error',
-        message: say('directory.loadError'),
-        retryLabel: say('directory.retry'),
+        message: say('workflows.hub.loadError', { error: '' }),
+        retryLabel: say('ui.retry'),
         onRetry: () => loaded.reload(),
       }));
     }
-    if (entries.length === 0) {
+    if (projectEntries.length === 0 && globalEntries.length === 0) {
       nodes.push(WF_H(WF_UI.EmptyState, {
         key: 'empty',
         icon: WF_H(WF_ICON.workflow, { size: 22 }),
-        title: say('directory.empty.title'),
-        body: say('directory.empty.body'),
+        title: say('workflows.hub.empty.title'),
+        body: say('workflows.hub.empty.hint'),
         action: WF_H(WF_UI.Button, {
           variant: 'primary',
           size: 'md',
           icon: WF_H(WF_ICON.plus, { size: 15 }),
           onClick: createInChat,
-        }, say('directory.empty.create')),
+        }, say('workflows.hub.createViaChat')),
       }));
     } else {
-      nodes.push(WF_H(WorkflowDirectoryGroup, {
+      nodes.push(WF_H(WfHubGroup, {
         key: 'project',
-        t: translate,
-        title: say('directory.projectGroup'),
+        t,
+        testId: 'workflow-list',
+        title: say('workflows.hub.group.current'),
         caption: projectLabel,
-        emptyText: say('directory.projectEmpty'),
+        emptyText: say('workflows.hub.empty.title'),
         entries: projectEntries,
-        canMove: false,
-        onRun: (entry) => setDialog({ kind: 'launch', entry }),
-        onDelete: (entry) => setDialog({ kind: 'delete', entry }),
+        onOpen: openEntry,
+        onRun: startEntry,
+        onRevise: (entry) => {
+          if (typeof openChat === 'function') openChat(selected?.workspaceId, say('workflows.hub.prompt.revise', { name: entry.name }));
+        },
+        onCopyPath: async (entry) => {
+          if (await wfHubCopyText(entry.path)) announce(say('workflows.hub.copied'));
+        },
         onMove: (entry) => setDialog({ kind: 'move', entry }),
+        onDelete: (entry) => setDialog({ kind: 'delete', entry }),
       }));
-      nodes.push(WF_H(WorkflowDirectoryGroup, {
+      nodes.push(WF_H(WfHubGroup, {
         key: 'global',
-        t: translate,
-        title: say('directory.globalGroup'),
-        caption: say('directory.globalHint'),
-        emptyText: say('directory.globalEmpty'),
+        t,
+        testId: 'workflow-list-global',
+        title: say('workflows.hub.global.title'),
+        caption: globalGroup?.unsupported === true ? say('workflows.hub.global.unsupported') : say('workflows.hub.global.hint'),
+        emptyText: say('workflows.hub.global.empty'),
         entries: globalEntries,
-        canMove: selected !== undefined,
-        onRun: (entry) => setDialog({ kind: 'launch', entry }),
-        onDelete: (entry) => setDialog({ kind: 'delete', entry }),
+        onOpen: openEntry,
+        onRun: startEntry,
+        onRevise: (entry) => {
+          if (typeof openChat === 'function') openChat(selected?.workspaceId, say('workflows.hub.prompt.revise', { name: entry.name }));
+        },
+        onCopyPath: async (entry) => {
+          if (await wfHubCopyText(entry.path)) announce(say('workflows.hub.copied'));
+        },
         onMove: (entry) => setDialog({ kind: 'move', entry }),
+        onDelete: (entry) => setDialog({ kind: 'delete', entry }),
       }));
     }
     return WF_H(WF_FRAGMENT, null, nodes);
   };
 
   let dialogNode = null;
-  if (dialog !== null && dialog.entry !== null && typeof dialog.entry === 'object') {
+  if (dialog !== null && dialog.entry !== undefined) {
     if (dialog.kind === 'launch') {
-      dialogNode = WF_H(WorkflowLaunchDialog, {
-        t: translate,
+      dialogNode = WF_H(WfHubLaunchDialog, {
+        t,
         entry: dialog.entry,
-        workspaceId: selected?.workspaceId,
+        projectRoot: projectRoot ?? '',
         projectLabel,
-        onOpenChat: openChat,
+        rows,
+        workspaceId: selected?.workspaceId,
+        openChat,
         onClose: () => setDialog(null),
+        onStarted: () => setDialog(null),
       });
     } else if (dialog.kind === 'delete') {
-      dialogNode = WF_H(WorkflowDeleteDialog, {
-        t: translate,
+      dialogNode = WF_H(WfHubDeleteDialog, {
+        t,
         entry: dialog.entry,
-        projectRoot,
+        projectRoot: projectRoot ?? '',
         onClose: () => setDialog(null),
-        onDone: () => {
+        onDeleted: () => {
           setDialog(null);
+          setDetail(null);
+          announce(say('workflows.hub.deleted', { name: dialog.entry.name }));
           loaded.reload();
         },
       });
     } else if (dialog.kind === 'move') {
-      dialogNode = WF_H(WorkflowMoveDialog, {
-        t: translate,
+      dialogNode = WF_H(WfHubMoveDialog, {
+        t,
         entry: dialog.entry,
-        projectRoot,
-        projectLabel,
+        projectRoot: projectRoot ?? '',
+        rows,
         onClose: () => setDialog(null),
-        onDone: () => {
+        onMoved: (target) => {
           setDialog(null);
+          setDetail(null);
+          announce(say('workflows.hub.move.toast.project', { project: target }));
           loaded.reload();
         },
       });
     }
   }
 
-  return WF_H('section', { className: 'zwf-page', 'aria-label': say('directory.title') },
+  return WF_H('section', { className: 'zwf-page', 'aria-label': say('workflows.hub.sectionTitle'), 'data-testid': 'workflow-hub-page' },
     WF_H('div', { className: 'zwf-page-scroll' },
       WF_H('div', { className: 'zwf-page-inner' },
         header,
         toolbar,
         invalid.length > 0
-          ? WF_H('div', { className: 'zwf-dir-warn', role: 'status' },
-            WF_H('span', { className: 'zwf-dir-warn-glyph' }, WF_H(WF_ICON.alert, { size: 15 })),
-            WF_H('span', null, say('directory.invalid', { count: invalid.length })))
+          ? WF_H('div', { className: 'zwf-hub-warn', role: 'status' },
+            WF_H('span', { className: 'zwf-hub-warn-glyph' }, WF_H(WF_ICON.alert, { size: 15 })),
+            WF_H('div', { className: 'zwf-hub-warn-main' },
+              WF_H('p', { className: 'zwf-hub-warn-title' }, wfHubCountSay(t, 'workflows.hub.invalid', invalid.length)),
+              invalid.map((row, index) => WF_H('p', { className: 'zwf-hub-warn-line', key: `${row.path}:${String(index)}` },
+                `${row.path} \u2014 ${wfHubReasonWord(t, row.reason)}`))))
           : null,
-        createFailure === null ? null : WF_H(WF_UI.ErrorNotice, { message: createFailure }),
-        WF_H('div', { className: 'zwf-dir-content' }, work()))),
+        toast === null ? null : WF_H('div', { className: 'zwf-hub-toast', role: 'status' }, toast),
+        WF_H('div', { className: 'zwf-hub-content' }, list()))),
     dialogNode);
+}
+
+/** One file-level failure reason. */
+function wfHubReasonWord(t, reason) {
+  const key = `workflows.hub.reason.${reason}`;
+  return Object.prototype.hasOwnProperty.call(UI_EN, key) ? wfHubSay(t, key) : wfHubSay(t, 'workflows.hub.reason.read_error');
+}
+
+/** Text of a thrown error, for the header of a failed read. */
+function wfHubFailure(error) {
+  if (error === null || error === undefined) return '';
+  if (typeof error === 'string') return error;
+  if (typeof error.message === 'string') return error.message;
+  return String(error);
 }
 
 /* --------------------------------- groups ---------------------------------- */
 
-function WorkflowDirectoryGroup(props) {
-  const { t, title, caption, emptyText, entries, canMove, onRun, onDelete, onMove } = props;
+function WfHubGroup(props) {
+  const { t, title, caption, emptyText, entries, testId } = props;
   return WF_H(WF_FRAGMENT, null,
     WF_H(WF_UI.SectionHeader, {
       title,
@@ -4102,89 +11068,558 @@ function WorkflowDirectoryGroup(props) {
     }),
     entries.length === 0
       ? WF_H('p', { className: 'zwf-empty-inline' }, emptyText)
-      : WF_H('div', { className: 'zwf-dir-grid' }, entries.map((entry) => WF_H(WorkflowDirectoryCard, {
-        key: `${String(entry.scope)}:${entry.name}:${typeof entry.path === 'string' ? entry.path : ''}`,
+      : WF_H('div', { className: 'zwf-hub-grid', 'data-testid': testId }, entries.map((entry) => WF_H(WfHubCard, {
+        key: `${entry.scope}:${entry.name}`,
         t,
         entry,
-        canMove,
-        onRun,
-        onDelete,
-        onMove,
+        onOpen: props.onOpen,
+        onRun: props.onRun,
+        onRevise: props.onRevise,
+        onCopyPath: props.onCopyPath,
+        onMove: props.onMove,
+        onDelete: props.onDelete,
       }))));
 }
 
-function WorkflowDirectoryCard(props) {
-  const { t, entry, canMove, onRun, onDelete, onMove } = props;
-  const say = (key, params) => wfDirectorySay(t, key, params);
+/** The last-run badge of one list card; four states, silent while unknown. */
+function WfHubLastRunBadge(props) {
+  const state = wfHubRunState(props.run);
+  const t = props.t;
+  const now = useWfClock();
+  const key = `workflows.hub.lastRun.${state}`;
+  const word = wfHubSay(t, key);
+  if (state === 'never' && props.run === undefined) return null;
+  const time = state === 'never' ? '' : WF_UI.relative(t, UI_EN, wfHubRunTime(props.run), now);
+  const tone = state === 'completed' ? 'success' : state === 'errored' ? 'error' : state === 'running' ? 'warn' : 'idle';
+  const icon = state === 'completed'
+    ? WF_H(WF_ICON.check, { size: 12 })
+    : state === 'errored'
+      ? WF_H(WF_ICON.alert, { size: 12 })
+      : state === 'running'
+        ? WF_H(WF_UI.Spinner)
+        : state === 'stopped'
+          ? WF_H(WF_ICON.stop, { size: 12 })
+          : null;
+  return WF_H('span', {
+    className: `zwf-hub-lastrun zwf-hub-lastrun-${tone}`,
+    'data-testid': 'workflow-last-run',
+    title: time === '' ? word : `${word} \u00b7 ${time}`,
+  },
+  icon === null ? null : WF_H('span', { className: 'zwf-hub-lastrun-glyph' }, icon),
+  WF_H('span', null, word));
+}
+
+function WfHubCard(props) {
+  const { t, entry } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const anchorRef = React.useRef(null);
   const menuRef = React.useRef(null);
-  const scope = entry.scope === 'global' ? 'global' : 'project';
-  const description = typeof entry.description === 'string' && entry.description.trim() !== ''
-    ? entry.description.trim()
-    : typeof entry.whenToUse === 'string' && entry.whenToUse.trim() !== ''
-      ? entry.whenToUse.trim()
-      : say('directory.noDescription');
-  const items = [];
-  if (scope === 'global') {
-    items.push({
-      id: 'move',
-      label: say('directory.menu.moveToProject'),
-      icon: WF_H(WF_ICON.folder, { size: 14 }),
-      disabled: canMove !== true,
-      onSelect: () => onMove(entry),
+  const names = wfHubArgNames(entry);
+  const shown = names.slice(0, WF_HUB_ARG_CHIPS);
+  const rest = names.length - shown.length;
+  const description = entry.description !== '' ? entry.description : entry.whenToUse;
+  const items = [
+    { id: 'open', label: say('workflows.hub.card.open'), icon: WF_H(WF_ICON.file, { size: 14 }), onSelect: () => props.onOpen(entry) },
+    { id: 'revise', label: say('workflows.hub.card.revise'), icon: WF_H(WF_ICON.spark, { size: 14 }), onSelect: () => props.onRevise(entry) },
+    { id: 'copy', label: say('workflows.hub.card.copyPath'), icon: WF_H(WF_ICON.copy, { size: 14 }), onSelect: () => props.onCopyPath(entry) },
+    entry.scope === 'global'
+      ? { id: 'move', label: say('workflows.hub.card.moveToProject'), icon: WF_H(WF_ICON.folder, { size: 14 }), onSelect: () => props.onMove(entry) }
+      : { id: 'promote', label: say('workflows.hub.card.promoteToGlobal'), icon: WF_H(WF_ICON.globe, { size: 14 }), disabled: true },
+    null,
+    { id: 'delete', label: say('workflows.hub.card.delete'), icon: WF_H(WF_ICON.close, { size: 14 }), danger: true, onSelect: () => props.onDelete(entry) },
+  ];
+  return WF_H('article', {
+    className: 'zwf-hub-card',
+    role: 'button',
+    tabIndex: 0,
+    'data-testid': `workflow-card-${entry.name}`,
+    'data-workflow-name': entry.name,
+    onClick: () => props.onOpen(entry),
+    onKeyDown: (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      props.onOpen(entry);
+    },
+  },
+  WF_H('span', { className: 'zwf-hub-card-name', 'data-testid': 'workflow-name', title: entry.name }, entry.name),
+  WF_H('p', { className: 'zwf-hub-card-desc', title: description }, description === '' ? say('workflows.hub.empty.hint') : description),
+  WF_H('div', { className: 'zwf-hub-card-foot' },
+    WF_H(WfHubLastRunBadge, { t, run: entry.lastRun }),
+    WF_H('div', { className: 'zwf-hub-args', 'data-testid': 'workflow-args' },
+      shown.map((name) => WF_H('span', { className: 'zwf-hub-arg', key: name, title: name }, name)),
+      rest > 0 ? WF_H('span', { className: 'zwf-hub-arg zwf-hub-arg-more', key: 'more' }, say('workflows.hub.card.argsMore', { count: rest })) : null)),
+  WF_H('div', { className: 'zwf-hub-card-actions', onClick: (event) => event.stopPropagation() },
+    WF_H(WF_UI.Button, {
+      variant: 'subtle',
+      size: 'sm',
+      icon: WF_H(WF_ICON.run, { size: 14 }),
+      'data-testid': `workflow-card-run-${entry.name}`,
+      onClick: () => props.onRun(entry),
+    }, say('workflows.hub.card.run')),
+    WF_H('span', { className: 'zwf-anchor', ref: anchorRef },
+      WF_H(WF_UI.IconButton, {
+        icon: WF_H(WF_ICON.more, { size: 16 }),
+        label: say('workflows.hub.card.menu'),
+        title: say('workflows.hub.card.menu'),
+        onClick: () => setMenuOpen((value) => value !== true),
+      }),
+      WF_H(WF_UI.Menu, {
+        open: menuOpen,
+        onClose: () => setMenuOpen(false),
+        items,
+        anchorRef,
+        menuRef,
+      }))));
+}
+
+/* --------------------------------- detail ---------------------------------- */
+
+function WfHubDetail(props) {
+  const { t, entry, projectRoot, projectLabel } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
+  const [tab, setTab] = React.useState('definition');
+  const [busy, setBusy] = React.useState(false);
+  const definition = useWfAsync(
+    () => (projectRoot === ''
+      ? Promise.resolve(undefined)
+      : WF_API.workflow({ projectRoot, name: entry.name, scope: entry.scope })),
+    [projectRoot, entry.name, entry.scope],
+  );
+  const history = useWfAsync(
+    () => (projectRoot === ''
+      ? Promise.resolve(undefined)
+      : WF_API.workflowRuns({ projectRoot, name: entry.name, scope: entry.scope, limit: WF_HUB_HISTORY_LIMIT })),
+    [projectRoot, entry.name, entry.scope],
+  );
+  const payload = definition.data;
+  const failedReason = payload !== null && typeof payload === 'object' && payload.ok === false
+    ? typeof payload.reason === 'string' ? payload.reason : 'read_error'
+    : undefined;
+  const meta = payload !== null && typeof payload === 'object' && payload.meta !== null && typeof payload.meta === 'object' ? payload.meta : {};
+  const script = typeof payload?.script === 'string' ? payload.script : '';
+  const path = typeof payload?.path === 'string' && payload.path !== '' ? payload.path : entry.path;
+  const description = typeof meta.description === 'string' ? meta.description : entry.description;
+  const whenToUse = typeof meta.whenToUse === 'string' ? meta.whenToUse : entry.whenToUse;
+  const args = meta.args !== null && typeof meta.args === 'object' && !Array.isArray(meta.args) ? meta.args : entry.args;
+  const historyRows = Array.isArray(history.data?.runs) ? history.data.runs : [];
+  const latest = historyRows[0];
+
+  const saveMeta = async (next) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await WF_API.updateWorkflowMeta({
+        projectRoot,
+        name: entry.name,
+        scope: entry.scope,
+        meta: next,
+      });
+      if (result !== null && typeof result === 'object' && result.ok === false) {
+        props.onSaved?.(say('workflows.hub.detail.meta.saveFailed', { reason: wfHubReasonWord(t, typeof result.reason === 'string' ? result.reason : 'read_error') }));
+        setBusy(false);
+        return;
+      }
+      definition.reload();
+      props.onSaved?.(say('workflows.hub.detail.meta.saved'));
+    } catch (error) {
+      wfHubWarn('saving workflow metadata', error);
+      props.onSaved?.(say('workflows.hub.detail.meta.saveFailed', { reason: wfHubFailure(error) }));
+    }
+    setBusy(false);
+  };
+
+  let body;
+  if (definition.loading && payload === undefined) {
+    body = WF_H('div', { className: 'zwf-hub-loading' }, WF_H(WF_UI.Spinner));
+  } else if (failedReason !== undefined) {
+    body = WF_H(WF_UI.EmptyState, {
+      icon: WF_H(WF_ICON.alert, { size: 22 }),
+      title: failedReason === 'not_found' ? say('workflows.hub.detail.notFound') : say('workflows.hub.detail.loadError', { reason: wfHubReasonWord(t, failedReason) }),
+      action: WF_H(WF_UI.Button, { variant: 'subtle', size: 'sm', onClick: () => definition.reload() }, say('ui.retry')),
     });
-    items.push(null);
+  } else if (definition.error !== undefined && payload === undefined) {
+    body = WF_H(WF_UI.ErrorNotice, {
+      message: say('workflows.hub.detail.loadError', { reason: wfHubFailure(definition.error) }),
+      retryLabel: say('ui.retry'),
+      onRetry: () => definition.reload(),
+    });
+  } else if (tab === 'history') {
+    body = WF_H(WfHubHistory, {
+      t,
+      rows: historyRows,
+      loading: history.loading,
+      error: history.error,
+      onOpenRun: props.onOpenRun,
+      onRetry: () => history.reload(),
+    });
+  } else {
+    body = WF_H(WfHubDefinition, {
+      key: `${entry.scope}:${entry.name}:${String(payload?.path ?? '')}`,
+      t,
+      name: entry.name,
+      description,
+      whenToUse,
+      args,
+      script,
+      busy,
+      onSave: saveMeta,
+      onDiscard: () => definition.reload(),
+    });
   }
-  items.push({
-    id: 'delete',
-    label: say('directory.menu.delete'),
-    icon: WF_H(WF_ICON.close, { size: 14 }),
-    danger: true,
-    onSelect: () => onDelete(entry),
-  });
-  return WF_H('article', { className: 'zwf-card zwf-dir-card' },
-    WF_H('div', { className: 'zwf-card-head' },
-      WF_H('span', { className: 'zwf-card-glyph' }, WF_H(WF_ICON.workflow, { size: 16 })),
-      WF_H('div', { className: 'zwf-card-titles' },
-        WF_H('h3', { className: 'zwf-card-name', title: entry.name }, entry.name),
-        WF_H('p', { className: 'zwf-card-desc', title: description }, description))),
-    WF_H('div', { className: 'zwf-dir-card-foot' },
-      WF_H('div', { className: 'zwf-wrap' },
-        WF_H('span', { className: `zwf-badge${scope === 'global' ? ' zwf-badge-brand' : ''}` },
-          say(scope === 'global' ? 'directory.scope.global' : 'directory.scope.project')),
-        WF_H('span', { className: 'zwf-dir-args' }, wfDirectoryArgsLabel(t, entry))),
-      WF_H('div', { className: 'zwf-card-actions' },
+
+  return WF_H('div', { className: 'zwf-hub-detail' },
+    WF_H('div', { className: 'zwf-hub-detail-head' },
+      WF_H('div', { className: 'zwf-hub-detail-titles' },
+        WF_H('h1', { className: 'zwf-hub-detail-name', title: entry.name }, entry.name),
+        WF_H('span', { className: 'zwf-hub-tag', 'data-testid': 'workflow-project-current' },
+          entry.scope === 'global' ? say('workflows.hub.global.title') : projectLabel),
+        description === '' ? null : WF_H('p', { className: 'zwf-hub-detail-desc' }, description)),
+      WF_H('div', { className: 'zwf-hub-detail-actions' },
         WF_H(WF_UI.Button, {
           variant: 'subtle',
+          size: 'md',
+          icon: WF_H(WF_ICON.run, { size: 15 }),
+          onClick: () => props.onRun(entry),
+        }, say('workflows.hub.detail.run')),
+        WF_H(WF_UI.Button, {
+          variant: 'ghost',
           size: 'sm',
-          icon: WF_H(WF_ICON.run, { size: 14 }),
-          onClick: () => onRun(entry),
-        }, say('directory.run')),
-        WF_H('span', { className: 'zwf-anchor', ref: anchorRef },
+          onClick: () => props.onBack(),
+        }, say('workflows.hub.sectionTitle')))),
+    latest !== undefined && Array.isArray(latest.artifacts) && latest.artifacts.length > 0
+      ? WF_H(WfHubArtifacts, { t, artifacts: latest.artifacts })
+      : null,
+    WF_H('div', { className: 'zwf-hub-detail-bar' },
+      WF_H(WF_UI.Tabs, {
+        tabs: [
+          { id: 'definition', label: say('workflows.hub.detail.tab.definition') },
+          { id: 'history', label: say('workflows.hub.detail.tab.history') },
+        ],
+        active: tab,
+        onChange: setTab,
+      }),
+      path === ''
+        ? null
+        : WF_H('div', { className: 'zwf-hub-path' },
+          WF_H('code', { className: 'zwf-hub-path-text', title: path }, path),
           WF_H(WF_UI.IconButton, {
-            icon: WF_H(WF_ICON.more, { size: 16 }),
-            label: say('directory.more'),
-            title: say('directory.more'),
-            onClick: () => setMenuOpen((value) => value !== true),
-          }),
-          WF_H(WF_UI.Menu, {
-            open: menuOpen,
-            onClose: () => setMenuOpen(false),
-            items,
-            anchorRef,
-            menuRef,
-          })))));
+            icon: WF_H(WF_ICON.copy, { size: 14 }),
+            label: say('workflows.hub.detail.copyPath'),
+            title: say('workflows.hub.detail.copyPath'),
+            onClick: () => props.onCopyPath(entry),
+          }))),
+    WF_H('div', { className: 'zwf-hub-detail-body' }, body));
+}
+
+/** The artifact chips of the newest run. */
+function WfHubArtifacts(props) {
+  const artifacts = props.artifacts.slice(0, 6);
+  return WF_H('div', { className: 'zwf-hub-artifacts' },
+    WF_H('span', { className: 'zwf-hub-artifacts-label' }, wfHubSay(props.t, 'workflows.hub.artifacts.latest')),
+    WF_H('div', { className: 'zwf-hub-artifacts-list', 'data-testid': 'workflow-run-artifact-chips' },
+      artifacts.map((artifact, index) => {
+        const record = artifact !== null && typeof artifact === 'object' ? artifact : {};
+        const title = typeof record.title === 'string' && record.title !== '' ? record.title : String(record.id ?? '');
+        return WF_H('span', { className: 'zwf-hub-chip', key: String(record.id ?? index), title },
+          WF_H('span', { className: 'zwf-hub-chip-glyph' }, WF_H(WF_UI.artifactIcon(record.kind), { size: 13 })),
+          WF_H('span', { className: 'zwf-hub-chip-text' }, title));
+      }),
+      props.artifacts.length > artifacts.length
+        ? WF_H('span', { className: 'zwf-hub-chip zwf-hub-chip-more', key: 'more', 'data-testid': 'workflow-run-artifact-chips-more' },
+          wfHubSay(props.t, 'workflows.hub.card.argsMore', { count: props.artifacts.length - artifacts.length }))
+        : null));
+}
+
+/** The definition tab: metadata editor, argument table and the read-only script. */
+function WfHubDefinition(props) {
+  const { t } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
+  const [description, setDescription] = React.useState(props.description);
+  const [whenToUse, setWhenToUse] = React.useState(props.whenToUse);
+  const [rows, setRows] = React.useState(() => wfHubArgRows(props.args));
+  const [errors, setErrors] = React.useState({});
+  const [failure, setFailure] = React.useState(null);
+  const [copied, setCopied] = React.useState(false);
+  const dirty = description !== props.description
+    || whenToUse !== props.whenToUse
+    || JSON.stringify(wfHubArgRows(props.args)) !== JSON.stringify(rows);
+
+  const submit = () => {
+    if (description.trim() === '') {
+      setFailure(say('workflows.hub.detail.meta.descriptionRequired'));
+      return;
+    }
+    const parsed = wfHubValidateArgs(rows, t);
+    setErrors(parsed.errors);
+    if (parsed.args === undefined) return;
+    setFailure(null);
+    props.onSave({
+      description: description.trim(),
+      ...(whenToUse.trim() === '' ? {} : { whenToUse: whenToUse.trim() }),
+      ...(Object.keys(parsed.args).length === 0 ? {} : { args: parsed.args }),
+    });
+  };
+
+  const update = (key, patch) => {
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+    setErrors((current) => {
+      if (!(key in current)) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
+  return WF_H(WF_FRAGMENT, null,
+    WF_H('div', { className: 'zwf-hub-section' },
+      WF_H('h2', { className: 'zwf-hub-section-title' }, say('workflows.hub.detail.basics')),
+      WF_H(WF_UI.Field, { label: say('workflows.hub.detail.description') },
+        WF_H(WF_UI.Textarea, {
+          rows: 2,
+          value: description,
+          onChange: (value) => setDescription(value),
+        })),
+      WF_H('label', { className: 'zwf-hub-field-block' },
+        WF_H('span', { className: 'zwf-hub-field-label' }, say('workflows.hub.detail.whenToUse')),
+        WF_H(WF_UI.Input, {
+          value: whenToUse,
+          onChange: (value) => setWhenToUse(value),
+        }),
+        WF_H('span', { className: 'zwf-hub-field-hint' }, say('workflows.hub.detail.whenToUse.help'))),
+      WF_H('p', { className: 'zwf-hub-note' }, say('workflows.hub.detail.meta.note')),
+      failure === null ? null : WF_H('p', { className: 'zwf-hub-error', role: 'alert' }, failure),
+      WF_H('div', { className: 'zwf-hub-savebar' },
+        WF_H(WF_UI.Button, {
+          variant: 'ghost',
+          size: 'sm',
+          disabled: props.busy || dirty !== true,
+          onClick: () => props.onDiscard(),
+        }, say('workflows.hub.detail.meta.discard')),
+        WF_H(WF_UI.Button, {
+          variant: 'primary',
+          size: 'sm',
+          disabled: props.busy || dirty !== true,
+          onClick: submit,
+        }, say('workflows.hub.detail.meta.save')))),
+    WF_H(WfHubArgsTable, {
+      t,
+      rows,
+      errors,
+      onUpdate: update,
+      onAdd: () => setRows((current) => [...current, {
+        key: `arg:${String(current.length)}:${String(Date.now())}`,
+        name: '',
+        type: 'string',
+        required: false,
+        value: '',
+        description: '',
+      }]),
+      onRemove: (key) => setRows((current) => current.filter((row) => row.key !== key)),
+    }),
+    WF_H('div', { className: 'zwf-hub-section' },
+      WF_H('div', { className: 'zwf-hub-section-head' },
+        WF_H('h2', { className: 'zwf-hub-section-title' }, say('workflows.hub.detail.script')),
+        WF_H(WF_UI.Button, {
+          variant: 'ghost',
+          size: 'sm',
+          icon: WF_H(WF_ICON.copy, { size: 13 }),
+          onClick: async () => {
+            const ok = await wfHubCopyText(props.script);
+            setCopied(ok);
+            if (ok) setTimeout(() => setCopied(false), WF_HUB_TOAST_MS);
+          },
+        }, copied ? say('ui.copied') : say('workflows.hub.detail.script.copy'))),
+      WF_H('p', { className: 'zwf-hub-note' }, say('workflows.hub.detail.script.note')),
+      WF_H('div', { className: 'zwf-hub-code' },
+        WF_H('div', { className: 'zwf-hub-code-head' },
+          WF_H('span', { className: 'zwf-hub-code-title' }, `${props.name}.dwf.ts \u00b7 TypeScript`)),
+        WF_H('pre', { className: 'zwf-hub-code-body', 'data-testid': 'workflow-script-codeblock' }, props.script))));
+}
+
+/** The argument table of the definition tab. */
+function WfHubArgsTable(props) {
+  const { t, rows, errors } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
+  return WF_H('div', { className: 'zwf-hub-section' },
+    WF_H('div', { className: 'zwf-hub-section-head' },
+      WF_H('h2', { className: 'zwf-hub-section-title' }, say('workflows.hub.detail.args')),
+      WF_H(WF_UI.Button, {
+        variant: 'ghost',
+        size: 'sm',
+        icon: WF_H(WF_ICON.plus, { size: 13 }),
+        onClick: props.onAdd,
+      }, say('workflows.hub.detail.args.add'))),
+    rows.length === 0
+      ? null
+      : WF_H('div', { className: 'zwf-hub-args-table' },
+        WF_H('div', { className: 'zwf-hub-args-head' },
+          WF_H('span', { key: 'name' }, say('workflows.hub.detail.args.name')),
+          WF_H('span', { key: 'type' }, say('workflows.hub.detail.args.type')),
+          WF_H('span', { key: 'required' }, say('workflows.hub.detail.args.required')),
+          WF_H('span', { key: 'default' }, say('workflows.hub.detail.args.default')),
+          WF_H('span', { key: 'description' }, say('workflows.hub.detail.args.description')),
+          WF_H('span', { key: 'remove' }, '')),
+        rows.map((row) => WF_H('div', {
+          className: 'zwf-hub-args-row',
+          key: row.key,
+          'data-testid': 'workflow-arg-row',
+          'data-workflow-arg-row': 'true',
+        },
+        WF_H('div', { className: 'zwf-hub-args-cell' },
+          WF_H('input', {
+            className: 'zwf-hub-input',
+            value: row.name,
+            placeholder: say('workflows.hub.detail.args.name'),
+            onChange: (event) => props.onUpdate(row.key, { name: event.target.value }),
+          })),
+        WF_H('div', { className: 'zwf-hub-args-cell' },
+          WF_H('select', {
+            className: 'zwf-hub-select',
+            value: row.type,
+            onChange: (event) => props.onUpdate(row.key, { type: event.target.value }),
+          }, WF_HUB_ARG_TYPES.map((type) => WF_H('option', { key: type, value: type }, type)))),
+        WF_H('div', { className: 'zwf-hub-args-cell zwf-hub-args-cell-required' },
+          WF_H('input', {
+            type: 'checkbox',
+            className: 'zwf-hub-checkbox',
+            checked: row.required,
+            'aria-label': say('workflows.hub.detail.args.required'),
+            onChange: (event) => props.onUpdate(row.key, { required: event.target.checked === true }),
+          })),
+        WF_H('div', { className: 'zwf-hub-args-cell' },
+          WF_H('input', {
+            className: 'zwf-hub-input zwf-hub-input-mono',
+            value: row.value,
+            placeholder: say('workflows.hub.detail.args.default'),
+            onChange: (event) => props.onUpdate(row.key, { value: event.target.value }),
+          })),
+        WF_H('div', { className: 'zwf-hub-args-cell' },
+          WF_H('input', {
+            className: 'zwf-hub-input',
+            value: row.description,
+            placeholder: say('workflows.hub.detail.args.description'),
+            onChange: (event) => props.onUpdate(row.key, { description: event.target.value }),
+          })),
+        WF_H('div', { className: 'zwf-hub-args-cell zwf-hub-args-cell-remove' },
+          WF_H(WF_UI.IconButton, {
+            icon: WF_H(WF_ICON.close, { size: 13 }),
+            label: say('workflows.hub.detail.args.remove'),
+            title: say('workflows.hub.detail.args.remove'),
+            onClick: () => props.onRemove(row.key),
+          })),
+        errors[row.key] === undefined
+          ? null
+          : WF_H('p', { className: 'zwf-hub-args-error', role: 'alert' }, errors[row.key])))));
+}
+
+/** The run-history tab. */
+function WfHubHistory(props) {
+  const { t, rows, loading, error } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
+  const now = useWfClock();
+  if (loading && rows.length === 0) return WF_H('div', { className: 'zwf-hub-loading' }, WF_H(WF_UI.Spinner));
+  if (error !== undefined && rows.length === 0) {
+    return WF_H(WF_UI.ErrorNotice, {
+      message: say('workflows.hub.loadError', { error: wfHubFailure(error) }),
+      retryLabel: say('ui.retry'),
+      onRetry: () => props.onRetry(),
+    });
+  }
+  if (rows.length === 0) {
+    return WF_H(WF_UI.EmptyState, {
+      icon: WF_H(WF_ICON.clock, { size: 22 }),
+      title: say('workflows.hub.history.empty'),
+      body: say('workflows.hub.history.note'),
+    });
+  }
+  return WF_H('div', { className: 'zwf-hub-history' },
+    rows.map((row, index) => {
+      const runId = wfHubRunId(row);
+      const time = wfHubRunTime(row);
+      const duration = wfHubDuration(t, row);
+      const reason = wfHubStopReasonWord(t, row);
+      const tokens = Number(row?.spentTokens);
+      return WF_H('div', { className: 'zwf-hub-history-row', key: runId === '' ? String(index) : runId },
+        WF_H(WF_UI.StatusDot, { tone: WF_UI.statusTone(typeof row?.status === 'string' ? row.status : 'unknown') }),
+        WF_H('div', { className: 'zwf-hub-history-main' },
+          WF_H('span', { className: 'zwf-hub-history-name' },
+            typeof row?.name === 'string' && row.name !== '' ? row.name : wfHubRunStatusWord(t, row)),
+          WF_H('span', { className: 'zwf-hub-history-meta' },
+            [
+              wfHubRunStatusWord(t, row),
+              reason === '' ? '' : `\u00b7 ${reason}`,
+              time === 0 ? '' : WF_UI.relative(t, UI_EN, time, now),
+              duration === '' ? '' : `\u00b7 ${duration}`,
+              Number.isFinite(tokens) && tokens > 0 ? `\u00b7 ${say('workflows.hub.history.tokens', { tokens })}` : '',
+            ].filter((part) => part !== '').join(' '))),
+        WF_H(WF_UI.Button, {
+          variant: 'ghost',
+          size: 'sm',
+          onClick: () => props.onOpenRun(row),
+        }, say('workflows.hub.history.open')));
+    }),
+    WF_H('p', { className: 'zwf-hub-note' }, say('workflows.hub.history.note')));
 }
 
 /* --------------------------------- dialogs --------------------------------- */
 
-function WorkflowLaunchDialog(props) {
-  const { entry, t, workspaceId, projectLabel, onOpenChat, onClose } = props;
-  const say = (key, params) => wfDirectorySay(t, key, params);
-  const [fields, setFields] = React.useState(() => wfDirectoryFields(entry));
+/** One launch form row. */
+function wfHubLaunchRow(field, error, t, onChange) {
+  const say = (key, params) => wfHubSay(t, key, params);
+  let control;
+  if (field.type === 'boolean') {
+    control = WF_H('input', {
+      type: 'checkbox',
+      className: 'zwf-hub-checkbox',
+      'data-testid': `workflow-arg-${field.name}`,
+      checked: field.value === 'true',
+      onChange: (event) => onChange(event.target.checked === true ? 'true' : 'false'),
+    });
+  } else if (field.type === 'json') {
+    control = WF_H('textarea', {
+      className: 'zwf-hub-textarea zwf-hub-input-mono',
+      rows: 3,
+      'data-testid': `workflow-arg-${field.name}`,
+      value: field.value,
+      onChange: (event) => onChange(event.target.value),
+    });
+  } else {
+    control = WF_H('input', {
+      className: 'zwf-hub-input',
+      type: field.type === 'number' ? 'number' : 'text',
+      inputMode: field.type === 'number' ? 'decimal' : undefined,
+      'data-testid': `workflow-arg-${field.name}`,
+      value: field.value,
+      onChange: (event) => onChange(event.target.value),
+    });
+  }
+  return WF_H('div', { className: 'zwf-hub-launch-row', key: field.name, 'data-testid': 'workflow-arg-row', 'data-workflow-arg-row': 'true' },
+    WF_H('div', { className: 'zwf-hub-launch-label' },
+      WF_H('span', { className: 'zwf-hub-launch-name' }, field.name),
+      field.required ? WF_H('span', { className: 'zwf-hub-required' }, say('workflows.hub.launch.required')) : null),
+    field.description === undefined ? null : WF_H('p', { className: 'zwf-hub-field-hint' }, field.description),
+    control,
+    error === undefined ? null : WF_H('p', { className: 'zwf-hub-args-error', role: 'alert' }, error));
+}
+
+/** Launch error copy for one failure code. */
+function wfHubLaunchError(t, code) {
+  const key = `workflows.hub.launch.error.${code}`;
+  return Object.prototype.hasOwnProperty.call(UI_EN, key)
+    ? wfHubSay(t, key)
+    : wfHubSay(t, 'workflows.hub.launch.error.generic');
+}
+
+function WfHubLaunchDialog(props) {
+  const { t, entry, projectLabel, rows } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
+  const [fields, setFields] = React.useState(() => wfHubLaunchFields(entry));
   const [errors, setErrors] = React.useState({});
   const [failure, setFailure] = React.useState(null);
+  const [targetKey, setTargetKey] = React.useState(props.projectRoot);
+  const [busy, setBusy] = React.useState(false);
+
   const update = (name, value) => {
     setFields((current) => current.map((field) => (field.name === name ? { ...field, value } : field)));
     setErrors((current) => {
@@ -4194,159 +11629,236 @@ function WorkflowLaunchDialog(props) {
       return next;
     });
   };
+
   const submit = () => {
+    if (busy) return;
     const args = {};
     const nextErrors = {};
     for (const field of fields) {
-      const parsed = wfDirectoryParseField(field, t);
-      if (parsed.ok !== true) nextErrors[field.name] = parsed.error;
+      const parsed = wfHubParseField(field);
+      if (parsed.ok !== true) nextErrors[field.name] = wfHubLaunchError(t, parsed.code);
       else if (parsed.omitted !== true) args[field.name] = parsed.value;
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    const hasArgs = Object.keys(args).length > 0;
-    const prompt = hasArgs
-      ? say('directory.prompt.run', { name: entry.name, args: JSON.stringify(args, null, 2) })
-      : say('directory.prompt.runNoArgs', { name: entry.name });
-    const opened = typeof onOpenChat === 'function' ? onOpenChat(workspaceId, prompt) : false;
-    if (opened !== true) {
-      setFailure(say('directory.launch.openFailed'));
+    if (typeof props.openChat !== 'function') {
+      setFailure(say('workflows.hub.launch.error.unsupported'));
       return;
     }
-    onClose();
+    const target = rows.find((row) => row.path === targetKey) ?? rows.find((row) => row.path === props.projectRoot);
+    const prompt = Object.keys(args).length === 0
+      ? say('workflows.hub.prompt.runNoArgs', { name: entry.name })
+      : say('workflows.hub.prompt.run', { name: entry.name, args: JSON.stringify(args, null, 2) });
+    setBusy(true);
+    const opened = props.openChat(target?.workspaceId ?? props.workspaceId, prompt);
+    setBusy(false);
+    if (opened !== true) {
+      setFailure(say('workflows.hub.launch.error.start_failed'));
+      return;
+    }
+    props.onStarted(args);
   };
+
+  const targetLabel = rows.find((row) => row.path === targetKey)?.title ?? projectLabel;
   return WF_H(WF_UI.Modal, {
     open: true,
-    title: say('directory.launch.title', { name: entry.name }),
-    onClose,
-    closeLabel: say('directory.close'),
-    wide: fields.length > 6,
+    title: say('workflows.hub.launch.title', { name: entry.name }),
+    closeLabel: say('ui.close'),
+    wide: fields.length > 4,
+    onClose: props.onClose,
     footer: WF_H(WF_FRAGMENT, null,
-      WF_H(WF_UI.Button, { variant: 'ghost', size: 'md', onClick: onClose }, say('directory.launch.cancel')),
+      WF_H(WF_UI.Button, { variant: 'ghost', size: 'md', onClick: props.onClose }, say('workflows.hub.launch.cancel')),
       WF_H(WF_UI.Button, {
         variant: 'primary',
         size: 'md',
         icon: WF_H(WF_ICON.run, { size: 15 }),
+        disabled: busy,
+        'data-testid': 'workflow-launch-submit',
         onClick: submit,
-      }, say('directory.launch.submit'))),
+      }, say('workflows.hub.launch.submit'))),
   },
-  typeof entry.description === 'string' && entry.description.trim() !== ''
-    ? WF_H('p', { className: 'zwf-dir-dialog-desc' }, entry.description.trim())
-    : null,
-  fields.length === 0
-    ? WF_H('p', { className: 'zwf-caption' }, say('directory.launch.noArgs'))
-    : WF_H('div', { className: 'zwf-dir-form' }, fields.map((field) => wfDirectoryArgRow(field, errors[field.name], t, (value) => update(field.name, value)))),
-  WF_H('div', { className: 'zwf-dir-dialog-note' },
-    WF_H('span', { className: 'zwf-dir-dialog-note-glyph' }, WF_H(WF_ICON.external, { size: 14 })),
-    WF_H('p', null, say('directory.launch.note', { project: projectLabel }))),
-  failure === null ? null : WF_H(WF_UI.ErrorNotice, { message: failure }));
+  WF_H('div', { className: 'zwf-hub-launch', 'data-testid': 'workflow-launch' },
+    rows.length === 0
+      ? WF_H('p', { className: 'zwf-hub-note' }, say('workflows.hub.launch.noLocalProject'))
+      : WF_H('label', { className: 'zwf-hub-field' },
+        WF_H('span', { className: 'zwf-hub-field-label' }, say('workflows.hub.launch.target')),
+        WF_H('select', {
+          className: 'zwf-hub-select',
+          value: targetKey,
+          onChange: (event) => setTargetKey(event.target.value),
+        }, rows.map((row) => WF_H('option', { key: row.path, value: row.path }, row.title === '' ? wfHubBasename(row.path) : row.title)))),
+    WF_H('div', { className: 'zwf-hub-launch-meta' },
+      WF_H('span', { className: 'zwf-hub-tag', 'data-testid': 'workflow-launch-scope' },
+        say(entry.scope === 'global' ? 'workflows.hub.launch.scope.global' : 'workflows.hub.launch.scope.project')),
+      WF_H('span', { className: 'zwf-hub-tag', 'data-testid': 'workflow-launch-kind' }, `${wfHubArgNames(entry).length}`)),
+    fields.length === 0
+      ? null
+      : WF_H('div', { className: `zwf-hub-launch-args${fields.length >= 3 ? ' zwf-hub-launch-args-scroll' : ''}` },
+        fields.map((field) => wfHubLaunchRow(field, errors[field.name], t, (value) => update(field.name, value)))),
+    WF_H('div', { className: 'zwf-hub-launch-note' },
+      WF_H('span', { className: 'zwf-hub-launch-note-glyph' }, WF_H(WF_ICON.external, { size: 14 })),
+      WF_H('p', null, say('workflows.hub.launch.note', { project: targetLabel }))),
+    failure === null ? null : WF_H(WF_UI.ErrorNotice, { message: failure })));
 }
 
-/** Status-aware failure copy: missing and duplicate-name answers are actionable, the rest is not. */
-function wfDirectoryFailureText(t, kind, error) {
-  const status = error !== null && typeof error === 'object' ? error.status : undefined;
-  if (status === 404) return kind === 'move'
-    ? wfDirectorySay(t, 'directory.move.missing')
-    : wfDirectorySay(t, 'directory.delete.missing');
-  if (kind === 'move' && status === 409) return wfDirectorySay(t, 'directory.move.exists');
-  return wfDirectorySay(t, kind === 'move' ? 'directory.move.failed' : 'directory.delete.failed');
+/** Editable fields of one launch form, from the entry's argument declarations. */
+function wfHubLaunchFields(entry) {
+  const fields = [];
+  for (const [name, raw] of Object.entries(entry.args ?? {})) {
+    const record = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const type = typeof record.type === 'string' && WF_HUB_ARG_TYPES.includes(record.type) ? record.type : 'string';
+    fields.push({
+      name,
+      type,
+      required: record.required === true,
+      description: typeof record.description === 'string' && record.description.trim() !== '' ? record.description.trim() : undefined,
+      value: wfHubDefaultText(type, record.default),
+    });
+  }
+  return fields;
 }
 
-function WorkflowDeleteDialog(props) {
-  const { entry, t, projectRoot, onClose, onDone } = props;
-  const say = (key, params) => wfDirectorySay(t, key, params);
+/** Parse one launch field; `{ ok: false, code }` carries the launch error key. */
+function wfHubParseField(field) {
+  const raw = field.value.trim();
+  if (field.type === 'boolean') return { ok: true, value: raw === 'true' };
+  if (raw === '') {
+    if (field.required) return { ok: false, code: 'required' };
+    return { ok: true, omitted: true };
+  }
+  if (field.type === 'number') {
+    const number = Number(raw);
+    return Number.isFinite(number) ? { ok: true, value: number } : { ok: false, code: 'invalid_number' };
+  }
+  if (field.type === 'json') {
+    try {
+      return { ok: true, value: JSON.parse(raw) };
+    } catch {
+      return { ok: false, code: 'invalid_json' };
+    }
+  }
+  return { ok: true, value: raw };
+}
+
+function WfHubDeleteDialog(props) {
+  const { t, entry, projectRoot } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
   const [busy, setBusy] = React.useState(false);
   const [failure, setFailure] = React.useState(null);
   const confirm = async () => {
-    if (busy || typeof projectRoot !== 'string' || projectRoot === '') return;
+    if (busy || projectRoot === '') return;
     setBusy(true);
     setFailure(null);
     try {
-      await WF_API.deleteWorkflow({
-        projectRoot,
-        name: entry.name,
-        scope: entry.scope === 'global' ? 'global' : 'project',
-      });
+      const result = await WF_API.deleteWorkflow({ projectRoot, name: entry.name, scope: entry.scope });
+      if (result !== null && typeof result === 'object' && result.ok === false) {
+        setBusy(false);
+        setFailure(say('workflows.hub.deleteFailed', { reason: wfHubReasonWord(t, typeof result.reason === 'string' ? result.reason : 'read_error') }));
+        return;
+      }
     } catch (error) {
-      console.warn('zcode-workflow: deleting a saved workflow failed', error);
+      wfHubWarn('deleting a saved workflow', error);
       setBusy(false);
-      setFailure(wfDirectoryFailureText(t, 'delete', error));
+      setFailure(say('workflows.hub.deleteFailed', { reason: wfHubFailure(error) }));
       return;
     }
     setBusy(false);
-    onDone();
+    props.onDeleted();
   };
   return WF_H(WF_UI.Modal, {
     open: true,
-    title: say('directory.delete.title', { name: entry.name }),
-    onClose,
-    closeLabel: say('directory.close'),
+    title: say('workflows.hub.delete.title', { name: entry.name }),
+    closeLabel: say('ui.close'),
+    onClose: props.onClose,
     footer: WF_H(WF_FRAGMENT, null,
-      WF_H(WF_UI.Button, { variant: 'ghost', size: 'md', disabled: busy, onClick: onClose }, say('directory.launch.cancel')),
+      WF_H(WF_UI.Button, { variant: 'ghost', size: 'md', disabled: busy, onClick: props.onClose }, say('ui.cancel')),
       WF_H(WF_UI.Button, {
         variant: 'danger',
         size: 'md',
         disabled: busy,
-        icon: busy === true ? WF_H(WF_UI.Spinner) : undefined,
+        icon: busy ? WF_H(WF_UI.Spinner) : undefined,
         onClick: () => {
           void confirm();
         },
-      }, say('directory.delete.confirm'))),
+      }, say('workflows.hub.delete.confirm'))),
   },
-  WF_H('p', { className: 'zwf-dir-dialog-desc' }, say('directory.delete.body')),
+  WF_H('p', { className: 'zwf-hub-dialog-text' }, say('workflows.hub.delete.description', { path: entry.path })),
   failure === null ? null : WF_H(WF_UI.ErrorNotice, { message: failure }));
 }
 
-function WorkflowMoveDialog(props) {
-  const { entry, t, projectRoot, projectLabel, onClose, onDone } = props;
-  const say = (key, params) => wfDirectorySay(t, key, params);
+function WfHubMoveDialog(props) {
+  const { t, entry, projectRoot, rows } = props;
+  const say = (key, params) => wfHubSay(t, key, params);
   const [busy, setBusy] = React.useState(false);
   const [failure, setFailure] = React.useState(null);
+  const [targetKey, setTargetKey] = React.useState(projectRoot);
   const confirm = async () => {
-    if (busy || typeof projectRoot !== 'string' || projectRoot === '') return;
+    const target = rows.find((row) => row.path === targetKey);
+    if (busy || target === undefined) return;
     setBusy(true);
     setFailure(null);
     try {
-      await WF_API.moveWorkflow({ projectRoot, name: entry.name });
+      const result = await WF_API.moveWorkflow({ projectRoot: target.path, name: entry.name });
+      if (result !== null && typeof result === 'object' && result.ok === false) {
+        const reason = typeof result.reason === 'string' ? result.reason : '';
+        setBusy(false);
+        setFailure(reason === 'target_exists'
+          ? say('workflows.hub.move.targetExists')
+          : say('workflows.hub.move.failed', { reason: wfHubReasonWord(t, reason === '' ? 'read_error' : reason) }));
+        return;
+      }
     } catch (error) {
-      console.warn('zcode-workflow: moving a saved workflow failed', error);
+      wfHubWarn('moving a saved workflow', error);
       setBusy(false);
-      setFailure(wfDirectoryFailureText(t, 'move', error));
+      setFailure(say('workflows.hub.move.failed', { reason: wfHubFailure(error) }));
       return;
     }
     setBusy(false);
-    onDone();
+    props.onMoved(target.title === '' ? wfHubBasename(target.path) : target.title);
   };
   return WF_H(WF_UI.Modal, {
     open: true,
-    title: say('directory.move.title'),
-    onClose,
-    closeLabel: say('directory.close'),
+    title: say('workflows.hub.moveDialog.title'),
+    closeLabel: say('ui.close'),
+    onClose: props.onClose,
     footer: WF_H(WF_FRAGMENT, null,
-      WF_H(WF_UI.Button, { variant: 'ghost', size: 'md', disabled: busy, onClick: onClose }, say('directory.launch.cancel')),
+      WF_H(WF_UI.Button, { variant: 'ghost', size: 'md', disabled: busy, onClick: props.onClose }, say('ui.cancel')),
       WF_H(WF_UI.Button, {
         variant: 'primary',
         size: 'md',
-        disabled: busy,
-        icon: busy === true ? WF_H(WF_UI.Spinner) : undefined,
+        disabled: busy || targetKey === '',
+        icon: busy ? WF_H(WF_UI.Spinner) : undefined,
         onClick: () => {
           void confirm();
         },
-      }, say('directory.move.confirm'))),
+      }, say('workflows.hub.moveDialog.submit'))),
   },
-  WF_H('p', { className: 'zwf-dir-dialog-desc' }, say('directory.move.body', { name: entry.name, project: projectLabel })),
+  rows.length === 0
+    ? WF_H('p', { className: 'zwf-hub-dialog-text' }, say('workflows.hub.moveDialog.noLocalProject'))
+    : WF_H('label', { className: 'zwf-hub-field' },
+      WF_H('span', { className: 'zwf-hub-field-label' }, say('workflows.hub.detail.projectColumn')),
+      WF_H('select', {
+        className: 'zwf-hub-select',
+        value: targetKey,
+        onChange: (event) => setTargetKey(event.target.value),
+      }, rows.map((row) => WF_H('option', { key: row.path, value: row.path }, row.title === '' ? wfHubBasename(row.path) : row.title)))),
   failure === null ? null : WF_H(WF_UI.ErrorNotice, { message: failure }));
 }
 
 /* --------------------------------- sidebar --------------------------------- */
 
-function WorkflowDirectoryPanelIcon(props) {
+function WfHubPanelIcon(props) {
   const size = typeof props?.size === 'number' && props.size > 0 ? props.size : 20;
   return WF_H(WF_ICON.workflow, { size, strokeWidth: props?.active === true ? 1.8 : 1.6 });
 }
 
 /* -------------------------------- register --------------------------------- */
 
+/**
+ * Register the hub page and its sidebar entry.
+ * @param {object} ctx client plugin context
+ * @param {(callback: Function, label?: string) => unknown} effect effect registrar
+ */
 WF_DIRECTORY.register = function register(ctx, effect) {
   if (ctx === null || typeof ctx !== 'object') return;
   const slots = ctx.slots;
@@ -4360,90 +11872,644 @@ WF_DIRECTORY.register = function register(ctx, effect) {
     translate = undefined;
   }
   const openChat = (workspaceId, prompt) => {
-    const service = wfDirectoryWorkspaceService(ctx);
+    const service = wfHubWorkspaceService(ctx);
     if (service === undefined || typeof service.startSession !== 'function') return false;
     try {
       service.startSession(workspaceId, { prompt: String(prompt), whenDraftExists: 'append' });
       return true;
     } catch (error) {
-      console.warn('zcode-workflow: opening a conversation failed', error);
+      wfHubWarn('opening a conversation', error);
       return false;
     }
   };
+  const layout = wfHubLayoutService(ctx);
+  const openSettings = layout === undefined || typeof layout.selectPanel !== 'function'
+    ? undefined
+    : () => {
+      try {
+        layout.selectPanel('settings');
+      } catch (error) {
+        wfHubWarn('opening settings', error);
+      }
+    };
   slots.inject('main', () => slots.register({
     name: 'main',
     key: WF_DIRECTORY_PANEL_ID,
     locale: UI_NS,
-    inject: () => ({ openChat }),
-  }, WorkflowDirectoryPage));
+    inject: () => ({ openChat, ...(openSettings === undefined ? {} : { openSettings }) }),
+  }, WfHubPage));
   slots.inject('sidebar.panellist', () => slots.register({
     name: 'sidebar.panellist',
     id: WF_DIRECTORY_PANEL_ID,
     order: WF_DIRECTORY_ORDER,
     locale: UI_NS,
-    label: () => WF_UI.say(translate, UI_EN, 'directory.panel'),
-  }, WorkflowDirectoryPanelIcon));
+    label: () => WF_UI.say(translate, UI_EN, 'workflows.hub.sectionTitle'),
+  }, WfHubPanelIcon));
 };
 
 /* ---------------------------------- styles --------------------------------- */
 
 const WF_DIRECTORY_CSS = `
-.zwf-dir-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:16px 0 4px;padding-bottom:12px;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.zwf-dir-field{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%}
-.zwf-dir-field-label{flex:none;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
-.zwf-select{box-sizing:border-box;max-width:280px;height:30px;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer}
-.zwf-select:disabled{opacity:.5;cursor:default}
-.zwf-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}
-.zwf-select-wide{max-width:none;width:100%}
-.zwf-dir-content{display:flex;flex-direction:column;min-width:0;margin-top:4px}
-.zwf-dir-loading{display:flex;align-items:center;justify-content:center;padding:48px 0}
-.zwf-dir-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;min-width:0}
-.zwf-dir-card{gap:10px;justify-content:space-between}
-.zwf-dir-card .zwf-card-desc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;white-space:normal;overflow:hidden}
-.zwf-dir-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
-.zwf-dir-args{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.zwf-dir-card .zwf-anchor{display:inline-flex}
-.zwf-dir-warn{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:8px 10px;border:1px solid color-mix(in oklab,var(--dsw-alias-state-warn-primary) 35%,transparent);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 8%,transparent);font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
-.zwf-dir-warn-glyph{display:flex;flex:none;color:var(--dsw-alias-state-warn-primary)}
-.zwf-dir-dialog-desc{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
-.zwf-dir-dialog-note{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
-.zwf-dir-dialog-note p{margin:0}
-.zwf-dir-dialog-note-glyph{display:flex;flex:none;margin-top:1px;color:var(--dsw-alias-label-secondary)}
-.zwf-dir-form{display:flex;flex-direction:column;gap:12px}
-.zwf-dir-arg{display:flex;flex-direction:column;gap:5px;min-width:0}
-.zwf-dir-arg-head{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
-.zwf-dir-arg-name{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;line-height:18px;font-weight:600;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
-.zwf-dir-required{height:18px;font-size:11px;line-height:18px}
-.zwf-dir-arg-error{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary)}
-.zwf-dir-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);cursor:pointer}
-.zwf-dir-checkbox{width:15px;height:15px;margin:0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
+.zwf-hub-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:16px 0 4px;padding-bottom:12px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.zwf-hub-field{display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:100%}
+.zwf-hub-field-block{display:flex;flex-direction:column;gap:5px;min-width:0}
+.zwf-hub-field-label{flex:none;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-field-hint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-select{box-sizing:border-box;max-width:260px;height:30px;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;cursor:pointer}
+.zwf-hub-select:disabled{opacity:.5;cursor:default}
+.zwf-hub-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px}
+.zwf-hub-input,.zwf-hub-textarea{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;padding:5px 8px}
+.zwf-hub-input{height:30px}
+.zwf-hub-textarea{resize:vertical;min-height:72px}
+.zwf-hub-input:focus,.zwf-hub-textarea:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px;border-color:transparent}
+.zwf-hub-input-mono{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px}
+.zwf-hub-checkbox{width:15px;height:15px;margin:0;accent-color:var(--dsw-alias-brand-primary);cursor:pointer}
+.zwf-hub-content{display:flex;flex-direction:column;min-width:0;margin-top:4px}
+.zwf-hub-loading{display:flex;align-items:center;justify-content:center;padding:40px 0}
+.zwf-hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:12px;min-width:0}
+.zwf-hub-card{box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:8px;min-width:0;min-height:132px;padding:14px 16px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1);cursor:pointer;transition:border-color .12s,background-color .12s}
+.zwf-hub-card:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2)}
+.zwf-hub-card:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.zwf-hub-card-name{display:block;padding-right:88px;font-size:14px;line-height:20px;font-weight:500;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-hub-card-desc{margin:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;font-size:12.5px;line-height:18px;color:var(--dsw-alias-label-secondary);min-height:36px}
+.zwf-hub-card-foot{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin-top:auto;min-width:0;min-height:18px}
+.zwf-hub-card-actions{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:4px;opacity:0;transition:opacity .12s}
+.zwf-hub-card:hover .zwf-hub-card-actions,.zwf-hub-card:focus-within .zwf-hub-card-actions{opacity:1}
+.zwf-hub-args{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-width:0}
+.zwf-hub-arg{display:inline-flex;align-items:center;max-width:120px;height:18px;padding:0 5px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-hub-arg-more{font-family:inherit;border-style:dashed}
+.zwf-hub-lastrun{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-lastrun-glyph{display:inline-flex;flex:none}
+.zwf-hub-lastrun-success{color:var(--dsw-alias-state-success-primary)}
+.zwf-hub-lastrun-warn{color:var(--dsw-alias-state-warn-primary)}
+.zwf-hub-lastrun-error{color:var(--dsw-alias-state-error-primary)}
+.zwf-hub-warn{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:8px 10px;border:1px solid color-mix(in oklab,var(--dsw-alias-state-warn-primary) 35%,transparent);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 8%,transparent)}
+.zwf-hub-warn-glyph{display:flex;flex:none;margin-top:1px;color:var(--dsw-alias-state-warn-primary)}
+.zwf-hub-warn-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.zwf-hub-warn-title{margin:0;font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-primary)}
+.zwf-hub-warn-line{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.zwf-hub-toast{position:sticky;top:8px;z-index:5;align-self:flex-start;margin:8px 0;padding:6px 10px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary)}
+.zwf-hub-detail{display:flex;flex-direction:column;gap:14px;min-width:0;padding-top:14px}
+.zwf-hub-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;min-width:0}
+.zwf-hub-detail-titles{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.zwf-hub-detail-name{margin:0;font-size:18px;line-height:26px;font-weight:600;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-hub-detail-desc{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-detail-actions{display:flex;align-items:center;gap:8px;flex:none}
+.zwf-hub-tag{display:inline-flex;align-items:center;align-self:flex-start;max-width:240px;height:20px;padding:0 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;font-size:11px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-hub-artifacts{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
+.zwf-hub-artifacts-label{flex:none;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-artifacts-list{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}
+.zwf-hub-chip{display:inline-flex;align-items:center;gap:5px;max-width:200px;height:22px;padding:0 7px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);font-size:11.5px;line-height:20px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-chip-glyph{display:inline-flex;flex:none}
+.zwf-hub-chip-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-hub-chip-more{border-style:dashed}
+.zwf-hub-detail-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.zwf-hub-path{display:inline-flex;align-items:center;gap:4px;margin-left:auto;min-width:0;max-width:60%}
+.zwf-hub-path-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-detail-body{display:flex;flex-direction:column;gap:18px;min-width:0}
+.zwf-hub-section{display:flex;flex-direction:column;gap:8px;min-width:0}
+.zwf-hub-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.zwf-hub-section-title{margin:0;font-size:13px;line-height:20px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.zwf-hub-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-error{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary)}
+.zwf-hub-savebar{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.zwf-hub-args-table{display:flex;flex-direction:column;gap:6px;min-width:0}
+.zwf-hub-args-head,.zwf-hub-args-row{display:grid;grid-template-columns:minmax(0,1.4fr) 104px 56px minmax(0,1fr) minmax(0,1.5fr) 28px;gap:8px;align-items:center;min-width:0}
+.zwf-hub-args-head{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-args-row{grid-template-areas:none}
+.zwf-hub-args-cell{min-width:0}
+.zwf-hub-args-cell-required{display:flex;align-items:center;justify-content:center}
+.zwf-hub-args-cell-remove{display:flex;align-items:center;justify-content:flex-end}
+.zwf-hub-args-row .zwf-hub-select{max-width:none;width:100%;height:30px}
+.zwf-hub-args-error{grid-column:1/-1;margin:2px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary)}
+.zwf-hub-code{display:flex;flex-direction:column;min-width:0;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);overflow:hidden;background:var(--dsw-alias-bg-layer-1)}
+.zwf-hub-code-head{display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l1);font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-code-title{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px}
+.zwf-hub-code-body{margin:0;max-height:480px;overflow:auto;padding:10px 12px;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-primary);white-space:pre;tab-size:2}
+.zwf-hub-history{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-hub-history-row{display:flex;align-items:center;gap:10px;min-width:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1)}
+.zwf-hub-history-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.zwf-hub-history-name{min-width:0;font-size:13px;line-height:19px;font-weight:500;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-hub-history-meta{min-width:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.zwf-hub-launch{display:flex;flex-direction:column;gap:10px;min-width:0}
+.zwf-hub-launch-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.zwf-hub-launch-args{display:flex;flex-direction:column;gap:12px;min-width:0}
+.zwf-hub-launch-args-scroll{max-height:min(46vh,320px);overflow-y:auto;padding-right:2px}
+.zwf-hub-launch-row{display:flex;flex-direction:column;gap:5px;min-width:0}
+.zwf-hub-launch-label{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.zwf-hub-launch-name{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;line-height:18px;font-weight:600;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.zwf-hub-required{flex:none;padding:0 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-launch-note{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-launch-note p{margin:0}
+.zwf-hub-launch-note-glyph{display:flex;flex:none;margin-top:1px}
+.zwf-hub-dialog-text{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+@media (max-width:640px){.zwf-hub-args-head,.zwf-hub-args-row{grid-template-columns:minmax(0,1fr) 88px 44px minmax(0,1fr) 28px}.zwf-hub-args-head span:nth-child(5),.zwf-hub-args-row .zwf-hub-args-cell:nth-child(5){display:none}}
 `;
 
 WF_STYLE_PARTS.push(WF_DIRECTORY_CSS);
 
+/* ---- client-src/55-save.js ---- */
+/* "Save this run as a workflow": the trailing action of a run's header and the popover behind it.
+ *
+ * Two paths lead to a saved workflow — hand the run to the agent and let it distil a reusable
+ * script, or write the run's own script as it stands. The second path needs a name, a scope and a
+ * description, warns before overwriting a same-named file, and tells the user which file it is
+ * about to write.
+ *
+ * The mount site owns nothing here: `WF_SAVE.Slot` renders the button (or, once the run is saved,
+ * the saved chip next to a "run again" action) and the popover, and reports a save upward.
+ */
+
+const WF_SAVE = {};
+
+/** Delay before the duplicate-name probe runs, so typing does not fire one request per key. */
+const WF_SAVE_PROBE_MS = 320;
+
+/** Longest workflow name the facade accepts. */
+const WF_SAVE_NAME_MAX = 64;
+
+/** Name a workflow may carry: letters, digits, dash, underscore, dot. */
+const WF_SAVE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/u;
+
+/** Copy from the workspace dictionary, with the compiled English text as fallback. */
+function wfSaveSay(t, key, params) {
+  return WF_UI.say(t, UI_EN, key, params);
+}
+
+/** The workflow file name of one workflow name. */
+function wfSaveFileName(name) {
+  return `${name}.dwf.ts`;
+}
+
+/** Directory of the workflows the project already has, when one can be read from a path. */
+function wfSaveDirectory(rows) {
+  for (const row of rows ?? []) {
+    const path = typeof row?.path === 'string' ? row.path : '';
+    if (path === '' || !path.endsWith('.dwf.ts')) continue;
+    const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    if (cut > 0) return path.slice(0, cut);
+  }
+  return '';
+}
+
+/** Save failure copy: the host's reason code, or the thrown message. */
+function wfSaveFailure(t, error) {
+  const record = error !== null && typeof error === 'object' ? error : {};
+  const reason = typeof record.reason === 'string'
+    ? record.reason
+    : typeof record.code === 'string' ? record.code : '';
+  const key = `chat.toolCall.workflow.saveRun.error.${reason}`;
+  if (Object.prototype.hasOwnProperty.call(UI_EN, key)) return wfSaveSay(t, key);
+  const message = typeof record.message === 'string' ? record.message : '';
+  return message === '' ? wfSaveSay(t, 'chat.toolCall.workflow.saveRun.error.generic') : message;
+}
+
+/**
+ * One workflow name the run may be saved under: the run's label, sanitized.
+ * @param {unknown} run
+ */
+function wfSaveDefaultName(run) {
+  const record = run !== null && typeof run === 'object' ? run : {};
+  const raw = typeof record.label === 'string' && record.label !== ''
+    ? record.label
+    : typeof record.name === 'string' && record.name !== ''
+      ? record.name
+      : typeof record.runId === 'string' ? record.runId : '';
+  const cleaned = raw.trim().replace(/[^A-Za-z0-9._-]+/gu, '-').replace(/^-+|-+$/gu, '').slice(0, WF_SAVE_NAME_MAX);
+  return cleaned;
+}
+
+/** The run identity of a run row or snapshot, in either spelling. */
+function wfSaveRunId(run) {
+  const record = run !== null && typeof run === 'object' ? run : {};
+  for (const value of [record.runId, record.id]) {
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return '';
+}
+
+/**
+ * The save action of a run's header: a button that opens the popover, or — when the run was
+ * already saved — the saved chip beside "run again".
+ * @param {{ sessionId?: string, runId?: string, run?: unknown, projectRoot?: string, t?: Function, openChat?: Function, onSaved?: Function, onOpenHub?: Function }} props
+ */
+function WfSaveSlot(props) {
+  const t = typeof props?.t === 'function' ? props.t : undefined;
+  const say = (key, params) => wfSaveSay(t, key, params);
+  const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+  const projectRoot = typeof props?.projectRoot === 'string' ? props.projectRoot : '';
+  const runId = typeof props?.runId === 'string' && props.runId !== '' ? props.runId : wfSaveRunId(props?.run);
+  const [open, setOpen] = React.useState(false);
+  const [savedEntry, setSavedEntry] = React.useState(undefined);
+  const anchorRef = React.useRef(null);
+  const popRef = React.useRef(null);
+
+  React.useEffect(() => {
+    let active = true;
+    if (runId === '' || projectRoot === '') return undefined;
+    WF_API.workflowForRun({ projectRoot, runId })
+      .then((payload) => {
+        if (!active) return;
+        const entry = payload !== null && typeof payload === 'object' && payload.entry !== null && typeof payload.entry === 'object'
+          ? payload.entry
+          : undefined;
+        setSavedEntry(entry);
+      })
+      .catch((error) => {
+        console.warn('zcode-workflow: looking up the saved workflow of a run failed', error);
+        if (active) setSavedEntry(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectRoot, runId]);
+
+  const runAgain = () => {
+    if (savedEntry === undefined) return;
+    if (typeof props?.openChat !== 'function') return;
+    const name = typeof savedEntry.name === 'string' ? savedEntry.name : '';
+    if (name === '') return;
+    props.openChat(say('workflows.hub.prompt.runNoArgs', { name }));
+  };
+
+  if (savedEntry !== undefined) {
+    return WF_H('div', { className: 'zwf-save-slot' },
+      WF_H('span', {
+        className: 'zwf-save-chip',
+        'data-testid': 'workflow-saved-chip',
+        title: say('chat.toolCall.workflow.saveRun.chip.hint'),
+        role: 'button',
+        tabIndex: 0,
+        onClick: () => {
+          if (typeof props?.onOpenHub === 'function') props.onOpenHub(savedEntry);
+        },
+        onKeyDown: (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          if (typeof props?.onOpenHub === 'function') props.onOpenHub(savedEntry);
+        },
+      },
+      WF_H(WF_ICON.check, { size: 12 }),
+      WF_H('span', null, say('chat.toolCall.workflow.saveRun.chip'))),
+      WF_H(WF_UI.Button, {
+        variant: 'subtle',
+        size: 'sm',
+        icon: WF_H(WF_ICON.run, { size: 13 }),
+        'data-testid': 'workflow-save-run-again',
+        disabled: typeof props?.openChat !== 'function',
+        onClick: runAgain,
+      }, say('chat.toolCall.workflow.saveRun.runAgain')));
+  }
+
+  return WF_H('div', { className: 'zwf-save-slot zwf-anchor', ref: anchorRef },
+    WF_H(WF_UI.Button, {
+      variant: 'subtle',
+      size: 'sm',
+      icon: WF_H(WF_ICON.artifact, { size: 13 }),
+      'data-testid': 'workflow-save-open',
+      disabled: runId === '' || projectRoot === '',
+      pressed: open,
+      onClick: () => setOpen((value) => value !== true),
+    }, say('chat.toolCall.workflow.saveRun.action')),
+    open
+      ? WF_H(WfSavePopover, {
+        t,
+        sessionId,
+        projectRoot,
+        runId,
+        run: props?.run,
+        anchorRef,
+        popRef: popRef,
+        openChat: props?.openChat,
+        onClose: () => setOpen(false),
+        onSaved: (entry) => {
+          setSavedEntry(entry);
+          setOpen(false);
+          if (typeof props?.onSaved === 'function') props.onSaved(entry);
+        },
+      })
+      : null);
+}
+
+/**
+ * The popover: hand the run to the agent, or write the script as it stands.
+ * @param {{ t?: Function, sessionId: string, projectRoot: string, runId: string, run?: unknown, anchorRef?: object, popRef?: object, openChat?: Function, onClose: Function, onSaved: Function }} props
+ */
+function WfSavePopover(props) {
+  const t = typeof props.t === 'function' ? props.t : undefined;
+  const say = (key, params) => wfSaveSay(t, key, params);
+  const [name, setName] = React.useState(() => wfSaveDefaultName(props.run));
+  const [scope, setScope] = React.useState('project');
+  const [description, setDescription] = React.useState('');
+  const [probe, setProbe] = React.useState({ project: undefined, global: undefined });
+  const [failure, setFailure] = React.useState(null);
+  const [saving, setSaving] = React.useState(false);
+  const [handed, setHanded] = React.useState(false);
+  const [directory, setDirectory] = React.useState('');
+  const timer = React.useRef(undefined);
+
+  React.useEffect(() => {
+    let active = true;
+    WF_API.workflows({ projectRoot })
+      .then((payload) => {
+        if (!active) return;
+        const rows = Array.isArray(payload?.workflows) ? payload.workflows : Array.isArray(payload?.entries) ? payload.entries : [];
+        setDirectory(wfSaveDirectory(rows));
+      })
+      .catch(() => {
+        if (active) setDirectory('');
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectRoot]);
+
+  const trimmed = name.trim();
+  const nameInvalid = trimmed === '' || trimmed.length > WF_SAVE_NAME_MAX || !WF_SAVE_NAME_PATTERN.test(trimmed);
+  const overwrite = probe.project !== undefined;
+  const shadowing = probe.project === undefined && probe.global !== undefined && scope === 'project'
+    ? 'chat.toolCall.workflow.save.scope.hidesGlobal'
+    : probe.project !== undefined && probe.global !== undefined && scope === 'global'
+      ? 'chat.toolCall.workflow.save.scope.hiddenByProject'
+      : undefined;
+  const predictedPath = directory === '' ? wfSaveFileName(trimmed) : `${directory}/${wfSaveFileName(trimmed)}`;
+
+  React.useEffect(() => {
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    if (trimmed === '' || nameInvalid) {
+      setProbe({ project: undefined, global: undefined });
+      return undefined;
+    }
+    timer.current = setTimeout(() => {
+      let active = true;
+      Promise.all([
+        WF_API.workflow({ projectRoot, name: trimmed, scope: 'project' }).catch(() => undefined),
+        WF_API.workflow({ projectRoot, name: trimmed, scope: 'global' }).catch(() => undefined),
+      ]).then(([projectPayload, globalPayload]) => {
+        if (!active) return;
+        setProbe({
+          project: wfSaveFound(projectPayload) ? projectPayload : undefined,
+          global: wfSaveFound(globalPayload) ? globalPayload : undefined,
+        });
+      });
+      return () => {
+        active = false;
+      };
+    }, WF_SAVE_PROBE_MS);
+    return () => {
+      if (timer.current !== undefined) clearTimeout(timer.current);
+    };
+  }, [projectRoot, trimmed, nameInvalid]);
+
+  const submit = async () => {
+    if (saving || nameInvalid || props.runId === '') return;
+    setSaving(true);
+    setFailure(null);
+    try {
+      const payload = await WF_API.saveWorkflow({
+        projectRoot: props.projectRoot,
+        runId: props.runId,
+        name: trimmed,
+        scope,
+        meta: description.trim() === '' ? undefined : { description: description.trim() },
+        overwrite: overwrite,
+      });
+      if (payload !== null && typeof payload === 'object' && payload.ok === false) {
+        setSaving(false);
+        setFailure(wfSaveFailure(t, payload));
+        if (payload.reason === 'target_exists') {
+          setProbe((current) => ({ ...current, project: payload }));
+        }
+        return;
+      }
+      setSaving(false);
+      props.onSaved(payload !== null && typeof payload === 'object' ? payload : undefined);
+    } catch (error) {
+      console.warn('zcode-workflow: saving a run as a workflow failed', error);
+      setSaving(false);
+      setFailure(wfSaveFailure(t, error));
+    }
+  };
+
+  const handToAgent = () => {
+    if (handed) return;
+    if (typeof props.openChat !== 'function') {
+      setFailure(say('chat.toolCall.workflow.saveRun.lead.unsupported'));
+      return;
+    }
+    const opened = props.openChat(say('chat.toolCall.workflow.saveRun.lead'));
+    if (opened !== true) {
+      setFailure(say('chat.toolCall.workflow.saveRun.lead.unsupported'));
+      return;
+    }
+    setHanded(true);
+  };
+
+  return WF_H('div', {
+    className: 'zwf-save-pop',
+    role: 'dialog',
+    'data-testid': 'workflow-save-popover',
+    ref: props.popRef,
+    onKeyDown: (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        props.onClose();
+        return;
+      }
+      if (event.key === 'Enter' && (event.metaKey === true || event.ctrlKey === true)) {
+        event.preventDefault();
+        handToAgent();
+      }
+    },
+  },
+  WF_H('div', { className: 'zwf-save-head' }, say('chat.toolCall.workflow.saveRun.title')),
+  WF_H('button', {
+    type: 'button',
+    className: 'zwf-save-lead',
+    'data-testid': 'workflow-save-lead',
+    disabled: handed || typeof props.openChat !== 'function',
+    onClick: handToAgent,
+  },
+  WF_H('span', { className: 'zwf-save-lead-label' }, say(handed ? 'chat.toolCall.workflow.saveRun.lead.sending' : 'chat.toolCall.workflow.saveRun.lead')),
+  WF_H('span', { className: 'zwf-save-lead-hint' },
+    typeof props.openChat === 'function'
+      ? say('chat.toolCall.workflow.saveRun.lead.hint')
+      : say('chat.toolCall.workflow.saveRun.lead.unsupported'))),
+  WF_H('div', { className: 'zwf-save-or' },
+    WF_H('span', { className: 'zwf-save-rule' }),
+    WF_H('span', null, say('chat.toolCall.workflow.saveRun.or')),
+    WF_H('span', { className: 'zwf-save-rule' })),
+  WF_H('label', { className: 'zwf-save-field' },
+    WF_H('span', { className: 'zwf-save-label' }, say('chat.toolCall.workflow.saveRun.name')),
+    WF_H('span', { className: 'zwf-save-input-wrap' },
+      WF_H('input', {
+        className: `zwf-save-input${nameInvalid ? ' zwf-save-input-invalid' : ''}`,
+        type: 'text',
+        maxLength: WF_SAVE_NAME_MAX,
+        value: name,
+        'data-testid': 'workflow-save-name',
+        placeholder: say('chat.toolCall.workflow.saveRun.name.placeholder'),
+        onChange: (event) => setName(event.target.value),
+        onKeyDown: (event) => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          void submit();
+        },
+      }),
+      WF_H('span', { className: 'zwf-save-suffix' }, '.dwf.ts')),
+    WF_H('span', {
+      className: `zwf-save-helper${nameInvalid ? ' zwf-save-helper-invalid' : ''}`,
+      'data-testid': 'workflow-save-name-helper',
+    }, say(nameInvalid ? 'chat.toolCall.workflow.saveRun.name.invalid' : 'chat.toolCall.workflow.saveRun.name.helper'))),
+  WF_H('div', { className: 'zwf-save-field' },
+    WF_H('span', { className: 'zwf-save-label' }, say('chat.toolCall.workflow.save.scope.label')),
+    WF_H('div', { className: 'zwf-save-seg', role: 'radiogroup', 'data-testid': 'workflow-save-scope', 'aria-label': say('chat.toolCall.workflow.save.scope.label') },
+      [['project', 'chat.toolCall.workflow.save.scope.project'], ['global', 'chat.toolCall.workflow.save.scope.global']].map(([value, key]) => WF_H('button', {
+        key: value,
+        type: 'button',
+        role: 'radio',
+        'aria-checked': scope === value,
+        className: `zwf-save-seg-item${scope === value ? ' zwf-save-seg-item-active' : ''}`,
+        onClick: () => setScope(value),
+      }, say(key))))),
+  WF_H('label', { className: 'zwf-save-field' },
+    WF_H('span', { className: 'zwf-save-label' }, say('chat.toolCall.workflow.saveRun.description')),
+    WF_H('textarea', {
+      className: 'zwf-save-textarea',
+      rows: 2,
+      value: description,
+      'data-testid': 'workflow-save-description',
+      onChange: (event) => setDescription(event.target.value),
+    }),
+    WF_H('span', { className: 'zwf-save-helper' }, say('chat.toolCall.workflow.saveRun.description.helper'))),
+  failure === null
+    ? null
+    : WF_H('p', { className: 'zwf-save-failure', role: 'alert', 'data-testid': 'workflow-save-failure' }, failure),
+  overwrite
+    ? WF_H('div', { className: 'zwf-save-overwrite', 'data-testid': 'workflow-save-overwrite' },
+      WF_H('p', { className: 'zwf-save-overwrite-line' }, say('chat.toolCall.workflow.saveRun.overwrite')),
+      shadowing === undefined ? null : WF_H('p', { className: 'zwf-save-overwrite-line' }, say('chat.toolCall.workflow.saveRun.shadowing', { text: say(shadowing) })))
+    : WF_H('div', { className: 'zwf-save-consequence', 'data-testid': 'workflow-save-consequence' },
+      say('chat.toolCall.workflow.saveRun.consequence', { path: predictedPath }),
+      shadowing === undefined ? null : WF_H('span', { className: 'zwf-save-consequence-extra' }, say('chat.toolCall.workflow.saveRun.shadowing', { text: say(shadowing) }))),
+  WF_H('div', { className: 'zwf-save-foot' },
+    WF_H(WF_UI.Button, {
+      variant: 'subtle',
+      size: 'sm',
+      'data-testid': 'workflow-save-submit',
+      disabled: saving || nameInvalid,
+      onClick: () => {
+        void submit();
+      },
+    }, say(saving
+      ? 'chat.toolCall.workflow.saveRun.submit.saving'
+      : overwrite ? 'chat.toolCall.workflow.saveRun.submit.overwrite' : 'chat.toolCall.workflow.saveRun.submit'))));
+}
+
+/** Whether a `workflows/get` body means "this workflow exists". */
+function wfSaveFound(payload) {
+  if (payload === null || typeof payload !== 'object') return false;
+  if (payload.ok === false) return false;
+  return payload.ok === true || typeof payload.path === 'string';
+}
+
+/* ---------------------------------- surface -------------------------------- */
+
+/** The trailing save action of a run's header. */
+WF_SAVE.Slot = WfSaveSlot;
+
+/** The popover on its own, for a surface that owns the trigger. */
+WF_SAVE.Popover = WfSavePopover;
+
+/* ---------------------------------- styles --------------------------------- */
+
+const WF_SAVE_CSS = `
+.zwf-save-slot{display:inline-flex;align-items:center;gap:6px;flex:none}
+.zwf-save-chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-state-success-primary) 12%,transparent);color:var(--dsw-alias-state-success-primary);font-size:12px;line-height:18px;cursor:pointer}
+.zwf-save-chip:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.zwf-save-pop{position:absolute;z-index:70;top:calc(100% + 6px);right:0;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;width:min(320px,calc(100vw - 16px));padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:0 14px 40px rgb(0 0 0 / .22)}
+.zwf-save-head{font-size:13px;line-height:20px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.zwf-save-lead{box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
+.zwf-save-lead:hover:not(:disabled){border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2)}
+.zwf-save-lead:disabled{opacity:.6;cursor:default}
+.zwf-save-lead:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-save-lead-label{font-size:12.5px;line-height:18px;font-weight:500}
+.zwf-save-lead-hint{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-save-or{display:flex;align-items:center;gap:8px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.zwf-save-rule{flex:1;height:1px;background:var(--dsw-alias-border-l1)}
+.zwf-save-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-save-label{font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-primary)}
+.zwf-save-input-wrap{position:relative;display:block;min-width:0}
+.zwf-save-input{box-sizing:border-box;width:100%;height:30px;padding:0 58px 0 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;line-height:20px}
+.zwf-save-input:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px;border-color:transparent}
+.zwf-save-input-invalid{border-color:var(--dsw-alias-state-error-primary)}
+.zwf-save-suffix{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);pointer-events:none}
+.zwf-save-helper{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-save-helper-invalid{color:var(--dsw-alias-state-error-primary)}
+.zwf-save-seg{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);align-self:flex-start;max-width:100%}
+.zwf-save-seg-item{box-sizing:border-box;height:26px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:18px;font-weight:500;white-space:nowrap;cursor:pointer}
+.zwf-save-seg-item:hover{color:var(--dsw-alias-label-primary)}
+.zwf-save-seg-item:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-save-seg-item-active{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.zwf-save-textarea{box-sizing:border-box;width:100%;min-height:52px;padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;line-height:18px;resize:vertical}
+.zwf-save-textarea:focus{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-1px;border-color:transparent}
+.zwf-save-failure{margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
+.zwf-save-overwrite{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid color-mix(in oklab,var(--dsw-alias-state-warn-primary) 40%,transparent);border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 10%,transparent)}
+.zwf-save-overwrite-line{margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-primary)}
+.zwf-save-consequence{display:flex;flex-direction:column;gap:2px;margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.zwf-save-consequence-extra{color:var(--dsw-alias-label-secondary)}
+.zwf-save-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+`;
+
+WF_STYLE_PARTS.push(WF_SAVE_CSS);
+
 /* ---- client-src/60-settings.js ---- */
-/* Settings row for the dynamic-workflow mode. */
+/* Settings row for dynamic workflows.
+ *
+ * One `settings.general.item` row: the title and the product description on the left, a three-way
+ * selector on the right, and under it the explanation of the mode that is currently chosen. A
+ * choice saves immediately; while it saves the control is disabled, and a failed save keeps the
+ * previous choice on screen next to the failure.
+ */
 
 const WF_SETTINGS = {};
 
 /** The three modes the Host accepts, in selector order. */
 const WF_SETTINGS_MODES = ['disabled', 'onDemand', 'alwaysOn'];
 
-/** Copy from the settings-row dictionary, with the compiled English text as fallback. */
+/** Mode assumed when the Host publishes none; matches the facade default. */
+const WF_SETTINGS_DEFAULT_MODE = 'alwaysOn';
+
+/** Copy from the workspace dictionary, with the compiled English text as fallback. */
 function wfSettingsSay(t, key, params) {
   return WF_UI.say(t, UI_EN, key, params);
 }
 
+/** The mode name of the selector: `settings.dynamicWorkflow.option.<mode>`. */
+function wfSettingsModeLabel(t, mode) {
+  return wfSettingsSay(t, `settings.dynamicWorkflow.option.${mode}`);
+}
+
+/** The policy request that mirrors one selector choice. */
+function wfSettingsPolicy(mode) {
+  return mode === 'disabled' ? { enabled: false } : { enabled: true, mode };
+}
+
+/** The selector choice a policy payload means. */
+function wfSettingsMode(payload) {
+  const record = payload !== null && typeof payload === 'object' ? payload : {};
+  if (record.enabled === false) return 'disabled';
+  return typeof record.mode === 'string' && WF_SETTINGS_MODES.includes(record.mode) ? record.mode : WF_SETTINGS_DEFAULT_MODE;
+}
+
 /**
- * One General Settings row: title and explanation on the left, a three-way mode selector on the
- * right. A choice saves immediately; while it saves the control is disabled, and a failure keeps
- * the previous value on screen next to the error.
- * @param {object} props slot props: `t`
+ * @param {object} props slot props: `t`, and optionally `projectRoot`
  */
-function WorkflowModeRow(props) {
+function WfSettingsRow(props) {
   const t = typeof props?.t === 'function' ? props.t : undefined;
   const say = (key, params) => wfSettingsSay(t, key, params);
-  const loaded = useWfAsync(() => WF_API.mode(), []);
+  const projectRoot = typeof props?.projectRoot === 'string' && props.projectRoot !== '' ? props.projectRoot : undefined;
+  const loaded = useWfAsync(() => WF_API.policy({ projectRoot }), [projectRoot]);
   const [saved, setSaved] = React.useState(null);
   const [pending, setPending] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
@@ -4452,18 +12518,19 @@ function WorkflowModeRow(props) {
 
   React.useEffect(() => {
     if (payload === null || typeof payload !== 'object') return;
-    const mode = typeof payload.mode === 'string' && WF_SETTINGS_MODES.includes(payload.mode) ? payload.mode : 'alwaysOn';
     setSaved({
-      mode,
+      mode: wfSettingsMode(payload),
+      defaultMode: typeof payload.default === 'string' && WF_SETTINGS_MODES.includes(payload.default)
+        ? payload.default
+        : WF_SETTINGS_DEFAULT_MODE,
       effective: payload.effective === 'restart' ? 'restart' : 'immediate',
       writable: payload.writable !== false,
     });
   }, [payload]);
 
-  const mode = pending ?? (saved === null ? 'alwaysOn' : saved.mode);
-  const writable = saved === null
-    ? payload === null || typeof payload !== 'object' || payload.writable !== false
-    : saved.writable !== false;
+  const mode = pending ?? (saved === null ? WF_SETTINGS_DEFAULT_MODE : saved.mode);
+  const defaultMode = saved === null ? WF_SETTINGS_DEFAULT_MODE : saved.defaultMode;
+  const writable = saved === null ? true : saved.writable !== false;
   const loading = saved === null && loaded.loading;
   const loadError = saved === null && loaded.error !== undefined;
   const restart = saved !== null && saved.effective === 'restart';
@@ -4474,18 +12541,19 @@ function WorkflowModeRow(props) {
     setSaving(true);
     setFailure(null);
     try {
-      const result = await WF_API.setMode(next);
-      const savedMode = result !== null && typeof result === 'object' && typeof result.mode === 'string' && WF_SETTINGS_MODES.includes(result.mode)
-        ? result.mode
-        : next;
+      const result = await WF_API.setPolicy({ projectRoot, ...wfSettingsPolicy(next) });
+      const record = result !== null && typeof result === 'object' ? result : {};
+      // The save response reports the workspace and whether the choice needs a restart; the mode
+      // itself is the one that was just accepted, so the selector keeps the user's choice.
       setSaved({
-        mode: savedMode,
-        effective: result !== null && typeof result === 'object' && result.effective === 'restart' ? 'restart' : 'immediate',
+        mode: next,
+        defaultMode,
+        effective: record.effective === 'restart' ? 'restart' : 'immediate',
         writable,
       });
     } catch (error) {
-      console.warn('zcode-workflow: saving the dynamic-workflow mode failed', error);
-      setFailure(say('settingsRow.saveError'));
+      console.warn('zcode-workflow: saving the dynamic workflow setting failed', error);
+      setFailure(say('settings.dynamicWorkflow.saveError'));
     } finally {
       setSaving(false);
       setPending(null);
@@ -4497,46 +12565,57 @@ function WorkflowModeRow(props) {
     control = WF_H(WF_UI.Spinner);
   } else if (loadError) {
     control = WF_H(WF_FRAGMENT, null,
-      WF_H('span', { className: 'zwf-set-error', role: 'alert' }, say('settingsRow.loadError')),
+      WF_H('span', { className: 'zwf-set-error', role: 'alert' }, say('settings.dynamicWorkflow.loadError')),
       WF_H(WF_UI.Button, {
         variant: 'subtle',
         size: 'sm',
         onClick: () => loaded.reload(),
-      }, say('settingsRow.retry')));
+      }, say('settings.dynamicWorkflow.retry')));
   } else {
-    control = WF_H('div', { className: 'zwf-seg', role: 'radiogroup', 'aria-label': say('settingsRow.ariaLabel') },
-      WF_SETTINGS_MODES.map((option) => WF_H('button', {
-        key: option,
-        type: 'button',
-        role: 'radio',
-        'aria-checked': mode === option,
-        className: `zwf-seg-item${mode === option ? ' zwf-seg-item-active' : ''}`,
-        disabled: saving || writable !== true || saved === null,
-        onClick: () => {
-          void choose(option);
-        },
-      }, say(`settingsRow.option.${option}`))));
+    control = WF_H('div', {
+      className: 'zwf-set-seg',
+      role: 'radiogroup',
+      'aria-label': say('settings.dynamicWorkflow'),
+    }, WF_SETTINGS_MODES.map((option) => WF_H('button', {
+      key: option,
+      type: 'button',
+      role: 'radio',
+      'aria-checked': mode === option,
+      'data-testid': `workflow-settings-mode-${option}`,
+      className: `zwf-set-seg-item${mode === option ? ' zwf-set-seg-item-active' : ''}`,
+      disabled: saving || writable !== true || saved === null,
+      onClick: () => {
+        void choose(option);
+      },
+    },
+    WF_H('span', { className: 'zwf-set-seg-label' }, wfSettingsModeLabel(t, option)),
+    option === defaultMode ? WF_H('span', { className: 'zwf-set-seg-tag' }, say('settings.dynamicWorkflow.defaultTag')) : null)));
   }
 
-  return WF_H('div', { className: 'zwf-set-row' },
+  return WF_H('div', { className: 'zwf-set-row', 'data-testid': 'workflow-settings-row' },
     WF_H('div', { className: 'zwf-set-main' },
-      WF_H('div', { className: 'zwf-set-title' }, say('settingsRow.title')),
-      WF_H('div', { className: 'zwf-set-desc' }, say('settingsRow.description')),
-      loading ? null : WF_H('div', { className: 'zwf-set-detail' }, say(`settingsRow.option.${mode}.description`)),
-      restart && loading === false ? WF_H('div', { className: 'zwf-set-note' }, say('settingsRow.restart')) : null,
+      WF_H('div', { className: 'zwf-set-title' }, say('settings.dynamicWorkflow')),
+      WF_H('div', { className: 'zwf-set-desc' }, say('settings.dynamicWorkflowDescription')),
+      loading ? null : WF_H('div', { className: 'zwf-set-detail' }, wfSettingsSay(t, `settings.dynamicWorkflow.option.${mode}.description`)),
+      restart && loading === false ? WF_H('div', { className: 'zwf-set-note' }, say('settings.dynamicWorkflow.restart')) : null,
       saved !== null && saved.writable === false
-        ? WF_H('div', { className: 'zwf-set-note' }, say('settingsRow.readOnly'))
+        ? WF_H('div', { className: 'zwf-set-note' }, say('settings.dynamicWorkflow.readOnly'))
         : null,
       failure === null ? null : WF_H('div', { className: 'zwf-set-error', role: 'alert' }, failure)),
     WF_H('div', { className: 'zwf-set-control' },
       control,
       saving
-        ? WF_H('span', { className: 'zwf-set-saving' }, WF_H(WF_UI.Spinner), say('settingsRow.saving'))
+        ? WF_H('span', { className: 'zwf-set-saving' }, WF_H(WF_UI.Spinner), say('settings.dynamicWorkflow.saving'))
         : null));
 }
 
 /* -------------------------------- register --------------------------------- */
 
+/**
+ * Register the settings row.
+ * @param {object} ctx client plugin context
+ * @param {(callback: Function, label?: string) => unknown} effect effect registrar
+ */
 WF_SETTINGS.register = function register(ctx, effect) {
   if (ctx === null || typeof ctx !== 'object') return;
   const slots = ctx.slots;
@@ -4546,13 +12625,13 @@ WF_SETTINGS.register = function register(ctx, effect) {
     id: 'dynamic-workflow',
     order: 60,
     locale: UI_NS,
-  }, WorkflowModeRow));
+  }, WfSettingsRow));
 };
 
 /* ---------------------------------- styles --------------------------------- */
 
 const WF_SETTINGS_CSS = `
-.zwf-set-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:.5px solid var(--dsw-alias-border-l2)}
+.zwf-set-row{box-sizing:border-box;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:16px 0;border-bottom:.5px solid var(--dsw-alias-border-l2)}
 .zwf-set-row:last-child{border-bottom:0}
 .zwf-set-main{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
 .zwf-set-title{font-size:14px;line-height:20px;font-weight:500;color:var(--dsw-alias-label-primary)}
@@ -4562,25 +12641,30 @@ const WF_SETTINGS_CSS = `
 .zwf-set-error{font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
 .zwf-set-control{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;max-width:100%}
 .zwf-set-saving{display:inline-flex;align-items:center;gap:6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}
-.zwf-seg{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);max-width:100%}
-.zwf-seg-item{box-sizing:border-box;height:28px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;font-weight:500;white-space:nowrap;cursor:pointer}
-.zwf-seg-item:hover:not(:disabled){color:var(--dsw-alias-label-primary)}
-.zwf-seg-item:disabled{opacity:.5;cursor:default}
-.zwf-seg-item:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.zwf-seg-item-active{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
-@media (max-width:560px){.zwf-set-row{flex-direction:column;align-items:stretch;gap:12px}.zwf-set-control{align-items:flex-start}.zwf-seg{flex-wrap:wrap}}
+.zwf-set-seg{display:inline-flex;align-items:center;gap:2px;padding:2px;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2);max-width:100%}
+.zwf-set-seg-item{box-sizing:border-box;display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;font-weight:500;white-space:nowrap;cursor:pointer}
+.zwf-set-seg-item:hover:not(:disabled){color:var(--dsw-alias-label-primary)}
+.zwf-set-seg-item:disabled{opacity:.5;cursor:default}
+.zwf-set-seg-item:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-set-seg-item-active{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 2px rgb(0 0 0 / .08)}
+.zwf-set-seg-label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.zwf-set-seg-tag{flex:none;height:16px;padding:0 5px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:16px;font-weight:400}
+@media (max-width:560px){.zwf-set-row{flex-direction:column;align-items:stretch;gap:12px}.zwf-set-control{align-items:flex-start}.zwf-set-seg{flex-wrap:wrap}}
 `;
 
 WF_STYLE_PARTS.push(WF_SETTINGS_CSS);
 
 /* ---- client-src/70-status.js ---- */
-/* Session header entry: the open session's workflow runs.
+/* Session header entry: the open session's workflow runs, as the status panel shows them.
  *
- * Registers one `conversation.session.header.utilities` list item (id `workflow-status`, order -4)
- * and renders a compact trigger with a non-portal panel beside it: running runs first, the most
- * recent ended runs below, and a footer that opens the workflow directory. A session without runs
- * renders nothing at all, and a failing route only warns in the console — this entry sits in every
- * session header, so it must never grow a permanent error banner. */
+ * The entry is one compact island button carrying the live count; beside it sits a non-portal
+ * panel with three views of the same run list:
+ *   - `live`: one island pill per running run (name, elapsed, phase progress, stop) and one
+ *     background-result card per run that ended or is blocked, stalled or waiting on an answer;
+ *   - `directory`: the conversation's run directory, split into running and ended sections.
+ * A session without runs renders nothing at all, and a failing route only warns in the console —
+ * this entry sits in every session header, so it must never grow a permanent error banner.
+ */
 
 /** The session status entry: `register(ctx, effect)` is called by the client entry. */
 const WF_STATUS = {};
@@ -4589,8 +12673,12 @@ const WF_STATUS = {};
 const WF_STATUS_RUN_LIMIT = 20;
 /** Poll interval for the session's run catalog. */
 const WF_STATUS_POLL_MS = 5000;
-/** Ended runs listed in the panel; the directory holds the full history. */
+/** Ended runs listed in one panel view. */
 const WF_STATUS_ENDED_ROWS = 5;
+/** A run with no success for this long is reported as stalled. */
+const WF_STATUS_STALL_MS = 10 * 60 * 1000;
+/** Lamps of the inline phase rail before the rest collapse into a counter. */
+const WF_STATUS_RAIL = 6;
 
 /**
  * Live UI-dictionary translator, bound when the header entry registers.
@@ -4602,7 +12690,10 @@ var WF_STATUS_UI = undefined;
 /** One console warning per distinct failure, so a failing route cannot flood a busy session. */
 const WF_STATUS_WARNED = new Set();
 
-/** UI copy with the English dictionary as the fallback. */
+/**
+ * UI copy with the English dictionary as the fallback.
+ * The tool cards call this too, so the name and the signature are part of the client contract.
+ */
 function wfUiCopy(key, params) {
   return WF_UI.say(WF_STATUS_UI, UI_EN, key, params);
 }
@@ -4618,144 +12709,496 @@ function wfStatusWarn(scope, error) {
   console.warn(`zcode-workflow: ${scope} failed`, error);
 }
 
-/** Open one run in the right Sidebar detail. False while the detail surface is unavailable. */
-function wfStatusOpenRun(runId, sessionId) {
-  if (typeof runId !== 'string' || runId === '') return false;
-  if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return false;
-  try {
-    WF_DETAIL.open({ runId, sessionId });
-    return true;
-  } catch (error) {
-    wfStatusWarn('run detail', error);
-    return false;
-  }
+/** Copy of this surface; the bound translator wins when the slot did not pass one. */
+function wfStatusSay(t, key, params) {
+  const translate = typeof t === 'function' ? t : WF_STATUS_UI;
+  return WF_UI.say(translate, UI_EN, key, params);
 }
 
 /* ---------------------------------- readers --------------------------------- */
 
-/** One run object from the wire, when it is an object. */
-function wfStatusRunRow(value) {
+/**
+ * One run row. The host publishes camelCase snapshots and summaries; the older snake_case spelling
+ * is still read so a partially upgraded host keeps rendering.
+ */
+function wfStatusRun(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined;
 }
 
-/** One finite timestamp, or 0. */
-function wfStatusTime(value) {
-  const time = Number(value);
-  return Number.isFinite(time) && time > 0 ? time : 0;
+function wfStatusText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+  return '';
 }
 
-/** When a run settled: its finish time, or its start time while it has none. */
+function wfStatusNumber(...values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+}
+
+function wfStatusList(value) {
+  return Array.isArray(value) ? value.filter((entry) => wfStatusRun(entry) !== undefined) : [];
+}
+
+/** The run identity. */
+function wfStatusId(run) {
+  return wfStatusText(run?.runId, run?.id);
+}
+
+/** The run's display name; the product fallback keeps an unnamed run readable. */
+function wfStatusName(run, t) {
+  return wfStatusText(run?.label, run?.name, run?.title) || wfStatusSay(t, 'hub.common.scriptFallback');
+}
+
+/** The normalized run state. */
+function wfStatusState(run) {
+  const status = wfStatusText(run?.status);
+  if (status === 'pending' || status === 'running') return status;
+  if (status === 'completed' || status === 'errored' || status === 'stopped' || status === 'superseded') return status;
+  return 'unknown';
+}
+
+/** Terminal states: a run here keeps no live progress. */
+function wfStatusTerminal(state) {
+  return state === 'completed' || state === 'errored' || state === 'stopped' || state === 'superseded' || state === 'unknown';
+}
+
+/** When a run settled: its finish time, or its last update while it has none. */
 function wfStatusSettledAt(run) {
-  const finished = wfStatusTime(run.finishedAt);
-  return finished > 0 ? finished : wfStatusTime(run.createdAt);
+  const finished = wfStatusNumber(run?.finishedAt, run?.updatedAt);
+  return finished > 0 ? finished : wfStatusNumber(run?.createdAt);
+}
+
+/** When a run started. */
+function wfStatusStartedAt(run) {
+  return wfStatusNumber(run?.createdAt, run?.startedAt, run?.updatedAt);
+}
+
+/** Localized status word of one run. */
+function wfStatusWord(t, state) {
+  const key = `chat.toolCall.workflow.run.status.${state}`;
+  return Object.prototype.hasOwnProperty.call(UI_EN, key)
+    ? wfStatusSay(t, key)
+    : wfStatusSay(t, 'chat.toolCall.workflow.card.ended');
+}
+
+/** Localized stop reason, when the run recorded one. */
+function wfStatusStopReason(t, run) {
+  const reason = wfStatusText(run?.stopReason);
+  const key = `chat.toolCall.workflow.run.stopReason.${reason}`;
+  return reason !== '' && Object.prototype.hasOwnProperty.call(UI_EN, key) ? wfStatusSay(t, key) : '';
+}
+
+/** The hole rows of one run. */
+function wfStatusHoles(run) {
+  return wfStatusList(run?.holes).map((hole) => ({
+    id: wfStatusText(hole.siteId, hole.id, hole.name),
+    name: wfStatusText(hole.name, hole.siteId, hole.id),
+    status: wfStatusText(hole.status),
+    prompt: wfStatusText(hole.prompt, hole.question),
+    draftPath: wfStatusText(hole.draftPath, hole.draft_path),
+    since: wfStatusNumber(hole.waitingSince, hole.reachedAt, hole.createdAt),
+  }));
+}
+
+/** The questions a run is waiting on. */
+function wfStatusQuestions(run) {
+  return wfStatusList(run?.pendingQuestions);
+}
+
+/** The questions a run has already had answered. */
+function wfStatusAnswered(run) {
+  return wfStatusList(run?.answeredQuestions);
+}
+
+/** One question row: the prompt plus the context the agent gave it. */
+function wfStatusQuestionText(question) {
+  const text = wfStatusText(question?.prompt, question?.question, question?.text, question?.title);
+  return text;
+}
+
+/** The artifact summaries of one run. */
+function wfStatusArtifacts(run) {
+  return wfStatusList(run?.artifacts);
+}
+
+/** Steps counted from the node table, when the host published one. */
+function wfStatusSteps(run) {
+  const nodes = wfStatusList(run?.nodes);
+  if (nodes.length === 0) return undefined;
+  let done = 0;
+  for (const node of nodes) {
+    if (node.status === 'settled' || node.settled === true) done += 1;
+  }
+  return { done, total: nodes.length };
+}
+
+/** Names of the phases currently executing. */
+function wfStatusRunningPhases(run) {
+  const rows = [];
+  for (const phase of wfStatusList(run?.phases)) {
+    const state = wfStatusText(phase.status);
+    const name = wfStatusText(phase.name, phase.id);
+    if (name !== '' && (state === 'running' || state === 'current')) rows.push(name);
+  }
+  if (rows.length === 0) {
+    const current = wfStatusText(run?.currentPhase);
+    if (current !== '') rows.push(current);
+  }
+  return rows;
+}
+
+/**
+ * The progress line of one island pill (J.1 `R8t`): running phases, else the step tally, else the
+ * status word.
+ */
+function wfStatusProgress(t, run) {
+  const phases = wfStatusRunningPhases(run);
+  if (phases.length > 0) return { text: phases.join(' \u2225 '), rail: wfStatusList(run?.phases) };
+  const steps = wfStatusSteps(run);
+  if (steps !== undefined) {
+    return { text: wfStatusSay(t, 'chat.toolCall.workflow.card.steps', { done: steps.done, total: steps.total }) };
+  }
+  return { text: wfStatusWord(t, wfStatusState(run)) };
 }
 
 /**
  * Split one `/runs` payload into the two groups the panel shows.
- * Running runs keep their start order; ended runs are newest first and capped.
  * @param {unknown} payload `{ runs, truncated }` response body
- * @returns {{ running: object[], ended: object[], endedTotal: number }} grouped rows
  */
-function wfStatusRunGroups(payload) {
-  const rows = wfStatusRunRow(payload) !== undefined && Array.isArray(payload.runs) ? payload.runs : [];
+function wfStatusGroups(payload) {
+  const record = wfStatusRun(payload) ?? {};
+  const rows = Array.isArray(record.runs) ? record.runs : Array.isArray(record.entries) ? record.entries : [];
   const running = [];
   const ended = [];
   for (const row of rows) {
-    const run = wfStatusRunRow(row);
+    const run = wfStatusRun(row);
     if (run === undefined) continue;
-    if (typeof run.id !== 'string' || run.id === '') continue;
-    if (run.status === 'running' || run.status === 'pending') running.push(run);
+    const id = wfStatusId(run);
+    if (id === '') continue;
+    const state = wfStatusState(run);
+    if (state === 'running' || state === 'pending') running.push(run);
     else ended.push(run);
   }
-  running.sort((left, right) => wfStatusTime(left.createdAt) - wfStatusTime(right.createdAt));
+  running.sort((left, right) => wfStatusStartedAt(left) - wfStatusStartedAt(right));
   ended.sort((left, right) => wfStatusSettledAt(right) - wfStatusSettledAt(left));
-  return { running, ended: ended.slice(0, WF_STATUS_ENDED_ROWS), endedTotal: ended.length };
+  return {
+    running,
+    ended,
+    endedTotal: ended.length,
+    truncated: record.truncated === true,
+  };
 }
 
-const WF_STATUS_WORDS = {
-  pending: 'status.run.pending',
-  running: 'status.run.running',
-  completed: 'status.run.completed',
-  errored: 'status.run.errored',
-  stopped: 'status.run.stopped',
-  superseded: 'status.run.superseded',
-};
-
-/** Localized status word of one run row. */
-function wfStatusRunWord(say, status) {
-  return say(WF_STATUS_WORDS[status] ?? 'status.run.unknown');
+/** Whether one run waits on something the user may resolve. */
+function wfStatusNotice(t, run, now) {
+  const state = wfStatusState(run);
+  const holes = wfStatusHoles(run);
+  const waitingHoles = holes.filter((hole) => hole.status === '' || hole.status === 'waiting' || hole.status === 'open');
+  const questions = wfStatusQuestions(run);
+  const stopReason = wfStatusStopReason(t, run);
+  if (!wfStatusTerminal(state)) {
+    const health = wfStatusRun(run?.health) ?? {};
+    const lastSuccess = wfStatusNumber(health.lastProgressAt, health.lastSuccessAt, run?.updatedAt);
+    const stalled = health.stalled === true || (lastSuccess > 0 && now - lastSuccess > WF_STATUS_STALL_MS);
+    if (stalled) {
+      return {
+        kind: 'stall',
+        label: wfStatusSay(t, 'chat.backgroundResult.workflow.stall'),
+        minutes: Math.max(1, Math.round((now - lastSuccess) / 60000)),
+        reason: wfStatusText(health.lastError, health.retryReason, run?.error),
+        cap: wfStatusNumber(health.concurrencyCeiling, run?.concurrencyCeiling),
+      };
+    }
+    if (questions.length > 0) {
+      const asked = wfStatusQuestionText(questions[0]);
+      const waiting = wfStatusText(questions[0]?.status) !== 'answered';
+      return {
+        kind: 'escalation',
+        label: wfStatusSay(t, waiting
+          ? 'chat.backgroundResult.workflow.waiting'
+          : 'chat.backgroundResult.workflow.asked'),
+        question: asked,
+        context: wfStatusText(questions[0]?.context, questions[0]?.background),
+        waited: wfStatusNumber(questions[0]?.askedAt, questions[0]?.createdAt, run?.updatedAt),
+      };
+    }
+    const answered = wfStatusAnswered(run);
+    if (answered.length > 0) {
+      return {
+        kind: 'escalation',
+        label: wfStatusSay(t, 'chat.backgroundResult.workflow.answered'),
+        question: wfStatusQuestionText(answered[0]),
+        context: wfStatusText(answered[0]?.context, answered[0]?.background),
+      };
+    }
+    if (waitingHoles.length > 0) {
+      return {
+        kind: 'blocked',
+        label: wfStatusSay(t, 'chat.backgroundResult.workflow.blocked'),
+        holes: waitingHoles.length,
+        waited: wfStatusNumber(waitingHoles[0]?.since, run?.updatedAt),
+      };
+    }
+    return undefined;
+  }
+  return {
+    kind: state === 'unknown' ? 'stopped' : state,
+    label: wfStatusNoticeLabel(t, state),
+    stopReason,
+    ...(typeof run?.error === 'string' && run.error !== '' ? { error: run.error } : {}),
+  };
 }
 
-/** Display name of one run row; an unnamed run keeps the product fallback. */
-function wfStatusRunName(say, run) {
-  return typeof run.name === 'string' && run.name.trim() !== '' ? run.name : say('status.name.fallback');
+/** Label of one terminal background result; unknown and superseded fall back to "ended". */
+function wfStatusNoticeLabel(t, state) {
+  const key = `chat.backgroundResult.workflow.${state}`;
+  return Object.prototype.hasOwnProperty.call(UI_EN, key)
+    ? wfStatusSay(t, key)
+    : wfStatusSay(t, 'chat.toolCall.workflow.card.ended');
 }
 
 /* -------------------------------- rendering -------------------------------- */
 
-/** One run row: open its detail, and stop it while it is live. */
-function WfStatusRun(props) {
-  const run = props.run;
-  const live = run.status === 'running' || run.status === 'pending';
-  const settledAt = wfStatusSettledAt(run);
-  const time = run.status === 'running'
-    ? WF_UI.duration(run.createdAt, props.now)
-    : live || settledAt === 0
-      ? ''
-      : WF_UI.relative(props.translate, UI_EN, settledAt, props.now);
-  const name = wfStatusRunName(props.say, run);
-  const word = wfStatusRunWord(props.say, run.status);
-  const tone = WF_UI.statusTone(run.status);
-  const label = `${props.say('card.detailAction')} · ${name} · ${word}`;
-  const stopping = props.stopping === true;
-
+/** One island pill of a live run (J.1). */
+function WfStatusIsland(props) {
+  const { t, run, now } = props;
+  const say = (key, params) => wfStatusSay(t, key, params);
+  const state = wfStatusState(run);
+  const id = wfStatusId(run);
+  const name = wfStatusName(run, t);
+  const started = wfStatusStartedAt(run);
+  const elapsed = started === 0 ? '' : WF_UI.duration(started, now);
+  const progress = wfStatusProgress(t, run);
+  const word = wfStatusWord(t, state);
+  const label = `${say('chat.toolCall.workflow.openRunDetails')} \u00b7 ${name} \u00b7 ${word}${progress.text === '' ? '' : ` \u00b7 ${progress.text}`}`;
+  const tone = WF_UI.statusTone(state);
   return WF_H('li', {
-    className: 'zwf-runs-row',
-    'data-workflow-run-id': run.id,
-    'data-workflow-run-status': typeof run.status === 'string' ? run.status : 'unknown',
+    className: 'zwf-island',
+    'data-background-task-kind': 'workflow',
+    'data-workflow-run-id': id,
+    'data-work-id': id,
+    'data-work-status': state,
+    'data-testid': 'workflow-run-row',
   },
-  WF_H('button', {
-    type: 'button',
-    className: 'zwf-runs-open',
-    'aria-label': label,
-    title: name,
-    onClick: () => props.onOpen(run),
-  },
-  WF_H(WF_UI.StatusDot, { tone }),
-  WF_H('span', { className: 'zwf-runs-name' }, name),
-  WF_H('span', { className: `zwf-status-word zwf-status-word-${tone}` }, word),
-  time === '' ? null : WF_H('span', { className: 'zwf-runs-time' }, time)),
-  props.showStop === true
+  props.openable !== false
     ? WF_H('button', {
       type: 'button',
-      className: 'zwf-runs-stop',
-      disabled: stopping,
-      'aria-label': props.say(stopping ? 'status.stop.pending' : 'status.stop.aria'),
-      title: props.say('status.stop.aria'),
-      onClick: (event) => {
-        event.stopPropagation();
-        props.onStop(run);
-      },
-    },
-    stopping ? WF_H(WF_UI.Spinner) : WF_H(WF_UI.icons.stop, { size: 11 }),
-    WF_H('span', { className: 'zwf-runs-stop-label' }, props.say(stopping ? 'status.stop.pending' : 'status.stop')))
+      className: 'zwf-island-hit',
+      'data-testid': 'workflow-run-details-trigger',
+      'data-workflow-run-id': id,
+      'data-workflow-run-details-trigger': 'true',
+      'aria-label': label,
+      title: name,
+      onClick: () => props.onOpen(run),
+    })
+    : null,
+  WF_H('span', { className: 'zwf-island-glyph' }, WF_H(WF_ICON.workflow, { size: 16 })),
+  WF_H('div', { className: 'zwf-island-main' },
+    WF_H('div', { className: 'zwf-island-line', 'data-workflow-island-line': 'name', 'data-testid': 'workflow-island-line' },
+      WF_H('span', { className: 'zwf-island-name', title: name }, name),
+      elapsed === '' ? null : WF_H('span', { className: 'zwf-island-time', 'data-workflow-run-elapsed': 'true', 'data-testid': 'workflow-run-elapsed' }, elapsed)),
+    WF_H('div', { className: 'zwf-island-line zwf-island-line-phase', 'data-workflow-island-line': 'phase' },
+      progress.rail === undefined
+        ? WF_H(WF_UI.StatusDot, { tone })
+        : WF_H(WfStatusRail, { t, phases: progress.rail }),
+      WF_H('span', { className: 'zwf-island-phase', title: progress.text }, progress.text))),
+  props.stoppable !== false
+    ? WF_H('button', {
+      type: 'button',
+      className: 'zwf-island-stop',
+      'aria-label': say('chat.toolCall.workflow.run.cancel'),
+      title: say('chat.toolCall.workflow.run.cancel'),
+      disabled: props.stopping === true,
+      onClick: () => props.onStop(run),
+    }, props.stopping === true ? WF_H(WF_UI.Spinner) : WF_H(WF_ICON.stop, { size: 11 }))
     : null);
+}
+
+/** The inline phase rail of one island pill: one lamp per phase, the rest counted. */
+function WfStatusRail(props) {
+  const phases = props.phases.slice(0, WF_STATUS_RAIL);
+  const rest = props.phases.length - phases.length;
+  return WF_H('span', { className: 'zwf-rail', 'data-testid': 'workflow-timeline-rail', 'aria-hidden': 'true' },
+    phases.map((phase, index) => {
+      const state = wfStatusText(phase.status);
+      const tone = state === 'done' || state === 'completed' ? 'success' : state === 'running' || state === 'current' ? 'warn' : state === 'failed' || state === 'errored' ? 'error' : 'idle';
+      return WF_H('span', { className: `zwf-rail-lamp zwf-rail-lamp-${tone}`, key: `${wfStatusText(phase.name, phase.id)}:${String(index)}` });
+    }),
+    rest > 0 ? WF_H('span', { className: 'zwf-rail-more' }, `+${String(rest)}`) : null);
+}
+
+/** The background-result card of one run (J.4): eight kinds, one label each. */
+function WfStatusNotice(props) {
+  const { t, run, notice, now } = props;
+  const say = (key, params) => wfStatusSay(t, key, params);
+  const name = wfStatusName(run, t);
+  const word = wfStatusWord(t, wfStatusState(run));
+  const artifacts = wfStatusArtifacts(run);
+
+  let body;
+  if (notice.kind === 'escalation') {
+    const text = notice.question.length > 160 ? `${notice.question.slice(0, 159)}\u2026` : notice.question;
+    body = WF_H('div', { className: 'zwf-notice-body zwf-notice-body-quote', 'data-testid': 'workflow-notification-escalation' },
+      text === '' ? null : WF_H('p', { className: 'zwf-notice-text' }, text),
+      notice.context === undefined || notice.context === '' ? null : WF_H('p', { className: 'zwf-notice-meta' }, notice.context),
+      notice.waited === undefined || notice.waited === 0
+        ? null
+        : WF_H('p', { className: 'zwf-notice-meta' }, say('chat.backgroundResult.workflow.blocked.openFor', { minutes: Math.max(1, Math.round((now - notice.waited) / 60000)) })));
+  } else if (notice.kind === 'stall') {
+    body = WF_H('div', { className: 'zwf-notice-body', 'data-testid': 'workflow-notification-stall' },
+      WF_H('p', { className: 'zwf-notice-text' }, say('chat.backgroundResult.workflow.stall.body', { minutes: notice.minutes })),
+      notice.reason === '' ? null : WF_H('p', { className: 'zwf-notice-meta' }, `${say('chat.backgroundResult.workflow.stall.reason')} \u00b7 ${notice.reason}`),
+      notice.cap === 0 ? null : WF_H('p', { className: 'zwf-notice-meta' }, `${say('chat.backgroundResult.workflow.stall.cap')} \u00b7 ${String(notice.cap)}`));
+  } else if (notice.kind === 'blocked') {
+    const parts = [];
+    if (notice.holes > 0) parts.push(say('chat.permission.workflow.holesCount', { count: notice.holes }));
+    if (notice.waited > 0) parts.push(say('chat.backgroundResult.workflow.blocked.openFor', { minutes: Math.max(1, Math.round((now - notice.waited) / 60000)) }));
+    body = WF_H('div', { className: 'zwf-notice-body', 'data-testid': 'workflow-notification-blocked' },
+      WF_H('p', { className: 'zwf-notice-text' }, parts.join(' \u00b7 ')));
+  } else if (notice.error !== undefined) {
+    body = WF_H('div', { className: 'zwf-notice-body zwf-notice-body-error', 'data-testid': 'workflow-notification-result' },
+      WF_H('p', { className: 'zwf-notice-text' }, notice.error));
+  } else {
+    body = WF_H('div', { className: 'zwf-notice-body', 'data-testid': 'workflow-notification-result' },
+      WF_H('p', { className: 'zwf-notice-meta' }, `${word}${notice.stopReason === '' ? '' : ` \u00b7 ${notice.stopReason}`}`));
+  }
+
+  return WF_H('div', { className: 'zwf-notice', 'data-testid': 'workflow-notification-row', 'data-workflow-run-id': wfStatusId(run) },
+    WF_H('div', { className: 'zwf-notice-head' },
+      WF_H('span', { className: `zwf-notice-glyph zwf-notice-glyph-${WF_UI.statusTone(wfStatusState(run))}` }, WF_H(WF_ICON.workflow, { size: 14 })),
+      WF_H('span', { className: 'zwf-notice-label' }, notice.label),
+      WF_H('span', { className: 'zwf-notice-name', title: name }, `\u00b7 ${name}`),
+      WF_H('span', { className: 'zwf-notice-status' }, word)),
+    artifacts.length === 0
+      ? null
+      : WF_H('div', { className: 'zwf-notice-artifacts', 'data-testid': 'workflow-notification-artifacts' },
+        artifacts.slice(0, 4).map((artifact, index) => WF_H('span', { className: 'zwf-notice-chip', key: `${wfStatusText(artifact.id)}:${String(index)}`, title: wfStatusText(artifact.title, artifact.id) },
+          WF_H('span', { className: 'zwf-notice-chip-glyph' }, WF_H(WF_UI.artifactIcon(wfStatusText(artifact.kind)), { size: 12 })),
+          WF_H('span', { className: 'zwf-notice-chip-text' }, wfStatusText(artifact.title, artifact.id)))),
+        artifacts.length > 4
+          ? WF_H('span', { className: 'zwf-notice-chip zwf-notice-chip-more', key: 'more', 'data-testid': 'workflow-notification-artifacts-more' },
+            say('chat.backgroundResult.workflow.artifacts.more', { count: artifacts.length - 4 }))
+          : null),
+    body,
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-notice-link',
+      onClick: () => props.onOpen(run),
+    }, say('chat.toolCall.workflow.openRunDetails')));
+}
+
+/** The hole notice of one run (F.4f): the hole waiting for the agent's code. */
+function WfStatusHoleNotice(props) {
+  const { t, run, hole, now } = props;
+  const say = (key, params) => wfStatusSay(t, key, params);
+  const name = wfStatusName(run, t);
+  const waited = hole.since === 0 ? '' : WF_UI.duration(hole.since, now);
+  const kindLabel = hole.status === 'filled'
+    ? say('chat.backgroundResult.workflow.hole.filled')
+    : hole.status === 'waiting' || hole.status === '' ? say('chat.backgroundResult.workflow.hole.waiting') : say('chat.backgroundResult.workflow.hole.left');
+  return WF_H('div', { className: 'zwf-notice', 'data-workflow-run-id': wfStatusId(run) },
+    WF_H('div', { className: 'zwf-notice-head' },
+      WF_H('span', { className: 'zwf-notice-glyph zwf-notice-glyph-warn' }, WF_H(WF_ICON.spark, { size: 14 })),
+      WF_H('span', { className: 'zwf-notice-label' }, kindLabel),
+      WF_H('span', { className: 'zwf-notice-name', title: name }, `\u00b7 ${name}`),
+      waited === '' ? null : WF_H('span', { className: 'zwf-notice-status', 'data-testid': 'workflow-hole-notification-waited' },
+        say('chat.toolCall.workflow.hole.waited', { time: waited }))),
+    WF_H('p', { className: 'zwf-notice-title', 'data-testid': 'workflow-hole-notification-name' },
+      say('chat.toolCall.workflow.hole.head.title.untimed', { name: hole.name })),
+    hole.prompt === '' ? null : WF_H('p', { className: 'zwf-notice-text', 'data-testid': 'workflow-hole-notification-body' }, hole.prompt),
+    hole.draftPath === '' ? null : WF_H('p', { className: 'zwf-notice-meta zwf-notice-mono', 'data-testid': 'workflow-hole-notification-draft' }, hole.draftPath),
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-notice-link',
+      onClick: () => props.onOpen(run),
+    }, say('chat.toolCall.workflow.hole.open', { name: hole.name })));
+}
+
+/** One directory row of the run directory (J.3). */
+function WfStatusDirectoryRow(props) {
+  const { t, run, now } = props;
+  const say = (key, params) => wfStatusSay(t, key, params);
+  const state = wfStatusState(run);
+  const name = wfStatusName(run, t);
+  const settled = wfStatusSettledAt(run);
+  const reason = wfStatusStopReason(t, run);
+  const time = settled === 0 ? '' : WF_UI.relative(t, UI_EN, settled, now);
+  const detail = reason === '' ? '' : `\u00b7 ${reason}`;
+  return WF_H('button', {
+    type: 'button',
+    className: 'zwf-dirrow',
+    'data-run-id': wfStatusId(run),
+    'data-run-status': state,
+    'aria-label': say('chat.toolCall.workflow.openRunDetails'),
+    onClick: () => props.onOpen(run),
+  },
+  WF_H('span', { className: 'zwf-dirrow-main' },
+    WF_H('span', { className: 'zwf-dirrow-name', title: name }, name),
+    WF_H('span', { className: 'zwf-dirrow-meta' },
+      WF_H('span', { className: `zwf-dirrow-status zwf-status-word-${WF_UI.statusTone(state)}` }, wfStatusWord(t, state)),
+      detail === '' ? null : WF_H('span', { className: 'zwf-dirrow-reason' }, detail))),
+  time === '' ? null : WF_H('span', { className: 'zwf-dirrow-time' }, time),
+  WF_H('span', { className: 'zwf-dirrow-glyph' }, WF_H(WF_ICON.chevronRight, { size: 14 })));
+}
+
+/** The run directory view (J.3): running and ended sections, with their own empty states. */
+function WfStatusDirectory(props) {
+  const { t, groups, now, error } = props;
+  const say = (key, params) => wfStatusSay(t, key, params);
+  const section = (kind, rows, heading, emptyTestId) => WF_H('section', {
+    className: `zwf-dirsect${kind === 'ended' ? ' zwf-dirsect-ended' : ''}`,
+    'data-testid': 'workflow-directory-section',
+    'data-workflow-directory-section': kind,
+  },
+  WF_H('h3', { className: 'zwf-dirsect-head' },
+    WF_H('span', null, `${heading} \u00b7 ${String(rows.length)}`),
+    WF_H('span', { className: 'zwf-dirsect-count', 'data-testid': `workflow-run-directory-${kind}-count` }, String(rows.length))),
+  rows.length === 0
+    ? WF_H('p', { className: 'zwf-empty-inline', 'data-testid': emptyTestId }, say(kind === 'running' ? 'workflowDirectory.runningEmpty' : 'workflowDirectory.endedEmpty'))
+    : WF_H('div', { className: 'zwf-dirsect-rows' }, rows.map((run) => WF_H(WfStatusDirectoryRow, {
+      key: wfStatusId(run),
+      t,
+      run,
+      now,
+      onOpen: props.onOpen,
+    }))));
+
+  if (error !== undefined && groups.running.length === 0 && groups.ended.length === 0) {
+    return WF_H('div', { className: 'zwf-dirsect', 'data-testid': 'workflow-directory' },
+      WF_H('p', { className: 'zwf-empty-inline', 'data-testid': 'workflow-run-directory-unavailable' }, say('workflowDirectory.unavailable')));
+  }
+  if (groups.running.length === 0 && groups.ended.length === 0) {
+    return WF_H('div', { className: 'zwf-dirsect', 'data-testid': 'workflow-directory' },
+      WF_H('p', { className: 'zwf-empty-inline', 'data-testid': 'workflow-run-directory-empty' }, say('workflowDirectory.empty')));
+  }
+  return WF_H('div', { className: 'zwf-directory', 'data-testid': 'workflow-directory' },
+    section('running', groups.running, say('workflowDirectory.running'), 'workflow-run-directory-running-empty'),
+    section('ended', groups.ended, say('workflowDirectory.ended'), 'workflow-run-directory-ended-empty'),
+    groups.truncated
+      ? WF_H('p', { className: 'zwf-dirsect-note', 'data-testid': 'workflow-run-directory-truncated' },
+        say('workflowDirectory.truncated', { count: WF_STATUS_RUN_LIMIT }))
+      : null);
 }
 
 /**
  * The session header entry.
  * @param {object} props slot standard props: `sessionId`, `t`, and the injected `openDirectory`
  */
-function WorkflowStatusEntry(props) {
-  const safe = wfStatusRunRow(props) !== undefined;
+function WfStatusEntry(props) {
+  const safe = wfStatusRun(props) !== undefined;
   const sessionId = safe && typeof props.sessionId === 'string' ? props.sessionId : '';
-  const translate = safe ? props.t : undefined;
+  const t = safe && typeof props.t === 'function' ? props.t : undefined;
+  const say = (key, params) => wfStatusSay(t, key, params);
   const openDirectory = safe && typeof props.openDirectory === 'function' ? props.openDirectory : undefined;
-  const say = (key, params) => WF_UI.say(translate, UI_EN, key, params);
 
   const [open, setOpen] = React.useState(false);
+  const [view, setView] = React.useState('live');
   const [now, setNow] = React.useState(() => Date.now());
-  const [confirming, setConfirming] = React.useState(undefined);
   const [stopping, setStopping] = React.useState('');
   const rootRef = React.useRef(null);
   const triggerRef = React.useRef(null);
@@ -4769,14 +13212,14 @@ function WorkflowStatusEntry(props) {
       throw error;
     }
   }, [sessionId]);
-  const { data, reload } = useWfPolling(load, [sessionId], WF_STATUS_POLL_MS);
-  const groups = React.useMemo(() => wfStatusRunGroups(data), [data]);
+  const { data, error, reload } = useWfPolling(load, [sessionId], WF_STATUS_POLL_MS);
+  const groups = React.useMemo(() => wfStatusGroups(data), [data]);
   const running = groups.running;
   const live = running.length > 0;
 
   React.useEffect(() => {
     setOpen(false);
-    setConfirming(undefined);
+    setView('live');
     setStopping('');
   }, [sessionId]);
 
@@ -4793,7 +13236,7 @@ function WorkflowStatusEntry(props) {
       setOpen(false);
     };
     const onKeyDown = (event) => {
-      if (event.key !== 'Escape' || confirming !== undefined) return;
+      if (event.key !== 'Escape') return;
       setOpen(false);
       if (triggerRef.current !== null) triggerRef.current.focus();
     };
@@ -4803,19 +13246,25 @@ function WorkflowStatusEntry(props) {
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [open, confirming]);
+  }, [open]);
 
   const openRun = (run) => {
-    if (wfStatusOpenRun(run.id, sessionId)) setOpen(false);
+    if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return;
+    const runId = wfStatusId(run);
+    if (runId === '') return;
+    try {
+      WF_DETAIL.open({ runId, sessionId });
+      setOpen(false);
+    } catch (error) {
+      wfStatusWarn('run detail', error);
+    }
   };
-  const requestStop = (run) => setConfirming(run);
-  const closeConfirm = () => setConfirming(undefined);
-  const confirmStop = () => {
-    const run = confirming;
-    closeConfirm();
-    if (run === undefined) return;
-    setStopping(run.id);
-    WF_API.stopRun({ sessionId, runId: run.id })
+
+  const stopRun = (run) => {
+    const runId = wfStatusId(run);
+    if (runId === '' || stopping !== '') return;
+    setStopping(runId);
+    WF_API.stopRun({ sessionId, runId })
       .catch((error) => wfStatusWarn('stop run', error))
       .then(() => {
         setStopping('');
@@ -4825,55 +13274,15 @@ function WorkflowStatusEntry(props) {
 
   if (sessionId === '' || (running.length === 0 && groups.endedTotal === 0)) return null;
 
-  const triggerLabel = say('status.trigger.aria', { running: running.length, ended: groups.endedTotal });
-  const rows = (list, withStop) => WF_H('ul', { className: 'zwf-runs-list' },
-    list.map((run) => WF_H(WfStatusRun, {
-      key: run.id,
-      run,
-      now,
-      say,
-      translate,
-      showStop: withStop,
-      stopping: stopping === run.id,
-      onOpen: openRun,
-      onStop: requestStop,
-    })));
-
-  const groupsContent = [];
-  if (running.length > 0) {
-    groupsContent.push(WF_H('div', { className: 'zwf-runs-group', key: 'running' },
-      WF_H('div', { className: 'zwf-runs-head' },
-        WF_H('span', { className: 'zwf-runs-head-label' }, say('status.group.running')),
-        WF_H('span', { className: 'zwf-runs-head-count' }, String(running.length))),
-      rows(running, true)));
-  }
-  if (groups.ended.length > 0) {
-    groupsContent.push(WF_H('div', { className: 'zwf-runs-group', key: 'ended' },
-      WF_H('div', { className: 'zwf-runs-head' },
-        WF_H('span', { className: 'zwf-runs-head-label' }, say('status.group.ended')),
-        WF_H('span', { className: 'zwf-runs-head-count' }, String(groups.endedTotal))),
-      rows(groups.ended, false)));
-  }
-
-  const footer = typeof openDirectory === 'function'
-    ? WF_H('button', {
-      type: 'button',
-      className: 'zwf-runs-foot',
-      onClick: () => {
-        setOpen(false);
-        openDirectory();
-      },
-    },
-    WF_H('span', { className: 'zwf-runs-foot-glyph' }, WF_H(WF_UI.icons.folder, { size: 15 })),
-    WF_H('span', { className: 'zwf-runs-foot-label' }, say('status.openDirectory')),
-    WF_H('span', { className: 'zwf-runs-foot-glyph zwf-runs-foot-end' }, WF_H(WF_UI.icons.chevronRight, { size: 14 })))
-    : null;
-
+  const triggerLabel = running.length === 0
+    ? say('chat.statusPanel.workflows')
+    : `${say('chat.statusPanel.workflows')} \u00b7 ${say('chat.statusPanel.workflowsLive', { count: running.length })}`;
   const trigger = WF_H('button', {
     ref: triggerRef,
     type: 'button',
-    className: 'zwf-runs-trigger',
+    className: 'zwf-status-trigger',
     'data-workflow-status-entry': 'true',
+    'data-testid': 'workflow-status-trigger',
     'data-workflow-running-count': String(running.length),
     'aria-label': triggerLabel,
     'aria-haspopup': 'dialog',
@@ -4884,28 +13293,103 @@ function WorkflowStatusEntry(props) {
       setOpen((current) => current !== true);
     },
   },
-  WF_H(WF_UI.icons.workflow, { size: 16 }),
-  running.length > 0 ? WF_H('span', { className: 'zwf-runs-count' }, String(running.length)) : null);
+  WF_H(WF_ICON.workflow, { size: 16 }),
+  running.length > 0 ? WF_H('span', { className: 'zwf-status-count' }, String(running.length)) : null);
+
+  const endedRows = groups.ended.slice(0, WF_STATUS_ENDED_ROWS);
+  const liveNodes = running.map((run) => WF_H(WfStatusIsland, {
+    key: `island-${wfStatusId(run)}`,
+    t,
+    run,
+    now,
+    stopping: stopping === wfStatusId(run),
+    onOpen: openRun,
+    onStop: stopRun,
+  }));
+  const notices = [];
+  for (const run of [...running, ...endedRows]) {
+    const holes = wfStatusHoles(run).filter((hole) => hole.status !== 'filled');
+    if (holes.length > 0) {
+      notices.push(WF_H(WfStatusHoleNotice, {
+        key: `hole-${wfStatusId(run)}`,
+        t,
+        run,
+        hole: holes[0],
+        now,
+        onOpen: openRun,
+      }));
+    }
+    const notice = wfStatusNotice(t, run, now);
+    if (notice === undefined) continue;
+    notices.push(WF_H(WfStatusNotice, {
+      key: `notice-${wfStatusId(run)}`,
+      t,
+      run,
+      notice,
+      now,
+      onOpen: openRun,
+    }));
+  }
+
+  const liveView = WF_H('div', { className: 'zwf-status-view' },
+    WF_H('div', { className: 'zwf-status-head' },
+      WF_H('span', { className: 'zwf-status-title' }, say('chat.statusPanel.workflows')),
+      running.length === 0
+        ? null
+        : WF_H('span', { className: 'zwf-status-trailing' },
+          WF_H(WF_UI.StatusDot, { tone: 'success' }),
+          say('chat.statusPanel.workflowsLive', { count: running.length }))),
+    WF_H('div', { className: 'zwf-status-body', 'data-testid': 'workflow-status-body' },
+      liveNodes.length === 0
+        ? WF_H('p', { className: 'zwf-empty-inline' }, say('workflowDirectory.runningEmpty'))
+        : WF_H('ul', { className: 'zwf-islands', 'data-testid': 'workflow-run-list' }, liveNodes),
+      notices.length === 0 ? null : WF_H('div', { className: 'zwf-notices' }, notices)),
+    WF_H('button', {
+      type: 'button',
+      className: 'zwf-status-foot',
+      'data-testid': 'workflow-run-directory-trigger',
+      onClick: () => setView('directory'),
+    },
+    WF_H('span', { className: 'zwf-status-foot-glyph' }, WF_H(WF_ICON.log, { size: 14 })),
+    WF_H('span', { className: 'zwf-status-foot-label' }, say('chat.statusPanel.endedWorkflows')),
+    WF_H('span', { className: 'zwf-status-foot-count' }, String(groups.endedTotal)),
+    WF_H('span', { className: 'zwf-status-foot-glyph' }, WF_H(WF_ICON.chevronRight, { size: 13 }))));
+
+  const directoryView = WF_H('div', { className: 'zwf-status-view' },
+    WF_H('div', { className: 'zwf-status-head' },
+      WF_H('button', {
+        type: 'button',
+        className: 'zwf-status-back',
+        'aria-label': say('workflowDirectory.title'),
+        title: say('workflowDirectory.title'),
+        onClick: () => setView('live'),
+      },
+      WF_H('span', { className: 'zwf-status-back-glyph' }, WF_H(WF_ICON.chevronRight, { size: 13 })),
+      WF_H('span', { className: 'zwf-status-title' }, say('workflowDirectory.title'))),
+      typeof openDirectory === 'function'
+        ? WF_H('button', {
+          type: 'button',
+          className: 'zwf-status-link',
+          onClick: () => {
+            setOpen(false);
+            openDirectory();
+          },
+        }, WF_H(WF_ICON.external, { size: 12 }))
+        : null),
+    WF_H(WfStatusDirectory, {
+      t,
+      groups: { ...groups, ended: groups.ended.slice(0, WF_STATUS_RUN_LIMIT) },
+      now,
+      error,
+      onOpen: openRun,
+    }));
 
   const panel = open
-    ? WF_H('div', { className: 'zwf-runs-menu', role: 'dialog', 'aria-label': say('status.menu.aria') }, groupsContent, footer)
+    ? WF_H('div', { className: 'zwf-status-menu', role: 'dialog', 'aria-label': say('workflowDirectory.title') },
+      view === 'live' ? liveView : directoryView)
     : null;
 
-  const confirmedRun = confirming;
-  const dialog = WF_H(WF_UI.Modal, {
-    open: confirmedRun !== undefined,
-    title: say('status.stop.title'),
-    closeLabel: say('ui.close'),
-    onClose: closeConfirm,
-    footer: [
-      WF_H(WF_UI.Button, { key: 'cancel', variant: 'ghost', onClick: closeConfirm }, say('ui.cancel')),
-      WF_H(WF_UI.Button, { key: 'stop', variant: 'danger', onClick: confirmStop }, say('status.stop.confirm')),
-    ],
-  },
-  WF_H('p', { className: 'zwf-runs-confirm' }, say('status.stop.body')),
-  confirmedRun === undefined ? null : WF_H('p', { className: 'zwf-runs-confirm-name' }, wfStatusRunName(say, confirmedRun)));
-
-  return WF_H('div', { className: 'zwf-runs-anchor', ref: rootRef }, trigger, panel, dialog);
+  return WF_H('div', { className: 'zwf-status-anchor', ref: rootRef }, trigger, panel);
 }
 
 /* -------------------------------- registration ------------------------------- */
@@ -4913,7 +13397,7 @@ function WorkflowStatusEntry(props) {
 /**
  * Register the session header entry.
  * @param {object} ctx client plugin context
- * @param {(callback: () => (() => void) | void, label?: string) => void} effect effect registrar
+ * @param {(callback: () => (() => void) | void, label?: string) => unknown} effect effect registrar
  */
 WF_STATUS.register = function register(ctx, effect) {
   if (typeof ctx !== 'object' || ctx === null) return;
@@ -4952,57 +13436,139 @@ WF_STATUS.register = function register(ctx, effect) {
         const service = layout();
         if (service === undefined || service === null || typeof service.selectPanel !== 'function') return;
         try {
-          service.selectPanel('zcode-workflow');
+          service.selectPanel(WF_DIRECTORY_PANEL_ID);
         } catch (error) {
           wfStatusWarn('open workflow directory', error);
         }
       },
     }),
-  }, WorkflowStatusEntry));
+  }, WfStatusEntry));
 };
 
 /* ----------------------------------- styles ---------------------------------- */
 
 const WF_STATUS_CSS = `
-.zwf-runs-anchor{position:relative;display:inline-flex;align-items:center;flex:none}
-.zwf-runs-trigger{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;min-width:28px;padding:0 6px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;transition:background-color .12s,color .12s}
-.zwf-runs-trigger:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 7%,transparent);color:var(--dsw-alias-label-primary)}
-.zwf-runs-trigger[aria-expanded=true]{background:color-mix(in oklab,var(--dsw-alias-label-primary) 9%,transparent);color:var(--dsw-alias-label-primary)}
-.zwf-runs-trigger:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
-.zwf-runs-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-brand-primary) 16%,transparent);color:var(--dsw-alias-brand-primary);font-size:11px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
-.zwf-runs-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(320px,calc(100vw - 24px));max-height:min(420px,60vh);overflow-y:auto;padding:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 36px rgb(0 0 0 / .18)}
-.zwf-runs-group{display:flex;flex-direction:column;min-width:0;padding:2px 0}
-.zwf-runs-head{display:flex;align-items:center;gap:6px;padding:6px 8px 4px;font-size:11px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary)}
-.zwf-runs-head-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.zwf-runs-head-count{margin-left:auto;flex:none;font-weight:500;font-variant-numeric:tabular-nums}
-.zwf-runs-list{display:flex;flex-direction:column;gap:1px;margin:0;padding:0;list-style:none}
-.zwf-runs-row{display:flex;align-items:center;gap:2px;min-width:0;border-radius:var(--dsw-radius-sm,8px)}
-.zwf-runs-row:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent)}
-.zwf-runs-open{box-sizing:border-box;display:flex;align-items:center;gap:8px;flex:1;min-width:0;padding:6px 8px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.zwf-runs-open:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
-.zwf-runs-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-primary)}
-.zwf-runs-open .zwf-status-word{flex:none}
-.zwf-runs-time{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.zwf-runs-stop{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;flex:none;height:24px;padding:0 6px;margin-right:2px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:16px;cursor:pointer}
-.zwf-runs-stop:hover:not(:disabled){background:color-mix(in oklab,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-state-error-primary)}
-.zwf-runs-stop:disabled{opacity:.6;cursor:default}
-.zwf-runs-stop:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.zwf-runs-stop .zwf-spinner{width:12px;height:12px}
-.zwf-runs-stop-label{white-space:nowrap}
-.zwf-runs-foot{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;margin-top:2px;padding:8px;border:0;border-top:1px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer;border-radius:0 0 var(--dsw-radius-sm,8px) var(--dsw-radius-sm,8px)}
-.zwf-runs-foot:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent)}
-.zwf-runs-foot:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
-.zwf-runs-foot-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
-.zwf-runs-foot-label{flex:1;min-width:0}
-.zwf-runs-foot-end{margin-left:auto}
-.zwf-runs-confirm{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
-.zwf-runs-confirm-name{margin:0;font-size:13px;line-height:20px;font-weight:500;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.zwf-status-anchor{position:relative;display:inline-flex;align-items:center;flex:none}
+.zwf-status-trigger{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;min-width:28px;padding:0 6px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;transition:background-color .12s,color .12s}
+.zwf-status-trigger:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 7%,transparent);color:var(--dsw-alias-label-primary)}
+.zwf-status-trigger[aria-expanded=true]{background:color-mix(in oklab,var(--dsw-alias-label-primary) 9%,transparent);color:var(--dsw-alias-label-primary)}
+.zwf-status-trigger:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
+.zwf-status-count{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:color-mix(in oklab,var(--dsw-alias-brand-primary) 16%,transparent);color:var(--dsw-alias-brand-primary);font-size:11px;line-height:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.zwf-status-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:70;box-sizing:border-box;display:flex;flex-direction:column;width:min(360px,calc(100vw - 24px));max-height:min(520px,70vh);overflow-y:auto;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 36px rgb(0 0 0 / .18)}
+.zwf-status-view{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-status-head{display:flex;align-items:center;gap:6px;min-width:0;padding:6px 8px 4px}
+.zwf-status-title{font-size:11.5px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.02em}
+.zwf-status-trailing{display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-status-body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-status-back{display:inline-flex;align-items:center;gap:4px;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer}
+.zwf-status-back:hover{color:var(--dsw-alias-label-primary)}
+.zwf-status-back-glyph{display:inline-flex;transform:rotate(180deg)}
+.zwf-status-link{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-left:auto;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.zwf-status-link:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 8%,transparent);color:var(--dsw-alias-label-primary)}
+.zwf-status-foot{box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;height:30px;margin-top:2px;padding:0 8px;border:0;border-top:1px solid var(--dsw-alias-border-l1);border-radius:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}
+.zwf-status-foot:hover{color:var(--dsw-alias-label-primary)}
+.zwf-status-foot-glyph{display:inline-flex;flex:none}
+.zwf-status-foot-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-status-foot-count{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary)}
+.zwf-islands{display:flex;flex-direction:column;gap:2px;margin:0;padding:0;list-style:none}
+.zwf-island{position:relative;display:grid;grid-template-columns:1rem minmax(0,1fr);align-items:center;gap:0 8px;min-width:0;padding:8px;border-radius:var(--dsw-radius-sm,8px)}
+.zwf-island:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent)}
+.zwf-island-hit{position:absolute;inset:0;z-index:0;border:0;border-radius:inherit;background:transparent;cursor:pointer}
+.zwf-island-hit:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.zwf-island-glyph{position:relative;align-self:start;display:inline-flex;margin-top:2px;color:var(--dsw-alias-label-secondary)}
+.zwf-island-main{display:flex;flex-direction:column;gap:2px;min-width:0;padding-right:24px}
+.zwf-island-line{display:flex;align-items:baseline;gap:8px;min-width:0;height:20px;line-height:20px}
+.zwf-island-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
+.zwf-island-time{flex:none;font-size:11.5px;line-height:18px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-island-line-phase{height:18px;font-size:11.5px}
+.zwf-island-phase{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}
+.zwf-rail{display:inline-flex;align-items:center;gap:3px;flex:none}
+.zwf-rail-lamp{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-idle-primary);opacity:.5}
+.zwf-rail-lamp-success{background:var(--dsw-alias-state-success-primary);opacity:1}
+.zwf-rail-lamp-warn{background:var(--dsw-alias-state-warn-primary);opacity:1}
+.zwf-rail-lamp-error{background:var(--dsw-alias-state-error-primary);opacity:1}
+.zwf-rail-more{font-size:10px;line-height:12px;color:var(--dsw-alias-label-secondary)}
+.zwf-island-stop{position:absolute;right:6px;top:6px;z-index:2;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);opacity:0;cursor:pointer;transition:opacity .12s}
+.zwf-island:hover .zwf-island-stop,.zwf-island:focus-within .zwf-island-stop{opacity:1}
+.zwf-island-stop:hover:not(:disabled){color:var(--dsw-alias-state-error-primary)}
+.zwf-island-stop:disabled{opacity:.5;cursor:default}
+.zwf-island-stop:focus-visible{opacity:1;outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.zwf-notices{display:flex;flex-direction:column;gap:4px;margin-top:2px;padding-top:4px;border-top:1px solid var(--dsw-alias-border-l1)}
+.zwf-notice{display:flex;flex-direction:column;gap:4px;min-width:0;padding:8px;border-radius:var(--dsw-radius-sm,8px)}
+.zwf-notice:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 5%,transparent)}
+.zwf-notice-head{display:flex;align-items:center;gap:6px;min-width:0;font-size:11.5px;line-height:17px}
+.zwf-notice-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-notice-glyph-success{color:var(--dsw-alias-state-success-primary)}
+.zwf-notice-glyph-warn{color:var(--dsw-alias-state-warn-primary)}
+.zwf-notice-glyph-error{color:var(--dsw-alias-state-error-primary)}
+.zwf-notice-label{flex:none;font-weight:500;color:var(--dsw-alias-label-primary);white-space:nowrap}
+.zwf-notice-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}
+.zwf-notice-status{margin-left:auto;flex:none;color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.zwf-notice-title{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);overflow-wrap:anywhere}
+.zwf-notice-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.zwf-notice-body-error{padding:6px 8px;border:1px solid color-mix(in oklab,var(--dsw-alias-state-error-primary) 35%,transparent);border-radius:var(--dsw-radius-sm,8px)}
+.zwf-notice-body-quote{padding:6px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1)}
+.zwf-notice-text{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}
+.zwf-notice-meta{margin:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.zwf-notice-mono{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace)}
+.zwf-notice-artifacts{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-width:0}
+.zwf-notice-chip{display:inline-flex;align-items:center;gap:4px;max-width:160px;height:20px;padding:0 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;font-size:10.5px;line-height:18px;color:var(--dsw-alias-label-secondary)}
+.zwf-notice-chip-glyph{display:inline-flex;flex:none}
+.zwf-notice-chip-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-notice-chip-more{border-style:dashed}
+.zwf-notice-link{align-self:flex-start;padding:0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:17px;text-decoration:underline dotted;text-underline-offset:2px;cursor:pointer}
+.zwf-notice-link:hover{color:var(--dsw-alias-label-primary);text-decoration:underline}
+.zwf-directory{display:flex;flex-direction:column;gap:10px;min-width:0;padding:2px 4px 4px}
+.zwf-dirsect{display:flex;flex-direction:column;gap:2px;min-width:0}
+.zwf-dirsect-head{display:flex;align-items:center;gap:6px;margin:0;padding:4px 6px;font-size:11.5px;line-height:16px;font-weight:600;color:var(--dsw-alias-label-secondary)}
+.zwf-dirsect-count{margin-left:auto;font-weight:400;font-variant-numeric:tabular-nums}
+.zwf-dirsect-rows{display:flex;flex-direction:column;gap:1px;min-width:0}
+.zwf-dirrow{box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;min-width:0;padding:7px 8px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.zwf-dirrow:hover{background:color-mix(in oklab,var(--dsw-alias-label-primary) 6%,transparent)}
+.zwf-dirrow:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.zwf-dirrow-main{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.zwf-dirrow-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-primary)}
+.zwf-dirrow-meta{display:flex;align-items:center;gap:6px;min-width:0;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-dirrow-status{flex:none}
+.zwf-dirrow-reason{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.zwf-dirrow-time{flex:none;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);opacity:.85}
+.zwf-dirrow-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}
+.zwf-dirsect-ended{margin-top:6px}
+.zwf-dirsect-note{margin:2px 0 0;padding:0 6px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+@media (prefers-reduced-motion:reduce){.zwf-status-trigger,.zwf-island-stop{transition:none}}
 `;
 
 WF_STYLE_PARTS.push(WF_STATUS_CSS);
 
 /* ---- client-src/90-apply.js ---- */
 /* Client entry: dictionaries, styles and slot registrations. */
+
+/**
+ * Run one surface's slot registration when that surface's part is present.
+ *
+ * Each part declares its own surface object, so a surface that has not been loaded yet (or was
+ * removed) must not break the whole registration pass — hence the guarded read plus the caught
+ * ReferenceError instead of a direct identifier reference.
+ *
+ * @param {() => { register?: (ctx: object, effect: Function) => void } | undefined} read
+ * @param {object} ctx
+ * @param {(callback: Function, label: string) => unknown} effect
+ * @param {string} label
+ */
+function runSurface(read, ctx, effect, label) {
+  let surface;
+  try {
+    surface = read();
+  } catch {
+    return;
+  }
+  if (surface === undefined || surface === null || typeof surface.register !== 'function') return;
+  try {
+    surface.register(ctx, effect);
+  } catch (error) {
+    console.error(`zcode-workflow: ${label} registration failed`, error);
+  }
+}
 
 function apply(ctx) {
   if (typeof ctx !== 'object' || ctx === null) return;
@@ -5047,10 +13613,12 @@ function apply(ctx) {
     }
   });
 
-  if (typeof WF_DETAIL.register === 'function') WF_DETAIL.register(ctx, effect);
-  if (typeof WF_DIRECTORY.register === 'function') WF_DIRECTORY.register(ctx, effect);
-  if (typeof WF_SETTINGS.register === 'function') WF_SETTINGS.register(ctx, effect);
-  if (typeof WF_STATUS.register === 'function') WF_STATUS.register(ctx, effect);
+  runSurface(() => WF_CARDS, ctx, effect, 'tool cards');
+  runSurface(() => WF_PERMISSION, ctx, effect, 'launch confirmation');
+  runSurface(() => WF_DETAIL, ctx, effect, 'run detail');
+  runSurface(() => WF_DIRECTORY, ctx, effect, 'workflow directory');
+  runSurface(() => WF_SETTINGS, ctx, effect, 'settings row');
+  runSurface(() => WF_STATUS, ctx, effect, 'session status');
 }
 
 return {

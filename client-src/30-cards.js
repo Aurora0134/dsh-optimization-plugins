@@ -1,875 +1,687 @@
-/* Workflow tool cards: moved verbatim from the pre-scaffold client.js. */
+/* Workflow tool cards — shared core.
+ *
+ * `WorkflowCard` is the single component on the `tool.call.toolview` slot; the slot keys of
+ * `TOOL_NAMES` all land here and it dispatches per tool. This part owns what every card shares:
+ *
+ *   props    the slot payload, normalized by `wfCardModel`. Hosts deliver either the broker shape
+ *            (`toolName` / `arguments` / `result` / `status` / `session`) or the scaffold block
+ *            shape (`phase` / `block` / `t`), so both are read and either one may be partial:
+ *            a streaming call has arguments but no result, a settled call both.
+ *   copy     the UI_NS dictionary (`locale/ui/cards.json`); bound in `WF_CARDS.register` because a
+ *            card cannot bind a namespace by itself. `props.t` covers the tool-namespace keys.
+ *   data     `31-cache.js` owns the only timers in the card layer; a card subscribes.
+ *   layout   `WfCardShell` (one header row + body) and the run card in `32-run-card.js`.
+ */
 
-    /** Longest text pinned into one body block, and how many result rows a list card shows. */
-    const MAX_SECTION_CHARS = 120000;
-    const MAX_LIST_ROWS = 8;
-    /** Longest text a single row slot carries; the full text stays in the expandable body. */
-    const MAX_ROW_CHARS = 300;
+/** Tool-card surface: the client entry calls `WF_CARDS.register(ctx, effect)` when present. */
+const WF_CARDS = {};
 
-    /** Scoped stylesheet: host theme tokens only, one class per row element. */
-    const CSS = [
-      '.zwf-root{flex-direction:column;display:flex;min-width:0}',
-      '.zwf-row{box-sizing:border-box;align-items:center;display:flex;min-width:0;min-height:calc(24px + var(--dsh-content-font-delta,0px));border-radius:var(--dsw-radius-sm,6px);padding:0 2px}',
-      '.zwf-row[data-expandable=true]{cursor:pointer}',
-      '.zwf-row[data-expandable=true]:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08))}',
-      '.zwf-row:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}',
-      '.zwf-icon{color:var(--dsw-alias-state-business-primary);flex:none;width:calc(16px + var(--dsh-content-font-delta,0px));height:calc(16px + var(--dsh-content-font-delta,0px));align-items:center;justify-content:center;display:inline-flex;margin-right:6px}',
-      '.zwf-title{color:var(--dsw-alias-state-business-primary);flex:none;font-size:var(--dsh-content-font-size-secondary,13px);font-weight:500;line-height:calc(24px + var(--dsh-content-font-delta,0px));white-space:nowrap}',
-      '.zwf-sep{background:var(--dsw-alias-label-caption);border-radius:50%;flex:none;width:2px;height:2px;margin:0 8px}',
-      '.zwf-summary{min-width:0;flex:1;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:var(--dsw-alias-label-secondary);font-size:var(--dsh-content-font-size-secondary,13px);line-height:calc(24px + var(--dsh-content-font-delta,0px))}',
-      '.zwf-detail{min-width:0;flex:none;max-width:38%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:var(--dsw-alias-label-caption);font-size:12px;line-height:calc(24px + var(--dsh-content-font-delta,0px));margin-left:8px}',
-      '.zwf-status{flex:none;max-width:40%;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;color:var(--dsw-alias-label-caption);font-size:12px;line-height:calc(24px + var(--dsh-content-font-delta,0px));margin-left:8px}',
-      '.zwf-mono{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace)}',
-      '.zwf-root[data-state=running] .zwf-status{color:var(--dsw-alias-state-success-primary)}',
-      '.zwf-root[data-state=error] .zwf-summary,.zwf-root[data-state=error] .zwf-detail,.zwf-root[data-state=error] .zwf-status{color:var(--dsw-alias-state-error-primary)}',
-      '.zwf-chevron{color:var(--dsw-alias-label-tertiary);flex:none;width:16px;height:16px;align-items:center;justify-content:center;display:inline-flex;margin-left:4px;transition:transform .12s}',
-      '.zwf-chevron[data-open=true]{transform:rotate(90deg)}',
-      '.zwf-detail-action{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex:none;width:calc(20px + var(--dsh-content-font-delta,0px));height:calc(20px + var(--dsh-content-font-delta,0px));margin-left:4px;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}',
-      '.zwf-detail-action:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08));color:var(--dsw-alias-label-secondary)}',
-      '.zwf-detail-action:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}',
-      '.zwf-body{flex-direction:column;gap:8px;display:flex;min-width:0;padding:2px 0 4px 22px}',
-      '.zwf-section{flex-direction:column;gap:4px;display:flex;min-width:0}',
-      '.zwf-label{color:var(--dsw-alias-label-caption);font-size:11px;line-height:16px}',
-      '.zwf-card-code,.zwf-output{margin:0;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-markdown-code-block);color:var(--dsw-alias-label-secondary);max-height:260px;overflow:auto;padding:8px 12px;font:var(--dsw-font-markdown-code-block-small,12px/18px ui-monospace,SFMono-Regular,Menlo,monospace);white-space:pre-wrap;word-break:break-word}',
-      '.zwf-rows{flex-direction:column;gap:2px;display:flex;min-width:0;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-markdown-code-block);padding:8px 12px}',
-      '.zwf-rowitem{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;white-space:pre-wrap;word-break:break-word}',
-    ].join('');
+/** Renderers by canonical tool name; each part contributes `WF_CARDS.render[key]`. */
+WF_CARDS.render = {};
 
-    /** Class names used by the markup above. */
-    const CLASS = {
-      root: 'zwf-root',
-      row: 'zwf-row',
-      icon: 'zwf-icon',
-      title: 'zwf-title',
-      sep: 'zwf-sep',
-      summary: 'zwf-summary',
-      detail: 'zwf-detail',
-      status: 'zwf-status',
-      mono: 'zwf-mono',
-      chevron: 'zwf-chevron',
-      detailAction: 'zwf-detail-action',
-      body: 'zwf-body',
-      section: 'zwf-section',
-      label: 'zwf-label',
-      code: 'zwf-card-code',
-      output: 'zwf-output',
-      rows: 'zwf-rows',
-      rowItem: 'zwf-rowitem',
-    };
+/** UI_NS translator, bound once per registration pass. */
+var WF_CARDS_UI = undefined;
 
-    /* --------------------------------- readers -------------------------------- */
-
-    function isObject(value) {
-      return typeof value === 'object' && value !== null && !Array.isArray(value);
+/**
+ * Bind the card dictionary and start the shared run channel.
+ * The slot itself is registered by the client entry; this only wires what a card cannot reach on
+ * its own (the UI namespace) and the one timer the card layer is allowed to own.
+ */
+WF_CARDS.register = function registerCards(ctx, effect) {
+  if (ctx !== undefined && ctx !== null && ctx.locale !== undefined && typeof ctx.locale.bind === 'function') {
+    try {
+      WF_CARDS_UI = ctx.locale.bind(UI_NS);
+    } catch (error) {
+      WF_CARDS_UI = undefined;
+      console.warn('zcode-workflow: card dictionary failed to bind', error);
     }
+  }
+  if (typeof effect === 'function') effect(() => wfRunChannelStart(), 'zcode-workflow: card run channel');
+  else wfRunChannelStart();
+};
 
-    function asText(value) {
-      return typeof value === 'string' ? value : '';
+/** How many result rows a list card shows. */
+const WF_CARD_MAX_ROWS = 8;
+
+/* ---------------------------------- styles --------------------------------- */
+
+/** Base card stylesheet: host theme tokens only, one class per row element. */
+const CSS = [
+  '.zwf-card{display:flex;box-sizing:border-box;flex-direction:column;gap:8px;width:100%;min-width:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}',
+  '.zwf-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;box-sizing:border-box;min-width:0;font-size:13px;line-height:20px}',
+  '.zwf-card-glyph{display:inline-flex;flex:none;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-card-kind{flex:none;white-space:nowrap;font-weight:500;color:var(--dsw-alias-label-primary)}',
+  '.zwf-card-kind[data-live="true"]{background:linear-gradient(90deg,var(--dsw-alias-brand-primary),var(--dsw-alias-label-primary),var(--dsw-alias-brand-primary));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:zwf-card-shimmer 2.4s linear infinite}',
+  '@keyframes zwf-card-shimmer{from{background-position:0 0}to{background-position:200% 0}}',
+  '.zwf-card-name{flex:1 1 80px;min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-card-cluster{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;margin-left:auto}',
+  '.zwf-card-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:18px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption)}',
+  '.zwf-card-body{display:flex;box-sizing:border-box;flex-direction:column;gap:8px;min-width:0}',
+  '.zwf-card-foot{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-card-parts{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-variant-numeric:tabular-nums}',
+  '.zwf-card-sep{color:var(--dsw-alias-label-caption)}',
+  '.zwf-card-trail{margin-left:auto;display:inline-flex;align-items:center;gap:6px}',
+  '.zwf-lamp{display:inline-block;flex:none;width:6px;height:6px;border-radius:999px;background:transparent}',
+  '.zwf-lamp[data-status="pending"],.zwf-lamp[data-status="stopped"]{border:1.5px solid var(--dsw-alias-label-caption)}',
+  '.zwf-lamp[data-status="running"]{background:var(--dsw-alias-state-warn-primary);animation:zwf-card-pulse 1.4s ease-in-out infinite}',
+  '.zwf-lamp[data-status="completed"]{background:var(--dsw-alias-state-success-primary)}',
+  '.zwf-lamp[data-status="errored"]{background:var(--dsw-alias-state-error-primary);box-shadow:0 0 0 2px color-mix(in oklab,var(--dsw-alias-state-error-primary) 30%,transparent)}',
+  '.zwf-lamp[data-status="superseded"],.zwf-lamp[data-status="idle"]{background:var(--dsw-alias-state-idle-primary)}',
+  '@keyframes zwf-card-pulse{0%,100%{opacity:1}50%{opacity:.35}}',
+  '.zwf-state{display:inline-flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}',
+  '.zwf-state[data-status="running"]{color:var(--dsw-alias-state-warn-primary)}',
+  '.zwf-state[data-status="completed"]{color:var(--dsw-alias-state-success-primary)}',
+  '.zwf-state[data-status="errored"]{color:var(--dsw-alias-state-error-primary)}',
+  '.zwf-state-note{color:var(--dsw-alias-label-caption)}',
+  '.zwf-icon-btn{display:inline-flex;box-sizing:border-box;flex:none;align-items:center;justify-content:center;width:24px;height:24px;margin:0;padding:0;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-caption);cursor:pointer}',
+  '.zwf-icon-btn:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}',
+  '.zwf-icon-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}',
+  '.zwf-icon-btn:disabled{opacity:.5;cursor:default}',
+  '.zwf-chev{display:inline-flex;flex:none;transition:transform .12s}',
+  '.zwf-chev[data-open="true"]{transform:rotate(90deg)}',
+  '.zwf-chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}',
+  '.zwf-chip{display:inline-flex;box-sizing:border-box;align-items:center;gap:5px;min-width:0;max-width:240px;height:22px;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;cursor:pointer}',
+  '.zwf-chip:hover{border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
+  '.zwf-chip:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}',
+  '.zwf-chip[data-static="true"]{cursor:default}',
+  '.zwf-chip[data-static="true"]:hover{border-color:var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary)}',
+  '.zwf-chip-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+  '.zwf-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-caption)}',
+  '.zwf-note[data-tone="warn"]{color:var(--dsw-alias-state-warn-primary)}',
+  '.zwf-note[data-tone="error"]{color:var(--dsw-alias-state-error-primary)}',
+  '.zwf-rows{display:flex;flex-direction:column;gap:2px;box-sizing:border-box;min-width:0;padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1)}',
+  '.zwf-row-item{font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary);white-space:pre-wrap;overflow-wrap:anywhere}',
+  '.zwf-pre{margin:0;box-sizing:border-box;max-height:240px;overflow:auto;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-markdown-code-block,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;line-height:17px;white-space:pre-wrap;overflow-wrap:anywhere}',
+  '.zwf-section{display:flex;flex-direction:column;gap:4px;min-width:0}',
+  '.zwf-section-label{font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-caption)}',
+  '@media (prefers-reduced-motion:reduce){.zwf-card-kind[data-live="true"]{animation:none}.zwf-lamp[data-status="running"]{animation:none}.zwf-chev{transition:none}}',
+].join('');
+
+/* ---------------------------------- readers -------------------------------- */
+
+/** @returns {boolean} true for a plain record (not null, not an array). */
+function wfCardRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** @returns {string} the value when it is a non-empty string, else ''. */
+function wfCardTextOf(value) {
+  return typeof value === 'string' ? value : '';
+}
+
+/** @returns {number | undefined} a finite number from a number or numeric string. */
+function wfCardNum(value) {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+/** First argument that is neither undefined nor null. */
+function wfCardFirst(...values) {
+  for (const value of values) if (value !== undefined && value !== null) return value;
+  return undefined;
+}
+
+/** First non-empty string among the candidates. */
+function wfCardFirstText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return '';
+}
+
+/** The call slice of a preparing/start/result block, whichever shape carries it. */
+function wfCardCall(block) {
+  if (!wfCardRecord(block)) return undefined;
+  return wfCardRecord(block.call) ? block.call : block;
+}
+
+const WF_CARD_ARGS_CACHE = new WeakMap();
+
+/** Parse one call's raw argument JSON once; a still-streaming payload parses to `{}`. */
+function wfCardParsedArgs(block) {
+  const call = wfCardCall(block);
+  if (!wfCardRecord(call)) return {};
+  const cached = WF_CARD_ARGS_CACHE.get(call);
+  if (cached !== undefined) return cached;
+  let parsed = {};
+  const raw = typeof call.argsRaw === 'string' ? call.argsRaw : '';
+  if (raw !== '') {
+    try {
+      const value = JSON.parse(raw);
+      if (wfCardRecord(value)) parsed = value;
+    } catch {
+      // Still streaming: the lazy view below serves the fields that already arrived.
     }
+  }
+  WF_CARD_ARGS_CACHE.set(call, parsed);
+  return parsed;
+}
 
-    function linesOf(text) {
-      const value = asText(text);
-      return value === '' ? [] : value.split('\n');
+/**
+ * Read one field from a block's lazy argument view.
+ * The broker view exposes `text`/`complete`/`value`; a partial or foreign shape may expose a
+ * getter (`read`, `get`) or be the arguments object itself.
+ */
+function wfCardViewField(view, key) {
+  if (view === undefined || view === null) return undefined;
+  try {
+    if (typeof view.text === 'function') {
+      const value = view.text(key);
+      if (value !== undefined) return value;
     }
-
-    function firstLine(text) {
-      const value = asText(text);
-      const index = value.indexOf('\n');
-      return (index === -1 ? value : value.slice(0, index)).trim();
+  } catch {
+    // fall through to the next shape
+  }
+  try {
+    if (typeof view.complete === 'function' && view.complete(key) && typeof view.value === 'function') {
+      const value = view.value(key);
+      if (value !== undefined) return value;
     }
-
-    function parseText(text, pattern) {
-      const match = pattern.exec(asText(text));
-      if (match === null || typeof match[1] !== 'string' || match[1] === '') return undefined;
-      return match[1];
+  } catch {
+    // fall through
+  }
+  try {
+    if (typeof view === 'function') {
+      const all = view();
+      return wfCardRecord(all) ? all[key] : undefined;
     }
-
-    /** The call slice of a preparing/start/result block, whichever shape carries it. */
-    function callOf(block) {
-      if (!isObject(block)) return undefined;
-      return isObject(block.call) ? block.call : block;
+  } catch {
+    // fall through
+  }
+  try {
+    if (typeof view.read === 'function') {
+      const all = view.read();
+      return wfCardRecord(all) ? all[key] : undefined;
     }
+  } catch {
+    // fall through
+  }
+  try {
+    if (typeof view.get === 'function') {
+      const value = view.get(key);
+      if (value !== undefined) return value;
+    }
+  } catch {
+    // fall through
+  }
+  return wfCardRecord(view) && Object.prototype.hasOwnProperty.call(view, key) ? view[key] : undefined;
+}
 
-    const PARSED_ARGS = new WeakMap();
+/** Read one call argument at any lifecycle stage. */
+function wfCardArgValue(block, key) {
+  if (!wfCardRecord(block)) return undefined;
+  const direct = wfCardViewField(block.args, key);
+  if (direct !== undefined) return direct;
+  const call = wfCardCall(block);
+  if (call !== undefined && call !== block) {
+    const nested = wfCardViewField(call.args, key);
+    if (nested !== undefined) return nested;
+  }
+  const parsed = wfCardParsedArgs(block);
+  return Object.prototype.hasOwnProperty.call(parsed, key) ? parsed[key] : undefined;
+}
 
-    /** Parse one call's raw argument JSON once; a still-streaming payload parses to `{}`. */
-    function parsedArgs(block) {
-      const call = callOf(block);
-      if (!isObject(call)) return {};
-      const cached = PARSED_ARGS.get(call);
-      if (cached !== undefined) return cached;
-      let parsed = {};
-      const raw = typeof call.argsRaw === 'string' ? call.argsRaw : '';
-      if (raw !== '') {
-        try {
-          const value = JSON.parse(raw);
-          if (isObject(value)) parsed = value;
-        } catch {
-          // Still streaming: the lazy view below serves the fields that already arrived.
-        }
+/** Read one string argument. */
+function wfCardArgText(block, key) {
+  const value = wfCardArgValue(block, key);
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+/**
+ * Flatten a settled block's content to display text, falling back to its structured error.
+ * @returns {string} the result text, or ''.
+ */
+function wfCardResultText(block) {
+  if (!wfCardRecord(block)) return '';
+  const sources = [
+    block.content,
+    wfCardRecord(block.result) ? block.result.content : undefined,
+    wfCardRecord(block.call) ? block.call.content : undefined,
+    wfCardRecord(block.call) && wfCardRecord(block.call.result) ? block.call.result.content : undefined,
+    wfCardRecord(block.output) ? block.output.content : undefined,
+    block.text,
+    typeof block.result === 'string' ? block.result : undefined,
+    typeof block.output === 'string' ? block.output : undefined,
+  ];
+  for (const content of sources) {
+    if (typeof content === 'string') {
+      if (content !== '') return content;
+      continue;
+    }
+    if (!Array.isArray(content) || content.length === 0) continue;
+    const parts = [];
+    for (const item of content) {
+      if (typeof item === 'string') {
+        if (item !== '') parts.push(item);
+        continue;
       }
-      PARSED_ARGS.set(call, parsed);
-      return parsed;
-    }
-
-    /**
-     * Read one field from a block's lazy argument view.
-     * The shipped view exposes `text`/`complete`/`value`; a partial or foreign shape may expose a
-     * getter (`read`, `get`, `value`) or be the arguments object itself.
-     * @param {unknown} view candidate argument view
-     * @param {string} key argument name
-     * @returns {unknown} the field value, or undefined when this shape cannot answer
-     */
-    function viewField(view, key) {
-      if (view === undefined || view === null) return undefined;
+      if (wfCardRecord(item) && item.type === 'text' && typeof item.text === 'string') {
+        if (item.text !== '') parts.push(item.text);
+        continue;
+      }
+      if (item === undefined || item === null) continue;
       try {
-        if (typeof view.text === 'function') {
-          const value = view.text(key);
-          if (value !== undefined) return value;
-        }
+        parts.push(JSON.stringify(item, null, 2));
       } catch {
-        // fall through
-      }
-      try {
-        if (typeof view.complete === 'function' && view.complete(key) && typeof view.value === 'function') {
-          const value = view.value(key);
-          if (value !== undefined) return value;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view === 'function') {
-          const all = view();
-          return isObject(all) ? all[key] : undefined;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view.read === 'function') {
-          const all = view.read();
-          return isObject(all) ? all[key] : undefined;
-        }
-      } catch {
-        // fall through
-      }
-      try {
-        if (typeof view.get === 'function') {
-          const value = view.get(key);
-          if (value !== undefined) return value;
-        }
-      } catch {
-        // fall through
-      }
-      return isObject(view) && Object.prototype.hasOwnProperty.call(view, key) ? view[key] : undefined;
-    }
-
-    /**
-     * Read one call argument at any lifecycle stage.
-     * @param {unknown} block preparing, started, or settled block
-     * @param {string} key argument name
-     * @returns {unknown} the value, or undefined
-     */
-    function argValue(block, key) {
-      if (!isObject(block)) return undefined;
-      const direct = viewField(block.args, key);
-      if (direct !== undefined) return direct;
-      const call = callOf(block);
-      if (call !== undefined && call !== block) {
-        const nested = viewField(call.args, key);
-        if (nested !== undefined) return nested;
-      }
-      const parsed = parsedArgs(block);
-      return Object.prototype.hasOwnProperty.call(parsed, key) ? parsed[key] : undefined;
-    }
-
-    /**
-     * Read one string argument.
-     * @param {unknown} block preparing, started, or settled block
-     * @param {string} key argument name
-     * @returns {string | undefined} the non-empty string value
-     */
-    function argText(block, key) {
-      const value = argValue(block, key);
-      return typeof value === 'string' && value !== '' ? value : undefined;
-    }
-
-    /** The `saved` object of a CreateWorkflow call, when it is an object. */
-    function savedArg(block) {
-      const value = argValue(block, 'saved');
-      return isObject(value) ? value : undefined;
-    }
-
-    /**
-     * Flatten a settled block's content to display text, falling back to its structured error.
-     * @param {unknown} block settled result block
-     * @returns {string} the result text, or ''
-     */
-    function resultText(block) {
-      if (!isObject(block)) return '';
-      const sources = [
-        block.content,
-        isObject(block.result) ? block.result.content : undefined,
-        isObject(block.call) ? block.call.content : undefined,
-        isObject(block.call) && isObject(block.call.result) ? block.call.result.content : undefined,
-        isObject(block.output) ? block.output.content : undefined,
-      ];
-      for (const content of sources) {
-        if (!Array.isArray(content) || content.length === 0) continue;
-        const parts = [];
-        for (const item of content) {
-          if (typeof item === 'string') {
-            if (item !== '') parts.push(item);
-            continue;
-          }
-          if (isObject(item) && item.type === 'text' && typeof item.text === 'string') {
-            if (item.text !== '') parts.push(item.text);
-            continue;
-          }
-          if (item === undefined || item === null) continue;
-          try {
-            parts.push(JSON.stringify(item, null, 2));
-          } catch {
-            // unprintable block: keep the rest
-          }
-        }
-        if (parts.length > 0) return parts.join('\n');
-      }
-      const error = [block.error, isObject(block.call) ? block.call.error : undefined].find(isObject);
-      if (error === undefined) return '';
-      const name = typeof error.name === 'string' && error.name !== '' ? error.name : 'Error';
-      const code = typeof error.code === 'string' && error.code !== '' ? error.code : '';
-      return code === '' ? name : `${name}: ${code}`;
-    }
-
-    /** A tool-owned structured value, when the block records one beside its text. */
-    function structuredValue(block) {
-      if (!isObject(block)) return undefined;
-      const candidates = [block.meta, block.value, isObject(block.output) ? block.output.value : undefined, isObject(block.result) ? block.result.value : undefined];
-      for (const candidate of candidates) if (isObject(candidate)) return candidate;
-      return undefined;
-    }
-
-    /**
-     * Read the phases a run declares: the structured value first, then the result headline.
-     * @param {unknown} block settled result block
-     * @param {string} text its result text
-     * @returns {string[]} phase names
-     */
-    function phasesOf(block, text) {
-      const value = structuredValue(block);
-      if (value !== undefined && Array.isArray(value.phases)) {
-        const phases = value.phases.filter((phase) => typeof phase === 'string' && phase !== '');
-        if (phases.length > 0) return phases;
-      }
-      const line = parseText(text, /^Phases:\s*(.+)$/m);
-      if (line === undefined) return [];
-      return line.split(/\s*(?:→|->)\s*/).map((part) => part.trim()).filter((part) => part !== '');
-    }
-
-    /** Compiler diagnostics rendered as `path:Lline:Ccolumn message` lines. */
-    function diagnosticLines(text) {
-      const rows = [];
-      for (const line of linesOf(text)) {
-        const trimmed = line.trim();
-        if (trimmed !== '' && /:[LC]\d+:[LC]\d+\b/.test(trimmed)) rows.push(trimmed);
-      }
-      return rows;
-    }
-
-    /** The first two meaningful lines of a block of text. */
-    function secondMeaningfulLine(text) {
-      const rows = linesOf(text).map((line) => line.trim()).filter((line) => line !== '');
-      if (rows.length > 1) return rows[1];
-      return rows.length === 1 ? rows[0] : '';
-    }
-
-    /** The `- ` rows of a result list, capped. */
-    function bulletRows(text, limit) {
-      const rows = [];
-      for (const line of linesOf(text)) {
-        if (!line.startsWith('- ')) continue;
-        const row = line.slice(2).trim();
-        if (row === '') continue;
-        rows.push(row);
-        if (rows.length >= limit) break;
-      }
-      return rows;
-    }
-
-    /** The leading number of a result headline (`3 runs`, `2 saved workflows`). */
-    function leadingCount(text) {
-      const match = /^(\d+)\b/.exec(firstLine(text));
-      return match === null ? undefined : Number(match[1]);
-    }
-
-    /** The localized status word of a `Run <id> "<name>" — <status>` headline. */
-    function runStatusWord(text, say) {
-      const match = /\b(pending|running|completed|errored|stopped|superseded)\b/.exec(firstLine(text));
-      return match === null ? '' : say(`run.status.${match[1]}`);
-    }
-
-    /** The lifecycle phase a card renders: preparing, start (running), or result. */
-    function phaseOf(props) {
-      const phase = isObject(props) ? props.phase : undefined;
-      if (phase === 'preparing' || phase === 'start' || phase === 'result') return phase;
-      const block = isObject(props) ? props.block : undefined;
-      if (isObject(block)) {
-        if ('kind' in block) return 'result';
-        if (block.phase === 'preparing') return 'preparing';
-        if (block.phase === 'start') return 'start';
-      }
-      return 'preparing';
-    }
-
-    /** Run id named by a settled result, when the tool reports one there. */
-    function cardResultRunId(toolName, text) {
-      switch (toolName) {
-        case 'CreateWorkflow':
-          return parseText(text, /^Run ID:\s*(\S+)/m);
-        case 'AmendWorkflow':
-          return parseText(text, /^Started revised run\s+(\S+)/m);
-        case 'GetWorkflowRun':
-        case 'TaskOutput':
-          return parseText(text, /^Run\s+(\S+)\s/m);
-        case 'StopWorkflowRun':
-          return parseText(text, /^Stopped run\s+(\S+?)\./m);
-        case 'ResumeWorkflowRun':
-          return parseText(text, /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m);
-        case 'FillWorkflowHole':
-          return parseText(text, /on run\s+(\S+?);/m);
-        default:
-          return undefined;
+        // unprintable block: keep the rest
       }
     }
+    if (parts.length > 0) return parts.join('\n');
+  }
+  const error = [block.error, wfCardRecord(block.call) ? block.call.error : undefined].find(wfCardRecord);
+  if (error === undefined) return '';
+  const name = typeof error.name === 'string' && error.name !== '' ? error.name : 'Error';
+  const code = typeof error.code === 'string' && error.code !== '' ? error.code : '';
+  return code === '' ? name : `${name}: ${code}`;
+}
 
-    /**
-     * The run one settled tool call acted on, for the card's detail entry.
-     * Every successful workflow tool result names its run in the result text, so a call that only
-     * carries `run_id` in its arguments (a failure or a draft) is left without an entry.
-     * @param {string} toolName wire tool name
-     * @param {unknown} block settled block
-     * @param {string} phase lifecycle phase
-     * @param {boolean} failed structured failure
-     * @returns {string | undefined} run id
-     */
-    function cardRunIdOf(toolName, block, phase, failed) {
-      if (phase !== 'result' || failed === true) return undefined;
-      return cardResultRunId(toolName, resultText(block));
-    }
+/** The tool-owned structured value a broker block records beside its text. */
+function wfCardStructured(block) {
+  if (!wfCardRecord(block)) return undefined;
+  const candidates = [
+    block.value,
+    block.meta,
+    wfCardRecord(block.output) ? block.output.value : undefined,
+    wfCardRecord(block.result) ? block.result.value : undefined,
+    wfCardRecord(block.output) && wfCardRecord(block.output.meta) ? block.output.meta : undefined,
+  ];
+  for (const candidate of candidates) if (wfCardRecord(candidate)) return candidate;
+  return undefined;
+}
 
-    /** The session a card renders in, taken from the slot's standard props. */
-    function cardSessionId(props) {
-      if (!isObject(props)) return undefined;
-      if (typeof props.sessionId === 'string' && props.sessionId !== '') return props.sessionId;
-      if (isObject(props.session) && typeof props.session.id === 'string' && props.session.id !== '') return props.session.id;
-      return undefined;
-    }
+/* ------------------------------ props normalizing --------------------------- */
 
-    /** Open one run's detail from a card; the detail surface may not be composed yet. */
-    function cardOpenDetail(runId, sessionId) {
-      if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return;
-      try {
-        WF_DETAIL.open({ runId, sessionId });
-      } catch (error) {
-        console.warn('zcode-workflow: run detail failed to open', error);
-      }
-    }
+/** Tool names compare without punctuation so `AmendWorkflow`/`amend_workflow` agree. */
+function wfCardNormalizeName(value) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/gu, '') : '';
+}
 
-    /* -------------------------------- wording -------------------------------- */
+const WF_CARD_BY_NORMALIZED = (() => {
+  const table = {};
+  for (const name of TOOL_NAMES) table[wfCardNormalizeName(name)] = name;
+  return table;
+})();
 
-    function interpolate(text, params) {
-      if (!isObject(params)) return text;
-      return text.replace(/\{(\w+)\}/g, (match, name) => (Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match));
-    }
+/** The canonical tool name of a card, or ''. */
+function wfCardToolName(props) {
+  const candidates = [
+    props.toolName,
+    props.tool,
+    props.name,
+    props.key,
+    wfCardRecord(props.block) ? props.block.toolName : undefined,
+    wfCardRecord(props.block) && wfCardRecord(props.block.call) ? props.block.call.toolName : undefined,
+    wfCardRecord(props.result) ? props.result.toolName : undefined,
+  ];
+  for (const candidate of candidates) {
+    const canonical = WF_CARD_BY_NORMALIZED[wfCardNormalizeName(candidate)];
+    if (canonical !== undefined) return canonical;
+  }
+  return '';
+}
 
-    /**
-     * Build the translate function a card uses.
-     * A namespace lookup that misses (returns the key, an empty string, or throws) falls back to
-     * the English string, so a missing dictionary never shows a raw key.
-     * @param {unknown} translate slot-injected `t`
-     * @returns {(key: string, params?: Record<string, unknown>) => string} translator
-     */
-    function makeSay(translate) {
-      return function say(key, params) {
-        let text;
-        if (typeof translate === 'function') {
-          try {
-            text = translate(key, params);
-          } catch {
-            text = undefined;
-          }
-        }
-        const resolved = typeof text === 'string' && text !== '' && text !== key ? text : (EN[key] ?? key);
-        return interpolate(resolved, params);
-      };
-    }
+/** The lifecycle phase a card renders: preparing, start (in flight), or result. */
+function wfCardPhase(props) {
+  const raw = wfCardFirstText(props.phase, props.status, wfCardRecord(props.block) ? props.block.phase : undefined);
+  if (raw === 'preparing' || raw === 'writing') return 'preparing';
+  if (raw === 'start' || raw === 'running' || raw === 'streaming' || raw === 'executing') return 'start';
+  if (raw === 'result' || raw === 'complete' || raw === 'completed' || raw === 'error' || raw === 'failed' || raw === 'cancelled') return 'result';
+  const block = props.block;
+  if (wfCardRecord(block)) {
+    if ('kind' in block) return 'result';
+    if (block.phase === 'preparing') return 'preparing';
+    if (block.phase === 'start') return 'start';
+  }
+  if (props.result !== undefined) return 'result';
+  return 'preparing';
+}
 
-    /* ------------------------------- card models ------------------------------ */
+/**
+ * One block carrying arguments and result in the shape the readers above understand.
+ * A broker payload keeps its lazy argument view; a scaffold block already is one.
+ */
+function wfCardBlock(props) {
+  const given = wfCardRecord(props.block) ? props.block : undefined;
+  const synth = {};
+  const args = wfCardFirst(props.arguments, props.input, props.args);
+  if (args !== undefined && args !== null) {
+    if (typeof args === 'string') synth.argsRaw = args;
+    else synth.args = args;
+  }
+  const result = props.result;
+  if (typeof result === 'string') synth.text = result;
+  else if (wfCardRecord(result)) {
+    if (Array.isArray(result.content)) synth.content = result.content;
+    else if (typeof result.content === 'string') synth.content = [result.content];
+    if (typeof result.isError === 'boolean') synth.isError = result.isError;
+    if (result.value !== undefined) synth.value = result.value;
+  }
+  if (props.error !== undefined) synth.error = props.error;
+  if (given === undefined) return synth;
+  const merged = { ...given };
+  if (merged.args === undefined && synth.args !== undefined) merged.args = synth.args;
+  if (merged.argsRaw === undefined && synth.argsRaw !== undefined) merged.argsRaw = synth.argsRaw;
+  if (merged.content === undefined && synth.content !== undefined) merged.content = synth.content;
+  if (merged.text === undefined && synth.text !== undefined) merged.text = synth.text;
+  if (merged.error === undefined && synth.error !== undefined) merged.error = synth.error;
+  if (merged.value === undefined && synth.value !== undefined) merged.value = synth.value;
+  return merged;
+}
 
-    function sourceOf(block) {
-      if (argText(block, 'script') !== undefined) return 'inline';
-      if (argText(block, 'path') !== undefined) return 'path';
-      if (savedArg(block) !== undefined) return 'saved';
-      return undefined;
-    }
+/** Session id from the slot payload, whichever shape carries it. */
+function wfCardSessionId(props) {
+  const direct = wfCardFirstText(props.sessionId, wfCardRecord(props.session) ? props.session.id : undefined, props.session);
+  if (direct !== '') return direct;
+  return undefined;
+}
 
-    function sourceSection(block, say) {
-      const script = argText(block, 'script');
-      if (script !== undefined) return { kind: 'code', label: say('body.script'), text: script };
-      const filePath = argText(block, 'path');
-      if (filePath !== undefined) return { kind: 'text', label: say('body.script'), text: filePath };
-      const saved = savedArg(block);
-      if (saved !== undefined && typeof saved.name === 'string' && saved.name !== '') {
-        return { kind: 'text', label: say('create.source.saved'), text: saved.name };
-      }
-      return undefined;
-    }
+/** Whether the settled call failed. */
+function wfCardFailed(props, phase) {
+  if (props.isError === true) return true;
+  if (wfCardRecord(props.result) && props.result.isError === true) return true;
+  if (wfCardRecord(props.block) && props.block.isError === true) return true;
+  if (props.error !== undefined && props.error !== null && props.error !== false) return phase === 'result';
+  return false;
+}
 
-    function createModel({ block, phase, say, failed }) {
-      const saved = savedArg(block);
-      const name = argText(block, 'name') ?? (saved !== undefined && typeof saved.name === 'string' ? saved.name : '');
-      const text = resultText(block);
-      const runId = phase === 'result' ? parseText(text, /^Run ID:\s*(\S+)/m) : undefined;
-      const isDraft = phase === 'result' && (failed || (text !== '' && runId === undefined));
-      const phases = phasesOf(block, text);
-      const diagnostics = diagnosticLines(text);
-      const source = sourceOf(block);
+/** Tool-call identity, used to correlate a card with the run it launched. */
+function wfCardToolCallId(props) {
+  return wfCardFirstText(
+    props.toolId,
+    props.toolCallId,
+    props.id,
+    wfCardRecord(props.block) ? props.block.toolCallId : undefined,
+    wfCardRecord(props.block) ? props.block.id : undefined,
+  ) || undefined;
+}
 
-      let title = say('create.title');
-      let summary = name;
-      let detail = '';
-      let status = '';
-      let tone = phase === 'preparing' ? 'preparing' : phase === 'start' ? 'running' : 'ok';
-      let statusSuffix = '';
+/**
+ * Normalize the slot payload the whole card layer renders from.
+ * The result is a plain record so a card can memoize on it: every reader below closes over it.
+ */
+function wfCardModel(props) {
+  const source = wfCardRecord(props) ? props : {};
+  const key = wfCardToolName(source);
+  const phase = wfCardPhase(source);
+  const block = wfCardBlock(source);
+  const failed = wfCardFailed(source, phase);
+  return {
+    key,
+    rawName: wfCardFirstText(source.toolName, source.tool, source.name),
+    toolId: wfCardToolCallId(source),
+    phase,
+    block,
+    failed,
+    sessionId: wfCardSessionId(source),
+    args: (name) => wfCardArgValue(block, name),
+    argText: (name) => wfCardArgText(block, name),
+    resultText: wfCardResultText(block),
+    structured: wfCardStructured(block),
+    forceOpen: source.forceOpen === true,
+    canToggle: source.canToggle !== false,
+    approval: source.approval ?? source.gate ?? source.pendingApproval,
+  };
+}
 
-      if (phase === 'preparing') {
-        status = say('create.writing');
-      } else if (phase === 'start') {
-        status = say('create.validating');
-      } else if (isDraft) {
-        status = say('create.draft');
-        detail = diagnostics.length > 0 ? diagnostics[0] : secondMeaningfulLine(text);
-        tone = 'error';
-      } else {
-        status = say('create.ran');
-        statusSuffix = runId ?? '';
-        detail = phases.length > 0 ? say('card.phases', { count: phases.length }) : '';
-      }
-      if (detail === '' && source !== undefined) detail = say(`create.source.${source}`);
-      if (detail === '' && diagnostics.length > 0 && phase === 'result') detail = diagnostics[0];
+/* --------------------------------- wording -------------------------------- */
 
-      const sections = [];
-      const scriptSection = sourceSection(block, say);
-      if (scriptSection !== undefined) sections.push(scriptSection);
-      sections.push({ kind: 'text', label: say('body.output'), text });
+/** Copy from the card dictionary; the English table keeps a missing key readable. */
+function wfCardSay(key, params) {
+  return WF_UI.say(WF_CARDS_UI, UI_EN, key, params);
+}
 
-      return { title, summary, detail, status, statusSuffix, tone, sections };
-    }
+/**
+ * Plural pick: `key` for a count of one, `pluralKey` otherwise.
+ * The dictionaries carry both forms because Chinese often repeats the same wording.
+ */
+function wfCardSayCount(key, pluralKey, count, params) {
+  return wfCardSay(count === 1 ? key : pluralKey, { count, ...(params ?? {}) });
+}
 
-    function amendModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const started = parseText(text, /^Started revised run\s+(\S+)/m);
-      const runId = argText(block, 'run_id') ?? '';
-      const pending = phase !== 'result';
-      const bad = phase === 'result' && (failed || (text !== '' && started === undefined));
-      const sections = [];
-      const scriptSection = sourceSection(block, say);
-      if (scriptSection !== undefined) sections.push(scriptSection);
-      sections.push({ kind: 'text', label: say('body.output'), text });
-      return {
-        title: started !== undefined ? say('amend.amended') : say('amend.title'),
-        summary: started ?? runId,
-        monoSummary: true,
-        detail: started !== undefined && runId !== '' ? runId : (argText(block, 'name') ?? ''),
-        status: pending ? say(phase === 'preparing' ? 'amend.writing' : 'amend.validating') : bad ? say('amend.draft') : '',
-        tone: bad ? 'error' : pending ? 'running' : 'ok',
-        sections,
-      };
-    }
+/* --------------------------------- shared UI ------------------------------- */
 
-    function runStatusModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const notFound = /^run_not_found\b/m.test(text);
-      const bad = failed || notFound;
-      const runId = argText(block, 'run_id') ?? parseText(text, /^Run\s+(\S+)\s/m) ?? '';
-      return {
-        title: say('getRun.title'),
-        summary: runId,
-        monoSummary: true,
-        detail: '',
-        status: phase === 'result' ? (bad ? say('status.failed') : runStatusWord(text, say)) : say('getRun.fetching'),
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
+/** A card-level icon button (open details, toggle). */
+function WfCardIconButton(props) {
+  return React.createElement('button', {
+    type: 'button',
+    className: `zwf-icon-btn${props.className === undefined ? '' : ` ${props.className}`}`,
+    title: props.title,
+    'aria-label': props.label,
+    'aria-expanded': props.expanded,
+    'data-testid': props.testId,
+    onClick: props.onClick,
+    onKeyDown: (event) => {
+      if (event !== null && typeof event === 'object' && typeof event.stopPropagation === 'function') event.stopPropagation();
+    },
+  }, props.icon);
+}
 
-    function runListModel({ block, phase, say, failed }, keys) {
-      const text = resultText(block);
-      const rows = bulletRows(text, MAX_LIST_ROWS);
-      const count = leadingCount(text);
-      const total = count ?? rows.length;
-      const empty = rows.length === 0 && new RegExp(`^${keys.emptyPattern}`, 'm').test(text);
-      const settled = phase === 'result';
-      let summary = '';
-      if (settled) {
-        if (empty) summary = say(keys.empty);
-        else if (total !== undefined) summary = say(total === 1 ? keys.countOne : keys.count, { count: total });
-      }
-      const truncated = settled && !failed && rows.length > 0 && (total === undefined || total > rows.length);
-      return {
-        title: say(keys.title),
-        summary,
-        detail: truncated ? say(keys.truncated) : '',
-        status: settled ? (failed ? say('status.failed') : '') : say(keys.listing),
-        tone: failed ? 'error' : settled ? 'ok' : 'running',
-        sections: failed ? [{ kind: 'text', label: say('body.output'), text }] : [{ kind: 'rows', rows }],
-      };
-    }
+/** The disclosure chevron; rotates when open. */
+function WfCardChevron(props) {
+  return React.createElement('span', {
+    className: 'zwf-chev',
+    'data-open': props.open === true ? 'true' : 'false',
+    'aria-hidden': 'true',
+  }, React.createElement(WF_UI.icons.chevronRight, { size: 13 }));
+}
 
-    function saveModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /Nothing was saved|^The workflow script has errors/m.test(text);
-      const scope = argText(block, 'scope');
-      return {
-        title: phase === 'result' && !bad ? say('save.saved') : say('save.saving'),
-        summary: argText(block, 'name') ?? '',
-        monoSummary: true,
-        detail: scope === 'global' || scope === 'project' ? say(`save.scope.${scope}`) : '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
+/** A labelled card action (resume, retry); the shared button has no test id hook. */
+function WfCardAction(props) {
+  return React.createElement('button', {
+    type: 'button',
+    className: `zwf-btn zwf-btn-sm${props.variant === undefined ? '' : ` zwf-btn-${props.variant}`}`,
+    'data-testid': props.testId,
+    title: props.title,
+    disabled: props.disabled === true,
+    onClick: props.onClick,
+  },
+  props.icon === undefined ? null : React.createElement('span', { className: 'zwf-btn-glyph' }, props.icon),
+  React.createElement('span', { className: 'zwf-btn-label' }, props.children));
+}
 
-    function holeModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /^hole_not_waiting\b/m.test(text);
-      return {
-        title: say('hole.title'),
-        summary: argText(block, 'hole_id') ?? '',
-        monoSummary: true,
-        detail: argText(block, 'run_id') ?? '',
-        status: phase === 'result' ? (bad ? say('status.failed') : '') : say('hole.running'),
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
+/** Status lamp: one dot per lifecycle status. */
+function WfCardLamp(props) {
+  return React.createElement('span', { className: 'zwf-lamp', 'data-status': props.status ?? 'idle', 'aria-hidden': 'true' });
+}
 
-    function stopModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /^run_not_found\b/m.test(text);
-      const runId = argText(block, 'run_id') ?? parseText(text, /^Stopped run\s+(\S+?)\./m) ?? '';
-      return {
-        title: phase === 'result' && !bad ? say('stop.stopped') : phase === 'result' ? say('stop.title') : say('stop.running'),
-        summary: runId,
-        monoSummary: true,
-        detail: '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
+/** Stop reasons the dictionary covers; anything else is dropped rather than shown as a key. */
+const WF_CARD_STOP_REASONS = new Set(['user', 'model', 'provider', 'interrupted', 'superseded']);
 
-    function resumeModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const bad = failed || /^run_not_found\b|Nothing was resumed|only a stopped run can be resumed|no longer compiles/m.test(text);
-      const resumed = parseText(text, /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m);
-      const previous = argText(block, 'run_id') ?? '';
-      return {
-        title: phase === 'result' && !bad ? say('resume.title') : phase === 'result' ? say('resume.action') : say('resume.running'),
-        summary: resumed ?? previous,
-        monoSummary: true,
-        detail: resumed !== undefined && previous !== '' ? previous : '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections: [{ kind: 'text', label: say('body.output'), text }],
-      };
-    }
+/** Status word of a lifecycle status; an unknown status says the run ended. */
+function wfCardStatusText(status) {
+  switch (status) {
+    case 'pending':
+    case 'running':
+    case 'completed':
+    case 'errored':
+    case 'stopped':
+      return wfCardSay(`run.status.${status}`);
+    default:
+      return wfCardSay('card.ended');
+  }
+}
 
-    function snippetModel({ block, phase, say, failed }) {
-      const text = resultText(block);
-      const code = argText(block, 'code');
-      const filePath = argText(block, 'path');
-      const bad = failed || /^The snippet (?:has errors|failed)\b/m.test(text);
-      const snippetSection = code !== undefined
-        ? { kind: 'code', label: say('body.script'), text: code }
-        : filePath !== undefined
-          ? { kind: 'text', label: say('body.script'), text: filePath }
-          : undefined;
-      const sections = [];
-      if (snippetSection !== undefined) sections.push(snippetSection);
-      sections.push({ kind: 'text', label: say('body.output'), text });
-      return {
-        title: phase === 'result' ? say('snippet.title') : say('snippet.running'),
-        summary: phase === 'result' ? firstLine(text) : (code !== undefined ? firstLine(code) : (filePath ?? '')),
-        detail: '',
-        status: phase === 'result' && bad ? say('status.failed') : '',
-        tone: bad ? 'error' : phase === 'result' ? 'ok' : 'running',
-        sections,
-      };
-    }
+/**
+ * Lamp + status word + stop reason + resumability, the `workflow-run-lamp` family.
+ * @param {{status?: string, stopReason?: string, resumable?: boolean, testId?: string}} props
+ */
+function WfCardState(props) {
+  const status = typeof props.status === 'string' && props.status !== '' ? props.status : 'idle';
+  const text = props.text ?? wfCardStatusText(status);
+  const parts = React.createElement('span', {
+    className: 'zwf-state',
+    'data-status': status,
+    'data-testid': props.testId,
+    'data-workflow-run-lamp': status,
+  }, React.createElement(WfCardLamp, { status }),
+  React.createElement('span', null, text),
+  typeof props.stopReason === 'string' && WF_CARD_STOP_REASONS.has(props.stopReason)
+    ? React.createElement('span', { className: 'zwf-state-note', 'data-testid': props.stopReasonTestId }, ` · ${wfCardSay(`run.stopReason.${props.stopReason}`)}`)
+    : null,
+  props.resumable === true
+    ? React.createElement('span', { className: 'zwf-state-note' }, ` · ${wfCardSay('run.resumable')}`)
+    : null);
+  return parts;
+}
 
-    /** Dispatch one tool name to its card model. */
-    function buildModel(toolName, phase, block, say) {
-      const shared = { block, phase, say, failed: isObject(block) && block.isError === true };
-      switch (toolName) {
-        case 'CreateWorkflow':
-          return createModel(shared);
-        case 'AmendWorkflow':
-          return amendModel(shared);
-        case 'GetWorkflowRun':
-        case 'TaskOutput':
-          return runStatusModel(shared);
-        case 'ListWorkflowRuns':
-          return runListModel(shared, {
-            title: 'listRuns.title',
-            listing: 'listRuns.listing',
-            count: 'listRuns.count',
-            countOne: 'listRuns.countOne',
-            empty: 'listRuns.empty',
-            truncated: 'listRuns.truncated',
-            emptyPattern: 'No workflow runs\\b',
-          });
-        case 'ListSavedWorkflows':
-          return runListModel(shared, {
-            title: 'list.title',
-            listing: 'list.listing',
-            count: 'list.count',
-            countOne: 'list.countOne',
-            empty: 'list.empty',
-            truncated: 'list.truncated',
-            emptyPattern: 'No saved workflows\\b',
-          });
-        case 'SaveWorkflow':
-          return saveModel(shared);
-        case 'FillWorkflowHole':
-          return holeModel(shared);
-        case 'StopWorkflowRun':
-          return stopModel(shared);
-        case 'ResumeWorkflowRun':
-          return resumeModel(shared);
-        case 'EvalWorkflowSnippet':
-          return snippetModel(shared);
-        default:
-          return {
-            title: say('card.title'),
-            status: phase === 'result' ? '' : say('getRun.fetching'),
-            tone: phase === 'result' ? 'ok' : 'running',
-            sections: [{ kind: 'text', label: say('body.output'), text: resultText(block) }],
-          };
-      }
-    }
+/**
+ * One card frame: header row, optional body, optional footer.
+ * Every card renders through this so the row rhythm and the disclosure behaviour match.
+ */
+function WfCardShell(props) {
+  const t = typeof props.t === 'function' ? props.t : wfCardSay;
+  const toggleLabel = t(props.open === true ? 'card.collapseDetails' : 'card.expandDetails');
+  const chevron = props.expandable === true
+    ? React.createElement(WfCardIconButton, {
+      testId: props.toggleTestId,
+      icon: React.createElement(WfCardChevron, { open: props.open === true }),
+      label: toggleLabel,
+      title: toggleLabel,
+      expanded: props.open === true,
+      onClick: (event) => {
+        if (event !== null && typeof event === 'object' && typeof event.stopPropagation === 'function') event.stopPropagation();
+        props.onToggle?.();
+      },
+    })
+    : null;
+  const head = React.createElement('div', { className: 'zwf-card-head', 'data-testid': props.headTestId },
+    React.createElement('span', { className: 'zwf-card-glyph' }, props.icon ?? React.createElement(WF_UI.icons.workflow, { size: 15 })),
+    React.createElement('span', {
+      className: 'zwf-card-kind',
+      'data-live': props.live === true ? 'true' : 'false',
+      'data-testid': props.kindTestId,
+    }, props.kind),
+    props.separator === true && props.summary !== undefined && props.summary !== ''
+      ? React.createElement('span', { className: 'zwf-card-sep' }, '·')
+      : null,
+    props.summary === undefined || props.summary === ''
+      ? null
+      : React.createElement('span', {
+        className: `zwf-card-name${props.summaryMono === true ? ' zwf-mono-tab' : ''}`,
+        title: props.summary,
+        'data-testid': props.nameTestId,
+      }, props.summary),
+    React.createElement('span', { className: 'zwf-card-cluster' },
+      props.status ?? null,
+      props.detail === undefined || props.detail === ''
+        ? null
+        : React.createElement('span', { className: 'zwf-card-detail', title: props.detail, 'data-testid': props.detailTestId }, props.detail),
+      props.actions ?? null,
+      chevron));
+  const children = [head];
+  if (props.expandable === true && props.open === true && props.body !== undefined) {
+    children.push(React.createElement('div', { className: 'zwf-card-body', key: 'body', 'data-testid': props.bodyTestId }, props.body));
+  }
+  if (props.footer !== undefined) children.push(props.footer);
+  return React.createElement('section', {
+    className: 'zwf-card',
+    'data-tool': props.tool,
+    'data-state': props.state,
+    'data-testid': props.testId,
+  }, children);
+}
 
-    /** Keep one row slot short enough to render and to expose as a tooltip. */
-    function clipRow(value) {
-      const text = typeof value === 'string' ? value : '';
-      if (text.length <= MAX_ROW_CHARS) return text;
-      return `${text.slice(0, MAX_ROW_CHARS - 1)}…`;
-    }
+/* ------------------------------- expansion state --------------------------- */
 
-    /**
-     * Normalize a model to the exact shape the renderer consumes.
-     * Empty sections drop out, labels disappear when a body holds a single section, and every
-     * field lands as a string so one malformed model cannot throw during render.
-     * @param {object} model raw card model
-     * @param {(key: string, params?: Record<string, unknown>) => string} say translator
-     * @returns {object} render-ready model
-     */
-    function totalize(model, say) {
-      const sections = [];
-      for (const section of Array.isArray(model.sections) ? model.sections : []) {
-        if (!isObject(section)) continue;
-        const label = typeof section.label === 'string' ? section.label : '';
-        if (section.kind === 'rows') {
-          const rows = Array.isArray(section.rows) ? section.rows.filter((row) => typeof row === 'string' && row !== '') : [];
-          if (rows.length === 0) continue;
-          sections.push({ kind: 'rows', label, rows });
-          continue;
-        }
-        const text = typeof section.text === 'string' ? section.text : '';
-        if (text.trim() === '') continue;
-        const clipped = text.length > MAX_SECTION_CHARS ? `${text.slice(0, MAX_SECTION_CHARS)}\n…` : text;
-        sections.push({ kind: section.kind === 'code' ? 'code' : 'text', label, text: clipped });
-      }
-      if (sections.length < 2) for (const section of sections) section.label = '';
-      const tone = model.tone === 'error' || model.tone === 'running' || model.tone === 'preparing' ? model.tone : 'ok';
-      return {
-        title: clipRow(model.title) || say('card.title'),
-        summary: clipRow(model.summary),
-        detail: clipRow(model.detail),
-        status: clipRow(model.status),
-        statusSuffix: clipRow(model.statusSuffix),
-        monoSummary: model.monoSummary === true,
-        tone,
-        sections,
-      };
-    }
+/**
+ * Expansion remembered per tool call, so a transcript re-render keeps a card open.
+ * `forceOpen` pins it open and drops the toggle.
+ */
+const WF_CARD_OPEN = new Map();
 
-    /* -------------------------------- rendering ------------------------------- */
+function useWfCardOpen(toolId, defaultOpen, forceOpen, canToggle) {
+  const [open, setOpen] = React.useState(() => {
+    if (toolId !== undefined && WF_CARD_OPEN.has(toolId)) return WF_CARD_OPEN.get(toolId) === true;
+    return defaultOpen === true;
+  });
+  const toggle = React.useCallback(() => {
+    setOpen((previous) => {
+      const next = previous !== true;
+      if (toolId !== undefined) WF_CARD_OPEN.set(toolId, next);
+      return next;
+    });
+  }, [toolId]);
+  if (forceOpen === true) return { open: true, toggle, expandable: false };
+  return { open: open === true, toggle, expandable: canToggle !== false };
+}
 
-    /** The workflow glyph: three stations joined by two lanes. */
-    function WorkflowIcon() {
-      return React.createElement('svg', {
-        width: 14,
-        height: 14,
-        viewBox: '0 0 16 16',
-        fill: 'none',
-        stroke: 'currentColor',
-        strokeWidth: 1.3,
-        strokeLinecap: 'round',
-        strokeLinejoin: 'round',
-        'aria-hidden': true,
-        focusable: 'false',
-      }, React.createElement('circle', { cx: 3.2, cy: 3.6, r: 1.5, key: 'a' }),
-      React.createElement('circle', { cx: 3.2, cy: 12.4, r: 1.5, key: 'b' }),
-      React.createElement('circle', { cx: 12.8, cy: 8, r: 1.5, key: 'c' }),
-      React.createElement('path', { d: 'M4.7 3.6h2.6a2 2 0 0 1 2 2v.9M4.7 12.4h2.6a2 2 0 0 0 2-2v-.9', key: 'd' }));
-    }
+/* ---------------------------------- dispatch ------------------------------- */
 
-    function Chevron({ open }) {
-      return React.createElement('span', { className: CLASS.chevron, 'data-open': open ? 'true' : 'false', 'aria-hidden': true },
-        React.createElement('svg', {
-          width: 12,
-          height: 12,
-          viewBox: '0 0 16 16',
-          fill: 'none',
-          stroke: 'currentColor',
-          strokeWidth: 1.5,
-          strokeLinecap: 'round',
-          strokeLinejoin: 'round',
-        }, React.createElement('path', { d: 'M6 3.5 10.5 8 6 12.5' })));
-    }
+/** The run id a card's arguments already name, before the result arrives. */
+function wfCardArgRunId(model) {
+  return wfCardFirstText(model.args('run_id'), model.args('runId'), model.args('run')) || undefined;
+}
 
-    /** The expanded body: one labeled block per section. */
-    function CardBody({ sections }) {
-      return React.createElement('div', { className: CLASS.body },
-        sections.map((section, index) => React.createElement('div', { className: CLASS.section, key: `section-${index}` },
-          section.label === '' ? null : React.createElement('div', { className: CLASS.label }, section.label),
-          section.kind === 'rows'
-            ? React.createElement('div', { className: CLASS.rows },
-              (Array.isArray(section.rows) ? section.rows : []).map((row, rowIndex) => React.createElement('div', { className: CLASS.rowItem, key: `row-${rowIndex}` }, row)))
-            : React.createElement('pre', { className: section.kind === 'code' ? CLASS.code : CLASS.output }, section.text))));
-    }
+/** The run id a settled result names for the given tool. */
+function wfCardResultRunId(model) {
+  if (model.failed) return wfCardArgRunId(model);
+  const text = model.resultText;
+  const structured = model.structured;
+  const fromValue = structured === undefined
+    ? ''
+    : wfCardFirstText(structured.runId, structured.run_id, wfCardRecord(structured.run) ? structured.run.id : undefined, structured.id);
+  if (fromValue !== '') return fromValue;
+  const patterns = {
+    CreateWorkflow: /^Run ID:\s*(\S+)/m,
+    AmendWorkflow: /^Started revised run\s+(\S+)/m,
+    GetWorkflowRun: /^Run\s+(\S+)\s/m,
+    TaskOutput: /^Run\s+(\S+)\s/m,
+    StopWorkflowRun: /^Stopped run\s+(\S+?)\./m,
+    ResumeWorkflowRun: /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m,
+    FillWorkflowHole: /on run\s+(\S+?);/m,
+  };
+  const pattern = patterns[model.key];
+  if (pattern !== undefined) {
+    const match = pattern.exec(text);
+    if (match !== null && typeof match[1] === 'string' && match[1] !== '') return match[1];
+  }
+  return wfCardArgRunId(model);
+}
 
-    /**
-     * Expansion state owned by this card.
-     * Chat forwards a stable `useDisclosure`; without one the card keeps its own state, so the
-     * body still opens in a host that does not provide the hook.
-     */
-    function useExpansion(useDisclosure) {
-      const local = React.useState(false);
-      let expanded = local[0] === true;
-      let toggle = () => local[1]((previous) => previous !== true);
-      if (typeof useDisclosure === 'function') {
-        let state;
-        try {
-          state = useDisclosure();
-        } catch {
-          state = undefined;
-        }
-        if (isObject(state)) {
-          expanded = state.expanded === true;
-          if (typeof state.toggle === 'function') toggle = state.toggle;
-        }
-      }
-      return { expanded, toggle };
-    }
+/** Open one run (or its script steps) in the right Sidebar; false when unavailable. */
+function wfCardOpenDetail(params) {
+  if (typeof WF_DETAIL !== 'object' || WF_DETAIL === null || typeof WF_DETAIL.open !== 'function') return false;
+  try {
+    WF_DETAIL.open(params);
+    return true;
+  } catch (error) {
+    console.warn('zcode-workflow: run detail failed to open', error);
+    return false;
+  }
+}
 
-    /**
-     * One workflow tool card.
-     * @param {object} props slot owner payload: `toolName`, `phase`, `block`, `useDisclosure`, `t`
-     */
-    function WorkflowCard(props) {
-      const translate = isObject(props) ? props.t : undefined;
-      const say = React.useMemo(() => makeSay(translate), [translate]);
-      const { expanded, toggle } = useExpansion(isObject(props) ? props.useDisclosure : undefined);
-      const toolName = isObject(props) && typeof props.toolName === 'string' ? props.toolName : '';
-      const phase = phaseOf(props);
-      const block = isObject(props) ? props.block : undefined;
-      const failed = isObject(block) && block.isError === true;
-      const sessionId = cardSessionId(props);
-      const detailRunId = React.useMemo(
-        () => (typeof WF_DETAIL === 'object' && WF_DETAIL !== null && typeof WF_DETAIL.open === 'function'
-          ? cardRunIdOf(toolName, block, phase, failed)
-          : undefined),
-        [toolName, block, phase, failed],
-      );
-      const detailLabel = wfUiCopy('card.detailAction');
-      const model = React.useMemo(
-        () => totalize(buildModel(toolName, phase, block, say), say),
-        [toolName, phase, block, say],
-      );
+/** Read a late-loaded surface (`WF_PERMISSION`) without tripping its temporal dead zone. */
+function wfCardSurface(name) {
+  try {
+    const surface = name === 'permission' ? WF_PERMISSION : undefined;
+    return wfCardRecord(surface) || typeof surface === 'function' ? surface : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
-      const expandable = model.sections.length > 0;
-      const open = expandable && expanded;
-      const onToggle = () => {
-        if (typeof toggle === 'function') toggle();
-      };
-      const onRowKeyDown = (event) => {
-        if (!isObject(event)) return;
-        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
-        if (typeof event.preventDefault === 'function') event.preventDefault();
-        onToggle();
-      };
+/**
+ * One workflow tool card.
+ * @param {object} props slot payload (see the header comment)
+ */
+function WorkflowCard(props) {
+  const model = React.useMemo(() => wfCardModel(props), [props]);
+  const live = useWfCardRun(model); // eslint-disable-line no-undef -- 31-cache.js
+  const openState = useWfCardOpen(model.toolId, wfCardDefaultOpen(model), model.forceOpen, model.canToggle);
+  const render = Object.prototype.hasOwnProperty.call(WF_CARDS.render, model.key)
+    ? WF_CARDS.render[model.key]
+    : WF_CARDS.render.default;
+  return React.createElement(render, {
+    model,
+    live,
+    open: openState.open,
+    toggle: openState.toggle,
+    expandable: openState.expandable,
+    t: wfCardSay,
+  });
+}
 
-      const row = [];
-      row.push(React.createElement('span', { className: CLASS.icon, key: 'icon' }, React.createElement(WorkflowIcon)));
-      row.push(React.createElement('span', { className: CLASS.title, key: 'title' }, model.title));
-      if (model.summary !== '') {
-        row.push(React.createElement('span', { className: CLASS.sep, 'aria-hidden': true, key: 'sep' }));
-        row.push(React.createElement('span', {
-          className: model.monoSummary ? `${CLASS.summary} ${CLASS.mono}` : CLASS.summary,
-          title: model.summary,
-          key: 'summary',
-        }, model.summary));
-      }
-      if (model.detail !== '') {
-        row.push(React.createElement('span', { className: CLASS.detail, title: model.detail, key: 'detail' }, model.detail));
-      }
-      if (model.status !== '') {
-        row.push(React.createElement('span', { className: CLASS.status, key: 'status' }, model.status));
-      }
-      if (model.statusSuffix !== '') {
-        row.push(React.createElement('span', { className: `${CLASS.status} ${CLASS.mono}`, title: model.statusSuffix, key: 'suffix' }, model.statusSuffix));
-      }
-      if (detailRunId !== undefined) {
-        row.push(React.createElement('button', {
-          type: 'button',
-          className: CLASS.detailAction,
-          title: detailLabel,
-          'aria-label': detailLabel,
-          'data-workflow-run-id': detailRunId,
-          key: 'detail-action',
-          onClick: (event) => {
-            if (isObject(event) && typeof event.stopPropagation === 'function') event.stopPropagation();
-            cardOpenDetail(detailRunId, sessionId);
-          },
-          onKeyDown: (event) => {
-            if (isObject(event) && typeof event.stopPropagation === 'function') event.stopPropagation();
-          },
-        }, React.createElement(WF_UI.icons.external, { size: 14 })));
-      }
-      if (expandable) row.push(React.createElement(Chevron, { open, key: 'chevron' }));
-
-      const rowProps = { className: CLASS.row, 'data-expandable': expandable ? 'true' : 'false', key: 'row' };
-      if (expandable) {
-        rowProps.role = 'button';
-        rowProps.tabIndex = 0;
-        rowProps['aria-expanded'] = open ? 'true' : 'false';
-        rowProps.title = say(open ? 'row.collapse' : 'row.expand');
-        rowProps.onClick = onToggle;
-        rowProps.onKeyDown = onRowKeyDown;
-      }
-
-      const children = [React.createElement('div', rowProps, row)];
-      if (open) children.push(React.createElement(CardBody, { sections: model.sections, key: 'body' }));
-
-      return React.createElement('div', {
-        className: CLASS.root,
-        'data-tool': toolName,
-        'data-state': model.tone,
-      }, children);
-    }
-
+/** Cards arrive expanded, as the product's per-call memory defaults to open. */
+function wfCardDefaultOpen() {
+  return true;
+}
