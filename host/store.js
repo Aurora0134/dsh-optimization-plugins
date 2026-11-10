@@ -2008,7 +2008,6 @@ export function createStore(options = {}) {
    */
   const listArtifacts = async (runId, options = {}) => {
     const rows = await readArtifactManifest(runId);
-    if (rows.length === 0) return [];
     const events = await readEvents(runId, options);
     /** @type {Map<string, number>} */
     const itemCounts = new Map();
@@ -2020,12 +2019,41 @@ export function createStore(options = {}) {
     }
     /** @type {Map<string, Record<string, any>[]>} */
     const groups = new Map();
+    /** @type {Set<string>} */
+    const seen = new Set();
     for (const row of rows) {
       const id = typeof row.id === 'string' ? row.id : undefined;
       if (id === undefined) continue;
       const list = groups.get(id) ?? [];
-      list.push(row);
+      if (!list.some((candidate) => Number(candidate.version) === Number(row.version))) {
+        list.push(row);
+        seen.add(`${id}@${Number(row.version)}`);
+      }
       groups.set(id, list);
+    }
+    // 新版引擎把 artifact 声明/发布同时写进 dwf_node(kind='artifact')；preset
+    // （chart/table/metrics/board）只有这张表，没有二进制 manifest 行。两边按 id@version 去重合并。
+    for (const node of listNodes(runId, { ...options, kinds: ['artifact'], withResult: true })) {
+      const result = node.result;
+      if (result === null || typeof result !== 'object' || typeof result.id !== 'string') continue;
+      const version = Number.isInteger(result.version) ? result.version : 1;
+      const key = `${result.id}@${version}`;
+      if (seen.has(key)) continue;
+      const fake = {
+        id: result.id,
+        kind: result.kind,
+        version,
+        ...(result.title === undefined ? {} : { title: result.title }),
+        ...(result.description === undefined ? {} : { description: result.description }),
+        ...(result.primary === true ? { primary: true } : {}),
+        ...(result.spec === undefined ? {} : { spec: result.spec }),
+        contentType: result.contentType ?? inferContentType(result.kind, undefined),
+        publishedAt: node.timeCreated ?? 0,
+      };
+      const list = groups.get(result.id) ?? [];
+      list.push(fake);
+      seen.add(key);
+      groups.set(result.id, list);
     }
     const artifacts = [];
     for (const [id, versions] of groups) {
@@ -2077,10 +2105,24 @@ export function createStore(options = {}) {
   const readArtifactPayload = async (runId, artifactId, version) => {
     const runDir = await locateRunDir(runId);
     if (runDir === undefined) return undefined;
-    const record = (await readArtifactManifest(runId)).find(
+    let record = (await readArtifactManifest(runId)).find(
       (row) => row.id === artifactId && Number(row.version) === Number(version),
     );
-    if (record === undefined) return undefined;
+    if (record === undefined) {
+      // preset artifact：没有二进制载荷，内容就是节点 result 里的 spec。
+      const node = listNodes(runId, { kinds: ['artifact'], withResult: true })
+        .find((candidate) => candidate.result?.id === artifactId
+          && (Number.isInteger(candidate.result?.version) ? candidate.result.version : 1) === Number(version));
+      if (node?.result?.spec !== undefined) {
+        return {
+          bytes: Buffer.from(JSON.stringify(node.result.spec), 'utf8'),
+          mediaType: 'application/json',
+          totalBytes: Buffer.byteLength(JSON.stringify(node.result.spec), 'utf8'),
+          record: node.result,
+        };
+      }
+      return undefined;
+    }
     const mediaType = typeof record.contentType === 'string' && record.contentType !== ''
       ? record.contentType
       : 'application/octet-stream';

@@ -703,6 +703,10 @@ test('ListWorkflowRuns: clamp, filter, annotation and empty state', async () => 
   assert.equal(filtered.runs.length, 1);
   assert.equal(filtered.runs[0].run_id, 'r1');
 
+  const filteredNone = await h.byName.ListWorkflowRuns.execute({ statuses: ['stopped'] }, execFor());
+  assert.equal(filteredNone.text, 'No workflow runs match that status filter (stopped).');
+  assert.deepEqual(filteredNone.runs, []);
+
   const empty = harness();
   const emptyResult = await empty.byName.ListWorkflowRuns.execute({}, execFor());
   assert.equal(emptyResult.text, 'No workflow runs exist in this project yet.');

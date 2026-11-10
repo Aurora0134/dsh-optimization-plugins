@@ -1192,8 +1192,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       const rows = Array.isArray(listed) ? listed : (Array.isArray(listed?.runs) ? listed.runs : []);
       const statuses = Array.isArray(args?.statuses) ? args.statuses : undefined;
       const filtered = statuses === undefined ? rows : rows.filter((row) => statuses.includes(row.status));
-      if (filtered.length === 0) {
+      if (rows.length === 0) {
         return succeed('No workflow runs exist in this project yet.', { runs: [] });
+      }
+      if (filtered.length === 0) {
+        return succeed(`No workflow runs match that status filter (${statuses.join(', ')}).`, { runs: [] });
       }
       const truncated = Array.isArray(listed) ? undefined : listed?.truncated;
       return succeed(budget([

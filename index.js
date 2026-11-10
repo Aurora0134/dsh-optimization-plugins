@@ -278,6 +278,38 @@ export function apply(ctx, config = {}) {
   };
 
   /**
+   * Artifact store adapter for one project root.
+   *
+   * The engine hands `file` (a path relative to the run's working directory) and `markdown` (the
+   * text itself) to `publish`; the store owns the versioned layout on disk. Preset artifacts
+   * (`chart`/`table`/`metrics`/`board`) never reach here — they are declarations recorded as nodes,
+   * and the run's artifact listing merges both tables.
+   *
+   * @param {string} root
+   */
+  const artifactsFor = (root) => ({
+    publish(request) {
+      const options = request.opts ?? {};
+      const common = {
+        id: request.id,
+        version: request.version,
+        ...(typeof options.title === 'string' ? { title: options.title } : {}),
+        ...(typeof options.description === 'string' ? { description: options.description } : {}),
+        ...(options.primary === true ? { primary: true } : {}),
+      };
+      if (request.op === 'file') {
+        return storeFor(root).publishArtifact(request.runId, {
+          ...common,
+          kind: 'file',
+          sourcePath: path.resolve(root, request.content),
+          ...(typeof options.contentType === 'string' ? { contentType: options.contentType } : {}),
+        });
+      }
+      return storeFor(root).publishArtifact(request.runId, { ...common, kind: 'markdown', text: request.content });
+    },
+  });
+
+  /**
    * One runtime per project root so run journals and drafts stay project-local.
    * @param {string} cwd
    */
@@ -287,6 +319,7 @@ export function apply(ctx, config = {}) {
     if (existing !== undefined) return existing;
     const created = createRuntime({
       store: storeFor(root),
+      artifacts: artifactsFor(root),
       workspaceFor,
       compiler: { compileWorkflowScript, extractMetadataHeader },
       config: {
@@ -302,6 +335,7 @@ export function apply(ctx, config = {}) {
 
   const baseRuntime = createRuntime({
     store,
+    artifacts: artifactsFor(process.cwd()),
     workspaceFor,
     compiler: { compileWorkflowScript, extractMetadataHeader },
     config: {
@@ -684,15 +718,19 @@ export function apply(ctx, config = {}) {
           if (rows.length === 0) return { kind: 'success', text: 'No dynamic-workflow runs in this project yet.' };
           return {
             kind: 'success',
-            text: ['Recent runs:', ...rows.map((row) => `- ${row.id} "${row.name}" — ${row.status}`)].join('\n'),
+            text: ['Recent runs:', ...rows.map((row) => `- ${row.runId ?? row.id} "${row.name ?? row.label ?? ''}" — ${row.status}`)].join('\n'),
           };
         }
         if (arg === undefined) return { kind: 'error', text: `usage: /dwf [list|cancel [runId]|resume <runId>]` };
         if (action === 'cancel') {
-          const run = await runtime.stopRun(arg, 'user');
-          return run === undefined
-            ? { kind: 'error', text: `no run with id ${arg}` }
-            : { kind: 'success', text: `Stopped ${run.id}; it is resumable with /dwf resume ${run.id}.` };
+          // The engine answers with `{ ok: false, code, message }` for a run it cannot stop, so the
+          // command reports the engine's own reason instead of guessing.
+          const stopped = await runtime.stopRun(arg, 'user');
+          if (stopped === undefined || stopped?.ok === false) {
+            return { kind: 'error', text: stopped?.message ?? `no run with id ${arg}` };
+          }
+          const runId = stopped.runId ?? stopped.id ?? arg;
+          return { kind: 'success', text: `Stopped ${runId}; it is resumable with /dwf resume ${runId}.` };
         }
         if (action === 'resume') {
           const run = await runtime.getRun(arg);
