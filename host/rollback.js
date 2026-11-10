@@ -14,6 +14,8 @@
  * @module dsh-session-rollback/host/rollback
  */
 
+import { randomUUID } from 'node:crypto'
+
 import { messageOf } from './snapshots.js'
 
 /** Stable reason codes; the browser half owns every piece of user-visible text. */
@@ -32,8 +34,28 @@ export const REASONS = Object.freeze({
   rolledBack: 'rolled-back',
 })
 
-/** One invisible developer message, the minimal payload the replace event carries. */
-const REPLACEMENT_MESSAGE = Object.freeze({ role: 'developer', content: Object.freeze([]) })
+/**
+ * One invisible developer message: the replacement payload the replace event
+ * carries.
+ *
+ * The session contract identifies every persisted message (`id`, `source`), and
+ * a stored log is revalidated on load; a marker without those fields would make
+ * the rolled-back session unreadable. Empty content still projects to no visible
+ * row and no model message, which is what makes the node itself invisible. The
+ * fresh identity keeps two rollbacks of the same session from sharing a message
+ * id.
+ * @returns {object} the replacement message
+ */
+function replacementMessage() {
+  return {
+    id: randomUUID(),
+    role: 'developer',
+    content: [],
+    // The source kind the framework itself uses for developer messages; an empty
+    // content list means it adds or removes no tool.
+    source: { kind: 'tool-registry' },
+  }
+}
 
 /**
  * Current surface node sequences, copied so callers cannot mutate the fold.
@@ -341,7 +363,7 @@ export async function performRollback({ ctx, session, store, recorder, request, 
         // position it closed; the target turn is the closest truthful value.
         turn: target.turn ?? 0,
         step: 1,
-        message: { ...REPLACEMENT_MESSAGE, content: [] },
+        message: replacementMessage(),
       },
       {
         surfaceOp: { op: 'replace', startSeq: target.seq, endSeq },
