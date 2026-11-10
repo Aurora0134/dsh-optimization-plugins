@@ -1,22 +1,21 @@
 ---
 name: dynamic-workflows
 description: "Use when writing, debugging, or resubmitting a dynamic-workflow script for the CreateWorkflow tool: choosing subagent topology, typing subagent results, fanning out over files or git, gating loops on world.run commands, testing pieces with EvalWorkflowSnippet, planner-reviewer loops, confirming findings before reporting them, report() salvage, the report shape a run returns, publishing artifacts the user opens, leaving typed holes to fill mid-run, and handling a backgrounded run."
-when_to_use: "Only for CreateWorkflow scripts. A single delegation or a few independent lookups belong to the Agent tool instead."
+when_to_use: "Only for CreateWorkflow scripts. A single delegation or a few independent lookups belong to the subagent tool instead."
 ---
 
 # Writing dynamic workflows
 
 This skill is the whole authoring contract for `CreateWorkflow`. The tool descriptions are
 short on purpose; the facade the compiler checks against, the rules a script must satisfy and
-the fields each tool takes are in §16, and `CreateWorkflow`, `AmendWorkflow`, `FillWorkflowHole`,
-`SaveWorkflow` and `EvalWorkflowSnippet` refuse to run until this skill has been loaded. The
+the fields each tool takes are in §16. Load this skill before writing or revising a script —
+the descriptions point here for everything they leave out. The
 rest is the judgment layer: how many subagents a request deserves, which of them should share
 a context, what each one should hand back, and how to keep the run's work from dying with the
 run.
 
-Two names collide in this codebase. `CreateWorkflow` is the dynamic-workflow tool and the
-only one this skill is about. The legacy `Workflow` tool and `/expert` are a different,
-older feature that happens to share the word.
+`CreateWorkflow` is the dynamic-workflow tool; the Harness's general delegation tool and
+ordinary turns are different things. This skill is only about `CreateWorkflow` scripts.
 
 ## The bar: first-class, expert-level work
 
@@ -37,19 +36,19 @@ claim costs little or a command has already decided it.
 
 | The request | The tool |
 | --- | --- |
-| One thing delegated to one agent | `Agent` |
-| A few independent lookups, nobody reading anybody's answer | `Agent`, in parallel |
-| Anything else the user did not name a workflow for, however many steps it needs | `Agent`, or do it yourself |
-| The user said "use a workflow" / "使用 workflow" / "用工作流" — any phrasing naming workflow as the means | `CreateWorkflow`, mandatory, even if `Agent` would have done or one reply could answer |
+| One thing delegated to one agent | the subagent tool |
+| A few independent lookups, nobody reading anybody's answer | the subagent tool, in parallel |
+| Anything else the user did not name a workflow for, however many steps it needs | the subagent tool, or do it yourself |
+| The user said "use a workflow" / "使用 workflow" / "用工作流" — any phrasing naming workflow as the means | `CreateWorkflow`, mandatory, even if the subagent tool would have done or one reply could answer |
 
 **Only an explicit request starts a workflow.** A workflow begins with `/workflow` or with
 the user naming workflow/工作流 as the means, never with your own judgement that a task
 looks orchestration-shaped. Results feeding later steps, a bounded loop, a branch on a typed
 result — those are shapes the script is good at once one has been requested, not reasons
-there should be one. Delegate with `Agent` or do the work yourself.
+there should be one. Delegate with the subagent tool or do the work yourself.
 
 **An explicit request is binding.** Once the user names workflow/工作流 as the means, the
-routing question is closed — not `Agent`, not inline, not "too small for a workflow"; what
+routing question is closed — not the subagent tool, not inline, not "too small for a workflow"; what
 remains is only how big the script should be, and the smallest task gets a small workflow.
 
 An explicit workflow request is a request for depth, and the bar above is the measure.
@@ -104,7 +103,7 @@ those rules out. Every subagent has the same tools; what it may do with them is 
 ask: a reviewer that must not touch the code is told "do not edit any file".
 
 **Per-subagent model**, only when the user asked for one, with the name they used:
-`agent("judge", { model: "GLM-5.3-Flash" })`, ids from `ListModels`. A literal or a `model()`
+`agent("judge", { model: "GLM-5.3-Flash" })`, with the exact model id the user named. A literal or a `model()`
 ModelRef; to route, map the router's typed key to a `model()` table (`patterns.md` #13).
 NEVER move a subagent to a model under another provider on your own — not for a judge, not
 because it looks cheaper; another provider is another bill. When a lighter model would
@@ -560,7 +559,9 @@ a new id, so an ask that quotes it misses the cache and runs again.
 
 **Deliver a report.** The script's final `return` is the handoff the main agent presents,
 in the order below; what the user themselves keep is the artifact of the next section.
-Return this shape (copy the interfaces; they compile as-is) rather than a bare array:
+Return this shape (copy the interfaces; they compile as-is) rather than a bare array. There is
+no built-in report type and `report()` returns nothing: `RunResult` below is a plain interface
+you define yourself, and the run's output is simply what the script returns.
 
 <!-- compile -->
 ```ts
@@ -576,7 +577,7 @@ interface Finding {
   /** How much it matters. Reserve "high" for data loss, a crash, or a wrong result. */
   severity: "low" | "medium" | "high";
 }
-interface WorkflowReport {
+interface RunResult {
   /** Two or three sentences answering what the user asked for. */
   conclusion: string;
   findings: Finding[];
@@ -586,7 +587,7 @@ interface WorkflowReport {
   notCovered: string[];
 }
 
-const result: WorkflowReport = {
+const result: RunResult = {
   conclusion: "Nothing was reviewed: this snippet only shows the shape.",
   findings: [],
   verified: [],
@@ -754,7 +755,7 @@ seed that surveys and ends in a tail hole, grown fill by fill — is `examples.m
 ## 13. After you submit
 
 Compilation happens first. **Diagnostics mean nothing ran**, and they name the file your
-script is in: an inline `script` is written under `.zcode/workflow-drafts/` before it is
+script is in: an inline `script` is written under `.dsh/workflow-drafts/` before it is
 compiled and the response hands you the path; a `path` submission is that file already. Each
 diagnostic reads `{path}:L{line}:C{column} {message}`, counted in the file.
 **Edit that file and resubmit with `path`. Do not paste the script inline again**: the
@@ -786,61 +787,48 @@ Read the terminal state precisely. A run ends in exactly one of three states:
   then resume). A fifth state, `superseded`, is a run you amended away: not resumable, no
   notification.
 
-Reported items come back on errored and stopped runs too. A run with a "waiting for
-provider" badge is retrying a provider error (§16.3), not broken; after twenty minutes you
-get one stall notification, and it still needs nothing from you.
+Reported items come back on errored and stopped runs too. Provider errors are retried while
+the run keeps going; a deterministic one stops the run as `stopped` / `provider`, and the
+completion notification names the cause. This port sends no mid-run stall notification: a run
+that looks idle is checked with `GetWorkflowRun` (its `health` and `status`).
 
 **When the script itself was wrong, do not start over.** Any run — errored, stopped,
 completed, or still running — can be superseded: edit the run's script file and call
-`AmendWorkflow` with `run_id` and that `path`. The new run imports the old one's finished
-work, matched per named subagent along its sequence of asks, so every step you did not touch
-settles from cache and only the changed part runs (the boundary is in §16.4). This is the
-move after a `ScriptError`, a bad prompt, or a completed analysis that needs one more stage.
-Two things make the cache hit: names that stay the same, and asks whose instructions stay
-byte-identical (an upstream change cascades downstream).
+`AmendWorkflow` with `run_id` and that `path`. The predecessor is stopped if it is still
+running, and the revision starts as a new run under the script you edited. This is the move
+after a `ScriptError`, a bad prompt, or a completed analysis that needs one more stage. Do not
+rebuild from scratch with `CreateWorkflow`.
+
+**Resume replays; amend re-runs.** This port does not import a predecessor's finished asks
+into an amended run, so a revised script pays for its asks again. `ResumeWorkflowRun` is the
+call that replays: it continues one stopped run under the same id, and every ask and world
+read whose inputs are byte-identical settles from the journal at zero tokens. That is why
+determinism matters — a resumed run matches by site and by a hash of the ask text and typed
+schema, so changed text or changed arguments run live.
 
 **Every run remembers its script file, so a revision is an `Edit`.** The terminal
 notification names that path and `GetWorkflowRun` reports it as `scriptPath`, so the script
 never has to live in your context: compaction may have dropped the text you sent, the file
 on disk has not moved. Edit it in place and pass `path`; pass `script` only for something
 genuinely new. A `path` whose bytes still equal what the run ran is refused as
-`script_unchanged` — your `Edit` did not land — with nothing stopped and nothing created.
+`workflow_script_unchanged` — your `Edit` did not land — with nothing stopped and nothing
+created.
 
-**Editing a draft asks nothing.** `.zcode/workflow-drafts/` is machine-owned and
-git-ignored, so an `Edit` under it opens no confirmation window; the window still stands
-between the file and the run, so fix the file freely and let the submission be what the
-user answers.
+**Editing a draft asks nothing.** `.dsh/workflow-drafts/` is machine-owned and
+git-ignored, so an `Edit` under it opens no confirmation window; on a profile with the launch
+confirmation, the window still stands between the file and the run.
 
 **Repair a run while it is still going.** The same call works before the run ends, and the
-earlier the cheaper. When a run is heading the wrong way, do not wait for it and do not stop
-it first: call `AmendWorkflow` on it. The tool stops the predecessor, waits for it to settle,
-imports everything that settled before the stop at zero cost, and starts the revision — one
-call, no `TaskStop`, no polling. The old run shows as "superseded" and sends no notification;
-the result you get back names both runs.
+earlier the better: every ask you stop before it runs is work not paid for. When a run is
+heading the wrong way, do not wait for it and do not stop it first: call `AmendWorkflow` on
+it. The tool stops the predecessor and starts the revision in one call — no
+`StopWorkflowRun`, no polling. The old run shows as "superseded" and sends no notification;
+the result names both runs.
 
-The cascade rule has a converse that decides whether revisions are cheap or ruinous.
-Interpolating an upstream **result** into a prompt is safe: on resume it replays
-byte-identical, so the prompt does too. Interpolating a script **constant** is the opposite
-bet — constants are what an amendment tunes, and every ask whose text mentions one forfeits
-its cache when you tune it, plus everything downstream:
-
-```ts
-// ✗ Amending PASS_THRESHOLD (say 96 → 94) rewrites this text, so the resumed run
-//   misses cache at the first revision and re-pays every ask after it.
-draft = await writer.ask<Draft>(
-  `Scored ${review.score}; passing needs ${PASS_THRESHOLD}. Revise: ${JSON.stringify(review.comments)}`,
-);
-
-// ✓ Only replayed upstream values and the fact that the branch was taken; amending
-//   the threshold now moves only where the loop exits, and earlier rounds settle from cache.
-draft = await writer.ask<Draft>(
-  `The review did not pass. Address each comment: ${JSON.stringify(review.comments)}`,
-);
-```
-
-Keep the tunable knobs — thresholds, round caps — in the script's control flow, where
-amending them is free, and out of ask text, where it is a cache purge. A subagent rarely
-needs the number; it needs the verdict and the feedback.
+**Keep ask text stable.** A resume replays an ask only when its text and typed schema hash
+the same. Do not interpolate tunable script constants into ask text: revising one rewrites
+the ask, and no later resume can reuse the original wording. Put a number in an ask only when
+the subagent needs it; otherwise pass the verdict and the feedback:
 
 ## 14. When a subagent escalates
 
@@ -851,30 +839,29 @@ a threshold of 96), two instructions no single output satisfies, a fact only who
 the run knows. With no way to ask, it has two moves left, both bad: grind until the round
 cap, or fake its way past.
 
-**What reaches you.** A notification arrives mid-run carrying the run, the subagent, the
-question with whatever evidence the subagent attached, and a globally unique question id shaped
-like `dwfq-...`. Only the subagent that asked is parked, and only on that one call: its
-siblings, the script's control flow and the run's status all carry on unchanged. Nothing
-times out on its behalf either — it waits until you answer or until the run is cancelled. So
-you need not drop what you are doing, but you cannot leave it unanswered.
+**What reaches you.** The run records the escalation; this port sends no separate mid-run
+notification, so a run that owes an answer is visible in `GetWorkflowRun`: its
+`pendingQuestions` lists each open question with a globally unique id shaped `dwfq-...`, the
+subagent that asked, and the evidence it attached. Only the subagent that asked is parked, and
+only on that one call: its siblings, the script's control flow and the run's status all carry
+on unchanged. Nothing times out on its behalf either — it waits until you answer or until the
+run is cancelled. So you need not drop what you are doing, but you cannot leave it unanswered.
 
 **Then decide which of two things is true.**
 
 - The question **has an answer** — a clarification, one missing fact, a tradeoff only you can
   call. Answer it with `ResolveWorkflowQuestion` and that `question_id`. Your text becomes
   the result of the subagent's own call, verbatim, and it continues its turn from there. Not
-  sure? Read the run with `GetWorkflowRun`, or put the question to the user with
-  `AskUserQuestion` — then come back and answer, because nothing answers in your place.
+  sure? Read the run with `GetWorkflowRun`, or ask the user — then come back and answer, because
+  nothing answers in your place.
 - The **script** is what is broken — a gate no output can pass, control flow routing work to
   the wrong subagent. No sentence fixes that. Edit the run's script file and call
-  `AmendWorkflow` on it with that `path` (§13); it stops the run for you. The escalation is
-  what makes that amendment cheap: the ask that escalated never settled, so it sits exactly
-  past the cache boundary — everything before it imports from the old run at no token cost,
-  and it re-runs against the fixed script.
+  `AmendWorkflow` on it with that `path` (§13); it stops the run for you. The ask that
+  escalated never settled, so the revision starts without whatever work it had in flight.
 
-**If the notification never arrives**, `GetWorkflowRun` lists what a run still owes you:
-the questions under `pendingQuestions`, ids included, and the holes it is waiting at (§15).
-That snapshot is the way to check on a run you suspect is waiting on you.
+**Because there is no mid-run notification**, `GetWorkflowRun` is how you check a run you
+suspect is waiting on you: the questions under `pendingQuestions`, ids included, and the holes
+it is waiting at (§15).
 
 **Write personas that make honesty the cheap move.** A persona that says "make the check
 pass" and stops there leaves faking a pass as the obedient reading. One sentence closes that
@@ -917,8 +904,8 @@ const plan = await hole<Plan>("决定分组", `…`, async () => { /* filled: th
 ```
 
 - **The name is a phase name.** A literal, unique among the script's holes and phase markers
-  (nested fills included), in the user's language: it labels the station, the notification and
-  the fill file. `T` is the contract the body is checked against.
+  (nested fills included), in the user's language: it labels the station and the hole request.
+  `T` is the contract the body is checked against.
 - **The prompt is the one channel for values.** Interpolate what the decision needs; the
   fill reads values there and types from the code.
 - **The body sees every binding declared before the hole, none after**, and may leave holes
@@ -966,12 +953,12 @@ return await hole<Guide>("第1步：决定导览结构", `盘点：…`, async (
 });
 ```
 
-You send only the innermost statements; the tool splices them in and rewrites the draft
-with the effective script, so the draft you read before the next fill is the script that is
-running. The chain's rules: a fresh name per step (`第N步：<what it does>`; a repeated name
-is a 9012); the prompt is the progress ledger; results stay in bindings (`survey`, `drafts`),
-because every inner body sees the ones around it; a step may add phases, subagents and
-holes of its own. The timeline grows to the right, one head per step. This is the normal
+You send only the innermost statements; the runtime wraps them in an async function and
+evaluates them where the hole stands, so the body you send is the code that runs — there is no
+rewritten draft to read. The chain's rules: a fresh name per step (`第N步：<what it does>`; a
+repeated name is a 9012); the prompt is the progress ledger; results stay in bindings (`survey`,
+`drafts`), because every inner body sees the ones around it; a step may add phases, subagents
+and holes of its own. The timeline grows to the right, one head per step. This is the normal
 way to run a task whose shape only appears as the work proceeds, not a fallback.
 
 ### A stage shaped by discovery
@@ -1029,24 +1016,23 @@ the winner, whose shape depends on what won.
 **Not a hole:** a verdict, a summary, a choice among options, an answer per item — those are
 subagent asks — and any branch an `if` over a typed result can express.
 
-**Filling one.** The notification carries the run, the hole's site id (`hole#21b40fca`), its name
-and type, the prompt with its values in, the draft's path and the hole's line, and the phases
-before and after. Then:
+**Filling one.** A hole parks its branch; `GetWorkflowRun` lists it under `holes` with the site
+id (`hole#21b40fca`), name, type and state. Then:
 
-1. Read the draft around the line: the body is compiled where the hole stands and sees what
-   is declared above it.
+1. Re-read the script around the hole in the run's script file (`scriptPath`): the body is
+   compiled where the hole stands and sees every binding declared above it.
 2. Write only the statements — no `hole(...)` call, no arrow — returning a value of `T`, or
    ending in a new tail hole when the next step is not known yet; rehearse fixed logic in
    `EvalWorkflowSnippet` first (§6).
-3. Call `FillWorkflowHole` with `run_id`, `hole_id` and `script` (or `path`, §16.7). The run
-   grows by the body and goes on; the response names the phases added and the draft, now
-   holding the effective script, for any later `AmendWorkflow`.
-4. Diagnostics mean nothing was spliced and the hole still waits: edit the fill file the
-   response names and resubmit with `path`, never paste it again (§13). A line in the
-   draft's file is the run's recorded script: `AmendWorkflow`, not a draft edit.
+3. Call `FillWorkflowHole` with `run_id`, `hole_id` and `script` (or `path`, §16.7). The
+   branch resumes with the value the body returns; the response names the phases the fill
+   added and where the run's script lives.
+4. If the body does not compile, nothing is filled: fix the body and call again, with `path`
+   when you kept it in a file. Changing anything outside the hole means `AmendWorkflow` on the
+   run's script; the fill is not spliced into that file.
 
 A fill that throws at run time rejects at the site and ends the run errored unless caught;
-amend the draft as usual. Full scripts: `patterns.md` #14–#16, `examples.md` #7.
+amend the run's script as usual. Full scripts: `patterns.md` #14–#16, `examples.md` #7.
 
 ## Going deeper
 
@@ -1063,11 +1049,13 @@ amend the draft as usual. Full scripts: `patterns.md` #14–#16, `examples.md` #
 ## 16. Tool reference
 
 The five authoring tools — `CreateWorkflow`, `AmendWorkflow`, `FillWorkflowHole`,
-`SaveWorkflow` and `EvalWorkflowSnippet` — carry short descriptions on purpose, and each refuses
-to run until this skill has been loaded in the session. This section is the part of their
-contract that the descriptions do not carry: the facade the compiler checks against, the
+`SaveWorkflow` and `EvalWorkflowSnippet` — carry short descriptions on purpose and expect this
+skill to be loaded first. This section is the part of their contract that the descriptions do
+not carry: the facade the compiler checks against, the
 rules a script must satisfy, and the fields each tool takes. Read it before writing or
-revising a script; the compiler holds you to it.
+revising a script; the compiler holds you to it. The run tools — `GetWorkflowRun`,
+`ListWorkflowRuns`, `TaskOutput`, `StopWorkflowRun`, `ResolveWorkflowQuestion` — are in
+§16.8–§16.12, and the subagent-side tools in §16.12.
 
 ### 16.1 `CreateWorkflow`
 
@@ -1078,18 +1066,20 @@ Compilation errors come back as diagnostics, counted in the script's file (§13)
 **Three sources; pass exactly one.**
 
 - `script`: a one-off workflow written inline. It is saved to a file under
-  `.zcode/workflow-drafts/` and the result names that file, compiled or not; revise it by
+  `.dsh/workflow-drafts/` and the result names that file, compiled or not; revise it by
   editing the file and resubmitting with `path` (§13).
 - `saved`: a workflow saved in this project or globally, by name —
   `saved: { name: "pr-review", args: { pr: "123" } }`; arguments are validated against its
-  declaration before anything runs. Check `ListSavedWorkflows` before writing one from
-  scratch: a saved workflow the user kept beats a rebuilt one. Running a saved workflow
-  is the one call that does not need this skill loaded.
+  declaration before anything runs. Add `scope: "global"` only to take the global archive
+  when a project workflow shadows the name. Check `ListSavedWorkflows` before writing one from
+  scratch: a saved workflow the user kept beats a rebuilt one. Running a saved workflow by
+  name needs no new authoring pass.
 - `path`: a script file on disk, relative to the working directory or absolute — normally
   the file a previous result named. Pass `args` alongside it when the file declares
   arguments in its `/* zcode-workflow` block.
 
-Either way the user confirms the run, and the confirmation shows the actual script.
+Where the host has the launch-confirmation channel the user confirms the run and sees the
+actual script; a profile without that channel runs the script directly.
 
 **Fields.**
 
@@ -1100,9 +1090,9 @@ Either way the user confirms the run, and the confirmation shows the actual scri
   the user asks to limit parallelism — never as a reaction to provider rate limits or
   errors, which the runtime already adapts to.
 - `subagent_model`: the model the subagents run on, as `providerId/modelId` or a bare model
-  id (optionally `$reasoningLevel`). Set it only when the user asks for a specific model;
-  pass the name they used, and if the tool cannot resolve it, pick from the ids it lists or
-  `ListModels`. NEVER set a model under another provider the user did not ask for: a bare
+  id. Set it only when the user asks for a specific model;
+  pass the name they used, and if the tool cannot resolve it, ask the user for the exact id
+  this host can resolve. NEVER set a model under another provider the user did not ask for: a bare
   name resolves only within the session's provider, and crossing to another one is written
   as the full `providerId/modelId`, which you write only when the user named that model.
   If you think a cheaper or faster model elsewhere would serve the run, ask the user before
@@ -1472,6 +1462,10 @@ declare function future<T>(body: () => Promise<T>): Promise<T>;
   `ChannelClosed`, catchable. Stalls fail the run, never time out: `ChannelDeadlock` when
   receivers wait on channels nothing can send to any more (naming each), `ScriptStalled` when
   some other promise can never settle.
+- `report(item, artifactId?)` is a fire-and-forget progress item: it returns `void`, every item
+  is journaled, and a tagged item also feeds the preset artifact named by `artifactId`. There
+  is no `WorkflowReport` type and no shape the runtime checks — the run's output is the
+  script's `return` value, and reported items are separate facts the main agent reads.
 - The final `return` is the model-facing result; artifacts are the user-facing deliverable.
   Never put the same content in both.
 - On diagnostics, edit the file the result names and call the tool again with `path`; never
@@ -1483,7 +1477,7 @@ Revises an existing run: it starts a new run that supersedes the old one and imp
 finished work as a cache, so only what you changed is paid for again. §13 has the cache
 rules and the repair-while-running move. It works on any run of this project — completed,
 errored, stopped or still running; a running predecessor is stopped and superseded in the
-same call, so never `TaskStop` it first and never rewrite it from scratch with
+same call, so never `StopWorkflowRun` it first and never rewrite it from scratch with
 `CreateWorkflow`. To continue a stopped run unchanged, use `ResumeWorkflowRun` instead.
 
 **Fields — every field you omit keeps the predecessor's value.**
@@ -1493,53 +1487,54 @@ same call, so never `TaskStop` it first and never rewrite it from scratch with
 - `path` or `script`, never both. `path` is the usual form: the errored notification and
   `GetWorkflowRun` name the run's script file — edit it in place and pass the same path
   back, so a revision costs one `Edit` instead of a second copy of the whole script. A file
-  whose bytes you did not change is refused (`script_unchanged`) unless the call also
-  changes `max_concurrency` or `subagent_model`; nothing is stopped and nothing is created.
+  whose bytes you did not change is refused (`workflow_script_unchanged`) with nothing
+  stopped and nothing created; to change only the settings, omit `path` and pass them.
   `script` carries a whole revised script inline, written against the same facade and rules;
   it is saved to a draft file the result names, so the next revision can go back to `path`.
-  Omit both to keep the predecessor's script byte for byte and change only the settings
-  below; its finished work still replays from the cache.
+  Omit both to reuse the predecessor's script byte for byte and change only the settings
+  below.
 - `name`: a new display label; defaults to the predecessor's.
 - `max_concurrency`: omit to keep the predecessor's limit, pass `null` to remove it, pass a
-  number to change it (only when the user asks). A call carrying nothing but `run_id` and
-  `max_concurrency`, against a run that is still going, retunes that run in place instead of
-  starting a new one: same run, nothing stopped, nothing re-run.
+  number to change it (only when the user asks). A settings-only call still supersedes the
+  predecessor and starts a new run under the same script; it does not retune a live run.
 - `subagent_model`: omit to keep the predecessor's choice, pass `null` to put the subagents
   back on the session model, pass a model id to change it (only when the user asks; never
   a model under another provider the user did not name — ask them first if you think one
-  would help). `ListModels` lists the ids.
+  would help).
 
-Changing only a setting on a running run still stops it; what it had in flight runs again in
-the new run, except that a named subagent whose unfinished ask you did not change picks that
-ask up where it left off instead of starting it over.
+A revision starts a new run: the predecessor is stopped if it was still going, and the new
+run's asks run again. The predecessor's journal is kept, so a later `ResumeWorkflowRun` replays
+whatever that run had settled without spending tokens.
 
-**How the cache works.** Named subagents are matched by name across the two scripts; each
-one's asks are matched in order by byte-identical instructions. A match settles from the
-recorded result at zero tokens; a changed or added ask runs live. The cache stays open until a
-live subagent makes its first write to the workspace (or a live `world.run` executes): from
-that moment, cached world reads and cached asks whose subagent had read or run something
-would describe a workspace that no longer exists, so they run live too. Asks that only
-answered keep settling from the cache. Editing an ask's text is how you force it to run
-again; keep names stable and keep tunable constants out of ask text (§13).
+**Resume replays; amend re-runs.** `ResumeWorkflowRun` continues one stopped run under the
+same id and replays its settled asks from the journal. `AmendWorkflow` mints a new run, so its
+asks are live again; the reason to amend is a changed script, not saved tokens. Keep ask text
+stable anyway (§13): a byte-identical ask is what a resume can replay.
+
+**What a resume replays.** A resumed run keeps its id and journal; each ask and world read is
+matched by site and a hash of its inputs (instructions, typed schema, command argv). A match
+settles from the recorded result at zero tokens; a changed input, or a site never reached,
+runs live. Replaying is why determinism matters: keep ask text byte-stable and keep tunable
+constants out of it (§13). Upstream ZCode also imports a predecessor's work into an *amended*
+run; this port's amend starts a new run, so only a resume has that replay.
 
 On diagnostics nothing was stopped and nothing was started; fix the file the result names
 and call again with `path`.
 
-**Confirmation.** A run this session started (through `CreateWorkflow`, a previous
-`AmendWorkflow` or the workflows hub) is amended without a confirmation window, even while
-it is running. A run the user stopped, or a run another session started, asks the user
-first, and so does an amendment that would put subagents on a provider neither the session
-nor the run used (a model you name under another provider, in `subagent_model` or in the
-script): that choice is the user's, and the window is where they make it. The result names the run that was superseded (if one was stopped) and the new run's
-id. The superseded run sends no notification of its own; the new run notifies when it
-settles. Do not wait for it or poll it with `TaskOutput`.
+**Confirmation.** Where the host has the launch-confirmation channel, a run this session
+started is amended without a window; a run the user stopped, or one another session started,
+asks the user first. A profile without that channel starts the revision directly. The result
+names the predecessor and the new run's id. The predecessor sends no notification of its own;
+the new run notifies when it settles. Do not wait for it or poll it with `TaskOutput`.
 
 ### 16.5 `SaveWorkflow`
 
 Saves a script with its metadata so it can be run again by name — through `CreateWorkflow`'s
 `saved` source, discovered with `ListSavedWorkflows`. Project definitions go in
-`.zcode/workflows/<name>.dwf.ts`, committed with the repository; global definitions go in
-`~/.zcode/workflows/<name>.dwf.ts` and are available from every project on this machine.
+`.dsh/workflows/<name>.dwf.ts`, committed with the repository; global definitions go in
+`$DSH_HOME/workflows/<name>.dwf.ts` and are available from every project on this machine.
+Archives written by ZCode under `.zcode/workflows/` are read too (project and `$DSH_HOME`),
+with `.dsh` winning when both define a name; new saves always go to `.dsh`.
 
 **When to call it.**
 
@@ -1554,8 +1549,8 @@ Saves a script with its metadata so it can be run again by name — through `Cre
 **Fields.**
 
 - `name`: a file-safe identifier (letters, digits, dot, dash and underscore). Saving over an
-  existing name replaces that workflow, and the confirmation says whether the file is new or
-  an overwrite: reuse a name to update, pick a new one for a variant.
+  existing name replaces that workflow, and the result says whether the file is new or was
+  replaced: reuse a name to update, pick a new one for a variant.
 - `description` (required) and `whenToUse`: written for a reader who has not seen this
   conversation. `description` shows up wherever the workflow is listed.
 - `scope` (required, no default): `project` when the script references this repository's
@@ -1571,8 +1566,8 @@ Saves a script with its metadata so it can be run again by name — through `Cre
   and a `default`; every future call is validated against them.
 
 The saved file is valid TypeScript: a `/* zcode-workflow` block of YAML metadata, then the
-script verbatim. The script is typechecked by the same compiler as `CreateWorkflow`, before
-the user is asked; diagnostics mean nothing was written. The rules in §16.3 apply, phases
+script verbatim. The script is typechecked by the same compiler as `CreateWorkflow` before
+anything is written; diagnostics mean nothing was saved. The rules in §16.3 apply, phases
 included — future callers did not see this conversation, so the phase names are all they
 get.
 
@@ -1593,30 +1588,100 @@ fixed logic of a script or of a hole's body; it is not for orchestration.
   fail typechecking. The language rules are a script's: plain interfaces, top-level `await`, a
   final `return <value>`. The returned value is serialized into the result, so return a
   summary, not a dump; over 256KB fails the call. `log(...)` lines come back in order. A
-  snippet that contains `world.run` asks the user for confirmation before running. On
-  diagnostics nothing ran: fix the snippet and call again.
+  snippet's `world.run` executes immediately: nothing is confirmed and nothing is journaled.
+  On diagnostics nothing ran: fix the snippet and call again.
 
 ### 16.7 `FillWorkflowHole`
 
 Writes the body of a hole a run is waiting at (§15). It starts nothing: the run keeps its id,
-journal and subagents, and the effective script — the run's script with the body spliced in —
-is what a resume replays, an amend revises and `SaveWorkflow` keeps.
+journal and subagents, and the branch parked at the hole resumes with the value the body
+returns. The body is recorded against the run's journal and runs where the hole stands; it is
+not spliced into the run's script file — to change anything outside the hole, use
+`AmendWorkflow`.
 
 - `run_id` and `hole_id` (required): from the notification or `GetWorkflowRun`; the hole id
   is the site id (`hole#21b40fca`), not the name.
-- `script` or `path`, never both: the body's statements only. An inline `script` is written to
-  a fill file under `.zcode/workflow-drafts/` before it is compiled and the result names it;
-  `path` is usually that file after an `Edit`, and bytes equal to the last rejected attempt
-  are refused as `fill_unchanged`.
+- `script` or `path`, never both: the body's statements only — not the `hole(...)` call, not
+  an arrow, not the script around it. An inline `script` is compiled at the site; `path`
+  names a file holding the statements, when you keep them in one.
 
-The body is compiled where the hole stands, against the whole script; a diagnostic is anchored
-to the file it falls in — the fill file inside the body, the run's draft outside it — and on
-diagnostics nothing is spliced. A body may name only the models the run was launched with; any
-other model is diagnostic 9011 — to add one, amend the run.
-`hole_not_waiting` means the run is not in flight or not
-waiting at that hole (filled, not yet reached, unknown id); resume a stopped run first and the
-hole asks again. A body may end in a new tail hole instead of returning (§15). On success the
-response names the phases added and the run's draft, rewritten in place with the effective
-script. Confirmation follows the amend rule (§16.4): this session's run fills without a
-window; otherwise the window shows the new stations and the `world.run` commands the body
-adds.
+The body sees every binding declared before the hole and returns the hole's value. A body
+that does not compile fills nothing: the response names the lines, or the run records the
+failure — fix the body and call again. A body may end in a new tail hole instead of
+returning (§15). `hole_not_waiting` means the run is not in flight or not waiting at that
+hole (filled, not yet reached, unknown id); resume a stopped run first and the hole asks
+again. On success the response names the phases the fill added and where the run's script
+lives. No confirmation window opens: a fill is not a launch.
+
+### 16.8 `ResolveWorkflowQuestion`
+
+Answers the blocking question a subagent escalated (§14). Two fields:
+
+- `question_id`: the id shaped `dwfq-...` from `GetWorkflowRun`'s `pendingQuestions` (this
+  port has no separate escalation notification; the run's snapshot is the source).
+- `answer`: the text delivered verbatim as the result of the subagent's own call. It resumes
+  its turn from there; only that subagent was parked, and the rest of the run kept going.
+
+Answer directly and actionably — nothing answers on your behalf and the subagent waits
+indefinitely. If the question shows the script is structurally broken, do not answer it:
+amend the run (§16.4). Errors are `unknown_question` (no such pending id: already answered or
+the run settled), `already_resolved`, `run_not_in_flight`, and `workflow_answering_unavailable`
+(this profile has no workflow runtime). Each ask gets three escalations; the fourth returns a
+budget-exhausted result telling the subagent to proceed on its own judgement.
+
+### 16.9 `GetWorkflowRun` and `ListWorkflowRuns`
+
+`GetWorkflowRun` takes `run_id` and returns an instant snapshot, never blocking: status and
+stop reason, usage (tokens and nodes observed/running/completed/failed), `scriptPath`,
+concurrency and subagent model, phases, subagents, health, `logTail`, `pendingQuestions`,
+`holes`, `artifacts` (with `primary`), reported items, `result` (the script's return value) and
+`error` when it failed. An id outside this project answers `run_not_found`. Use it for a run
+another session started; `TaskOutput` cannot see those.
+
+`ListWorkflowRuns` takes `limit` (1–50, default 20, clamped) and optional `statuses`
+(`completed`, `errored`, `pending`, `running`, `stopped`). Rows are most recently updated
+first and carry the run id, label, status, stop reason, `resumedFrom`, `supersededBy`, whether
+this session started it, tokens spent and timestamps. `possibly_interrupted="true"` is an
+annotation that the session cannot confirm liveness — it is not a failure to report.
+
+### 16.10 `TaskOutput`
+
+Blocks until a run this session started settles, then returns its final snapshot: the
+script's return value, reported items, artifacts, and the failure if there was one. Fields:
+`run_id`; `block` (default true — set false for an immediate snapshot); `timeout_ms` (default
+600000, at most 3600000). A timeout returns the current snapshot while the run keeps going; it
+is not a failure. The completion notification arrives on its own, so reach for this only when
+the user asked you to wait or you genuinely must block.
+
+### 16.11 `StopWorkflowRun`
+
+The port's stop entry — ZCode stops a workflow through its generic `TaskStop`, and the Harness
+exposes no equivalent to plugins. It takes `run_id`, records `stop_reason: "model"` and leaves
+the run resumable with `ResumeWorkflowRun`; finished steps replay from the journal. To fix a
+script that is going wrong, prefer `AmendWorkflow`: one call stops the run and starts the
+revision. Do not stop a run merely to wait for it.
+
+### 16.12 The subagent side: `submit_result` and `escalate`
+
+Subagents never see the workflow-management tools. Their tool set is the regular working
+tools plus two actor tools (the actor policy also denies `AskUserQuestion`, `EnterPlanMode`,
+`ExitPlanMode`, `CreateWorkflow`, `AmendWorkflow`, `ReadSessionContext` and
+`ResolveWorkflowQuestion`):
+
+- `submit_result({ result })` — typed asks only. The subagent finishes by calling it with a
+  JSON value matching the schema built from the ask's type argument. A mismatch comes back as
+  `The submitted result does not match the required schema:` plus `<path>: expected
+  <expected>, got <got>` lines; the engine repairs up to 3 times, nudges once if the turn
+  ended without submitting, then fails the ask (`ValidationFailed` / `ResultNotSubmitted`).
+  An untyped ask has no such tool: its final message is the result.
+- `escalate({ question, context? })` — blocks that one ask until you answer with
+  `ResolveWorkflowQuestion`. One focused question answerable in a sentence, with the evidence
+  in `context`. Three per ask; the fourth returns the budget-exhausted text. It is a last
+  resort for a gate that cannot pass, contradictory instructions, or a fact only the run's
+  owner knows — not for progress reports or permission.
+
+Personas describe role and standard, not tools: "If a check is impossible to pass, or your
+instructions contradict each other, escalate and say so plainly rather than working around
+it." Every subagent already carries the same contract (cite `path:line`, never report a check
+it did not run, say what it could not do).
+

@@ -503,9 +503,8 @@ migration is the difference between finished and silently half-finished.
 
 Both subagents in the fan-out are named per path. That is not decoration: a run rejects two
 subagents sharing a name, so `agent("migrator")` inside the `map` would not survive its second
-file — and the per-path names are also what a corrected re-run (`AmendWorkflow`) matches its
-imported cache against, so re-running this script after fixing one detail does not re-migrate
-the files that already came out clean.
+file. The per-path names also keep each file's work a distinct station in the run's graph and
+journal.
 
 The checker is a **separate subagent** from the migrator, which is what makes the check
 meaningful: a subagent asked to grade its own migration grades generously. It builds and
@@ -704,7 +703,7 @@ interface Digest {
   /** Two or three sentences a reader can act on. */
   summary: string;
 }
-interface WorkflowReport {
+interface RunResult {
   /** Two or three sentences answering what the user asked for. */
   conclusion: string;
   findings: ReportedFinding[];
@@ -784,7 +783,7 @@ await artifact.markdown(
   ].join("\n"),
   { title: "Review report" },
 );
-const result: WorkflowReport = {
+const result: RunResult = {
   conclusion: digest.summary,
   findings: confirmed,
   verified: paths.map((p) => `reviewed ${p}; every kept finding re-checked by a separate subagent`),
@@ -847,7 +846,7 @@ interface Draft {
   /** Two or three sentences a reader can act on. */
   summary: string;
 }
-interface WorkflowReport {
+interface RunResult {
   /** Two or three sentences answering what the user asked for. */
   conclusion: string;
   findings: Finding[];
@@ -888,8 +887,8 @@ const research = future(async () => {
 
 const verify = future(async () => {
   phase("Check each fact as it arrives");
-  // A fresh verifier per fact, named after it: cache identity stays per fact on a revised
-  // run, and the name says which fact each card is about.
+  // A fresh verifier per fact, named after it: the name says which fact each card is about,
+  // and the per-fact ask text keeps each verifier's inputs distinct.
   const checks: Promise<void>[] = [];
   for await (const fact of facts) {
     checks.push(
@@ -926,7 +925,7 @@ const draft = await agent(
 ).ask<Draft>(`Write a report on ${topic} from these verified facts:\n${JSON.stringify(passed)}`);
 await artifact.markdown("report", draft.markdown, { title: `What we know about ${topic}` });
 
-const result: WorkflowReport = {
+const result: RunResult = {
   conclusion: draft.summary,
   findings: passed,
   verified: [`${passed.length} facts each re-checked against their source by a separate subagent`],
@@ -940,8 +939,8 @@ and stamping is lexical, so the two stages that run at the same time keep their 
 the timeline. The research stage owns `facts.close()` in a `finally`: a researcher that fails
 still ends the stream, so the verifiers finish instead of parking on a channel nobody will
 send to. The verifiers are fresh and named per fact rather than pooled, because the facts are
-independent and a revised run should miss the cache for one changed fact, not for the whole
-pool. The `checks` array is the part people forget: the verify stage is done when its
+independent: one changed fact should change one verifier's ask, not every verifier's. The
+`checks` array is the part people forget: the verify stage is done when its
 verifiers are, not when the channel closes, and the deadlock detector cannot catch a stage that
 returns early with work still in flight.
 
@@ -1033,8 +1032,9 @@ await artifact.markdown("guide", chapters.map((c) => `## ${c.title}\n\n${c.body}
 return guide;
 ```
 
-After both fills the run's draft holds the effective script — the seed with each body spliced
-in as the last argument of its hole — which is what a resume replays and an amend revises:
+After both fills the run's journal holds each body against its site; the parked branches
+continue where they stand, and the script file keeps the holes. A later `AmendWorkflow` revises
+the script, not the fills:
 
 <!-- compile -->
 ```ts
@@ -1106,5 +1106,4 @@ What to notice: each step's hole has its own name, because a hole is a phase and
 with one name would be one phase; the prompts carry only what the next author needs, since
 the bindings carry the data; and the chain closed at step two because the author decided it
 was done, not because anything ran out. The writers are named per directory inside the
-`map`, so a revised run that changes one directory's chapter misses the cache for that one
-writer only.
+`map`, so changing one directory's chapter leaves the other writers' asks byte-identical.

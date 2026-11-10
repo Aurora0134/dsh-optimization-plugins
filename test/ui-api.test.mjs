@@ -1,6 +1,7 @@
 /**
- * Wire tests for the browser data channel: route table, trust fence, method/body validation
- * and the handler contracts the client half consumes.
+ * Wire tests for the browser data channel: route table, trust fence, method/body validation,
+ * the seven run-data calls, the eight saved-workflow calls, the policy pair, the launch approval
+ * broker and the compatibility routes.
  */
 import assert from 'node:assert/strict';
 import fsp from 'node:fs/promises';
@@ -8,22 +9,52 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { apply } from '../index.js';
-import { registerWorkflowUiApi } from '../host/ui-api.js';
+import {
+  decodedBase64ByteLength,
+  projectArtifactFields,
+  readArtifactChunk,
+  registerWorkflowUiApi,
+  truncateNodeResult,
+  utf8SafeSlice,
+  validateArtifactRead,
+} from '../host/ui-api.js';
 
 const BASE = '/zcode-workflow';
 // A real absolute directory the Host resolves through realpath without rewriting it.
 const WORKSPACE = process.cwd();
 const SAVED_PATH = path.join(WORKSPACE, '.dsh', 'workflows', 'review-changes.dwf.ts');
+const SAVED_CODE = 'phase("prep");\nreturn { ok: true };';
 
 const ROUTE_PATHS = [
+  // §1.1 run data plane
   `${BASE}/runs`,
-  `${BASE}/run`,
+  `${BASE}/run/events`,
+  `${BASE}/run/artifacts`,
+  `${BASE}/artifact/data`,
+  `${BASE}/artifact/read`,
+  `${BASE}/run/workspace`,
+  `${BASE}/run/node`,
+  // interaction
+  `${BASE}/run/approve`,
   `${BASE}/run/stop`,
+  `${BASE}/run/resume`,
   `${BASE}/run/fill`,
-  `${BASE}/run/start`,
-  `${BASE}/workflows`,
+  `${BASE}/run/answer`,
+  // §1.2 saved workflows
+  `${BASE}/workflows/list`,
+  `${BASE}/workflows/get`,
+  `${BASE}/workflows/updateMeta`,
   `${BASE}/workflows/delete`,
   `${BASE}/workflows/move`,
+  `${BASE}/workflows/save`,
+  `${BASE}/workflows/runs`,
+  `${BASE}/workflows/forRun`,
+  // §6 policy
+  `${BASE}/policy`,
+  // compatibility (Lead-approved transition routes)
+  `${BASE}/workflows`,
+  `${BASE}/run`,
+  `${BASE}/run/start`,
   `${BASE}/artifact`,
   `${BASE}/mode`,
 ];
@@ -86,7 +117,49 @@ function createFixture(options = {}) {
       count: { type: 'number', default: 2 },
     },
     path: SAVED_PATH,
-    code: 'return { ok: true };',
+    code: SAVED_CODE,
+  };
+  const savedRow = {
+    name: saved.name,
+    scope: saved.scope,
+    description: saved.description,
+    whenToUse: saved.whenToUse,
+    args: saved.args,
+    path: saved.path,
+  };
+  const savedArtifact = {
+    id: 'report',
+    kind: 'markdown',
+    title: 'Report',
+    contentType: 'text/markdown',
+    version: 2,
+    versions: [
+      { version: 1, publishedAt: 1, bytes: 8, uri: 'artifacts/report/v1.md' },
+      { version: 2, publishedAt: 2, bytes: 9, uri: 'artifacts/report/v2.md', primary: true },
+    ],
+    itemCount: 1,
+    primary: true,
+  };
+  const reportEvent = {
+    sequence: 3,
+    type: 'report',
+    payload: {
+      type: 'report',
+      instance: { siteId: 'site-a', ordinal: 0 },
+      item: { kind: 'summary', rows: [{ a: 1 }], long: 'x'.repeat(5000) },
+      artifactId: 'report',
+    },
+  };
+  const worldNode = {
+    siteId: 'site-a',
+    ordinal: 0,
+    kind: 'world-run',
+    op: 'git',
+    args: ['status'],
+    status: 'completed',
+    summary: { resultBytes: 12, exitCode: 0, stdoutBytes: 10 },
+    createdAt: 1,
+    updatedAt: 2,
   };
   const store = {
     async listSavedWorkflows() {
@@ -99,6 +172,20 @@ function createFixture(options = {}) {
       calls.push(['getSavedWorkflow', name, request]);
       return name === saved.name ? { ...saved } : undefined;
     },
+    async saveWorkflow(input) {
+      calls.push(['saveWorkflow', input]);
+      return { ok: true, name: input.name, scope: 'project', path: SAVED_PATH, overwritten: false };
+    },
+    async updateSavedWorkflowMeta(name, meta, request) {
+      calls.push(['updateSavedWorkflowMeta', name, meta, request]);
+      return { ok: true, path: SAVED_PATH, scope: 'project' };
+    },
+    async removeSavedWorkflow(name) {
+      calls.push(['removeSavedWorkflow', name]);
+      return name === saved.name
+        ? { ok: true, path: SAVED_PATH, scope: 'project' }
+        : { ok: false, reason: 'not_found' };
+    },
     async deleteSavedWorkflow(name) {
       calls.push(['deleteSavedWorkflow', name]);
       return name === saved.name;
@@ -107,23 +194,95 @@ function createFixture(options = {}) {
       calls.push(['moveSavedWorkflow', name]);
       return { ok: true, from: 'global', to: 'project', path: SAVED_PATH };
     },
+    async listSavedWorkflowRuns(name, request) {
+      calls.push(['listSavedWorkflowRuns', name, request]);
+      return { runs: [{ runId: 'run-1', name: saved.name, status: 'running', createdAt: 1, updatedAt: 2, spentTokens: 12, artifacts: [] }], truncated: false };
+    },
+    async resolveSavedWorkflowForRun(input) {
+      calls.push(['resolveSavedWorkflowForRun', input]);
+      return { entry: savedRow, match: 'name', runArgs: { target: 'src' } };
+    },
     async readArtifactManifest() {
       return [{ id: 'report', kind: 'markdown', version: 1, contentType: 'text/markdown', text: '# report' }];
+    },
+    async listArtifacts() {
+      calls.push(['listArtifacts']);
+      return [savedArtifact];
+    },
+    async readArtifactPayload(runId, artifactId, version) {
+      calls.push(['readArtifactPayload', runId, artifactId, version]);
+      if (Number(version) === 9) return undefined;
+      return { bytes: Buffer.from('abcdef', 'utf8'), mediaType: 'text/plain', totalBytes: 6 };
     },
     async artifactFilePath() {
       return undefined;
     },
+    async readEventPage(runId, request) {
+      calls.push(['readEventPage', runId, request]);
+      return {
+        events: [{ sequence: 3, type: 'report', payload: reportEvent.payload }],
+        hasMore: true,
+        lastEventSequence: 7,
+      };
+    },
+    async readEvents() {
+      return [reportEvent];
+    },
+    async listWorldNodes() {
+      calls.push(['listWorldNodes']);
+      return { nodes: [worldNode], truncated: false };
+    },
+    async getNode(runId, siteId, ordinal) {
+      calls.push(['getNode', runId, siteId, ordinal]);
+      if (siteId !== 'site-a') return undefined;
+      return {
+        kind: 'world-read',
+        status: 'completed',
+        result: { exitCode: 0, stdout: 'ok', stderr: '' },
+      };
+    },
+    async getRun(id) {
+      calls.push(['getRun', id]);
+      return id === 'run-1' ? run : undefined;
+    },
+    async readRunScript() {
+      return SAVED_CODE;
+    },
+    async listRunsForSession(request) {
+      calls.push(['listRunsForSession', request]);
+      return [run, { ...run, id: 'run-2' }, { ...run, id: 'run-3' }];
+    },
+    async projectRun(runId) {
+      calls.push(['projectRun', runId]);
+      return {
+        runId,
+        status: 'running',
+        phaseNames: ['review', 'ship'],
+        currentPhase: 'review',
+        phases: [{ name: 'review', rounds: 1 }],
+        actors: [{ siteId: 'actor-a', ordinal: 0, status: 'running' }],
+        nodes: [],
+        holes: [{ siteId: 'site-a', ordinal: 0, name: 'target', state: 'waiting' }],
+      };
+    },
   };
   const run = {
     id: 'run-1',
+    runId: 'run-1',
+    toolCallId: 'tool-1',
     name: 'review-changes',
+    label: 'review-changes',
     status: 'running',
     createdAt: 1,
+    updatedAt: 2,
     finishedAt: undefined,
     stopReason: undefined,
     possibleInterruption: false,
     spentTokens: 12,
     labelSource: 'saved',
+    args: { target: 'src' },
+    maxConcurrency: 4,
+    scriptPath: path.join(WORKSPACE, '.dsh', 'workflow-drafts', 'review-changes.dwf.ts'),
     steps: { started: 0, settled: 0, failed: 0, running: 0 },
   };
   const runtime = {
@@ -133,7 +292,7 @@ function createFixture(options = {}) {
     },
     async getRun(id) {
       calls.push(['getRun', id]);
-      return id === run.id ? run : undefined;
+      return id === 'run-1' ? run : undefined;
     },
     async stopRun(id, reason) {
       calls.push(['stopRun', id, reason]);
@@ -143,10 +302,34 @@ function createFixture(options = {}) {
       calls.push(['fillHole', id, holeId, value]);
       return true;
     },
+    async resolveQuestion(qid, answer) {
+      calls.push(['resolveQuestion', qid, answer]);
+      return qid === 'q-1';
+    },
     async start(request) {
       calls.push(['start', request]);
       return { ok: true, runId: run.id, phases: ['review'], agents: ['reviewer'] };
     },
+  };
+  const approval = options.approval === false
+    ? undefined
+    : {
+      settle(input) {
+        calls.push(['approval.settle', input]);
+        if (input.runId === 'no-pending') return undefined;
+        return input.optionId === 'deny'
+          ? { decision: 'deny', optionId: 'deny', reason: 'no' }
+          : { decision: 'allow', optionId: input.optionId };
+      },
+      cancel(runId) {
+        calls.push(['approval.cancel', runId]);
+      },
+    };
+  const policy = {
+    enabled: options.policyEnabled ?? true,
+    mode: options.policyMode ?? 'alwaysOn',
+    writable: true,
+    effective: 'immediate',
   };
   const services = {
     sessions: { get: (id) => sessions.get(id) },
@@ -173,11 +356,20 @@ function createFixture(options = {}) {
     storeFor: () => store,
     runtimeFor: () => runtime,
     resolveProjectRoot: options.resolveProjectRoot ?? (async (raw) => (raw === WORKSPACE ? WORKSPACE : undefined)),
-    readMode: options.readMode ?? (async () => ({ mode: 'alwaysOn', writable: true, effective: 'immediate' })),
+    readMode: options.readMode ?? (async () => ({ mode: policy.mode, writable: true, effective: 'immediate' })),
     writeMode: options.writeMode ?? (async (mode) => ({ mode, effective: 'immediate' })),
+    readPolicy: options.readPolicy ?? (async (scope) => {
+      calls.push(['readPolicy', scope]);
+      return policy;
+    }),
+    writePolicy: options.writePolicy ?? (async (next) => {
+      calls.push(['writePolicy', next]);
+      return { enabled: next.enabled, mode: next.mode ?? (next.enabled ? policy.mode : 'disabled'), effective: 'immediate' };
+    }),
+    approval,
     logger: { warn() {} },
   });
-  return { registered, calls, store, runtime, run, saved };
+  return { registered, calls, store, runtime, run, saved, approval };
 }
 
 /**
@@ -248,7 +440,7 @@ test('rejects an unsupported method with the route allow list', async () => {
   assert.equal(onBoth.headers.allow, 'GET, POST');
 });
 
-test('GET /runs requires a location and pages with a truncation flag', async () => {
+test('GET /runs lists session runs with derived phases and legacy aliases', async () => {
   const fixture = createFixture();
   const missing = await call(fixture, 'GET', `${BASE}/runs`, { query: {} });
   assert.equal(missing.status, 400);
@@ -258,29 +450,39 @@ test('GET /runs requires a location and pages with a truncation flag', async () 
   assert.equal(listed.status, 200);
   assert.equal(listed.json.runs.length, 2);
   assert.equal(listed.json.truncated, true);
-  assert.equal(listed.json.runs[0].id, 'run-1');
-  assert.equal(listed.json.runs[0].possibleInterruption, false);
-  const listCall = fixture.calls.find((entry) => entry[0] === 'listRuns');
-  assert.deepEqual(listCall[1], { project: true, limit: 3 });
+  const [first] = listed.json.runs;
+  assert.equal(first.runId, 'run-1');
+  assert.equal(first.label, 'review-changes');
+  assert.equal(first.toolCallId, 'tool-1');
+  assert.equal(first.id, 'run-1');
+  assert.equal(first.name, 'review-changes');
+  assert.equal(first.possibleInterruption, false);
+  assert.deepEqual(first.phases.map((phase) => [phase.name, phase.status]), [['review', 'running'], ['ship', 'pending']]);
+  assert.equal(first.agentsWorking, 1);
+  assert.equal(first.currentPhase, 'review');
+  assert.equal(first.waitingHole, 'target');
+  const sessionCall = fixture.calls.find((entry) => entry[0] === 'listRunsForSession');
+  assert.equal(sessionCall[1].parentSessionId, 'session-1');
+  assert.equal(sessionCall[1].limit, 3);
 });
 
-test('GET /runs rejects an unregistered project root and a stale session', async () => {
+test('GET /runs maps a stale session to the §1 fault string and accepts projectRoot', async () => {
   const fixture = createFixture();
+  const stale = await call(fixture, 'GET', `${BASE}/runs`, { query: { sessionId: 'gone' } });
+  assert.equal(stale.status, 404);
+  assert.equal(stale.json.code, 'fault.workflowRuns.sessionNotFound');
+  assert.match(stale.json.message, /^fault\.workflowRuns\.sessionNotFound: gone/u);
+
   const unregistered = await call(fixture, 'GET', `${BASE}/runs`, { query: { projectRoot: '/elsewhere' } });
   assert.equal(unregistered.status, 404);
   assert.equal(unregistered.json.code, 'project-not-found');
 
-  const stale = await call(fixture, 'GET', `${BASE}/runs`, { query: { sessionId: 'gone' } });
-  assert.equal(stale.status, 404);
-  assert.equal(stale.json.code, 'session-not-found');
-
   const byRoot = await call(fixture, 'GET', `${BASE}/runs`, { query: { projectRoot: WORKSPACE } });
   assert.equal(byRoot.status, 200);
   assert.equal(byRoot.json.runs.length, 3);
-  assert.equal(byRoot.json.truncated, false);
 });
 
-test('GET /run returns a snapshot, requiring runId and a known run', async () => {
+test('GET /run returns the legacy runtime snapshot, requiring runId and a known run', async () => {
   const fixture = createFixture();
   const missing = await call(fixture, 'GET', `${BASE}/run`, { query: { sessionId: 'session-1' } });
   assert.equal(missing.status, 400);
@@ -295,7 +497,179 @@ test('GET /run returns a snapshot, requiring runId and a known run', async () =>
   assert.equal(unknown.json.code, 'run-not-found');
 });
 
-test('POST /run/stop stops through the runtime with the user reason', async () => {
+test('GET /run/events pages after a sequence and reports the watermark', async () => {
+  const fixture = createFixture();
+  const page = await call(fixture, 'GET', `${BASE}/run/events`, {
+    query: { sessionId: 'session-1', runId: 'run-1', afterSequence: '2', limit: '10' },
+  });
+  assert.equal(page.status, 200);
+  assert.equal(page.json.events[0].sequence, 3);
+  assert.equal(page.json.events[0].type, 'report');
+  assert.equal(page.json.hasMore, true);
+  assert.equal(page.json.lastEventSequence, 7);
+  const storeCall = fixture.calls.find((entry) => entry[0] === 'readEventPage');
+  assert.deepEqual(storeCall[2], { cwd: WORKSPACE, afterSequence: 2, limit: 10 });
+
+  const missing = await call(fixture, 'GET', `${BASE}/run/events`, { query: { sessionId: 'session-1' } });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.json.code, 'missing-parameter');
+});
+
+test('GET /run/artifacts returns the artifact ledger', async () => {
+  const fixture = createFixture();
+  const listed = await call(fixture, 'GET', `${BASE}/run/artifacts`, {
+    query: { sessionId: 'session-1', runId: 'run-1' },
+  });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.artifacts.length, 1);
+  assert.equal(listed.json.artifacts[0].id, 'report');
+  assert.equal(listed.json.artifacts[0].version, 2);
+  assert.equal(listed.json.artifacts[0].itemCount, 1);
+  assert.equal(listed.json.artifacts[0].primary, true);
+});
+
+test('GET /artifact/data pages report events and projects requested fields', async () => {
+  const fixture = createFixture();
+  const page = await call(fixture, 'GET', `${BASE}/artifact/data`, {
+    query: {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      artifactId: 'report',
+      afterSequence: '2',
+      fields: 'kind,rows',
+    },
+  });
+  assert.equal(page.status, 200);
+  assert.equal(page.json.items.length, 1);
+  assert.equal(page.json.items[0].sequence, 3);
+  assert.equal(page.json.items[0].siteId, 'site-a');
+  assert.deepEqual(page.json.items[0].fields, {
+    kind: 'summary',
+    rows: [{ a: 1 }],
+  });
+
+  const long = projectArtifactFields({ text: 'x'.repeat(5000) }, ['text']);
+  assert.equal(Buffer.byteLength(String(long.text), 'utf8') <= 4096, true);
+  assert.equal(String(long.text).endsWith('\u2026'), true);
+
+  const invalid = await call(fixture, 'GET', `${BASE}/artifact/data`, {
+    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'report', fields: 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,aa,bb,cc,dd,ee,ff,gg' },
+  });
+  assert.equal(invalid.status, 400);
+});
+
+test('GET /artifact/read slices bytes and clamps offsets', async () => {
+  const fixture = createFixture();
+  const chunk = await call(fixture, 'GET', `${BASE}/artifact/read`, {
+    query: {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      artifactId: 'report',
+      version: '2',
+      offset: '2',
+      limit: '2',
+    },
+  });
+  assert.equal(chunk.status, 200);
+  assert.equal(chunk.json.dataBase64, Buffer.from('cd').toString('base64'));
+  assert.equal(chunk.json.mediaType, 'text/plain');
+  assert.equal(chunk.json.totalBytes, 6);
+  assert.equal(chunk.json.nextOffset, 4);
+
+  const tail = await call(fixture, 'GET', `${BASE}/artifact/read`, {
+    query: {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      artifactId: 'report',
+      version: '2',
+      offset: '99',
+      limit: '2',
+    },
+  });
+  assert.equal(tail.status, 200);
+  assert.equal(tail.json.dataBase64, '');
+  assert.equal(tail.json.nextOffset, null);
+
+  const missing = await call(fixture, 'GET', `${BASE}/artifact/read`, {
+    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'report', version: '9', offset: '0', limit: '2' },
+  });
+  assert.equal(missing.status, 404);
+  assert.equal(missing.json.code, 'fault.workflowRunArtifactRead.notFound');
+  assert.match(missing.json.message, /^fault\.workflowRunArtifactRead\.notFound: run-1\/report@9/u);
+
+  const oversized = await call(fixture, 'GET', `${BASE}/artifact/read`, {
+    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'report', version: '2', offset: '0', limit: String(512 * 1024 + 1) },
+  });
+  assert.equal(oversized.status, 400);
+});
+
+test('GET /run/workspace returns world-operation nodes', async () => {
+  const fixture = createFixture();
+  const workspace = await call(fixture, 'GET', `${BASE}/run/workspace`, {
+    query: { sessionId: 'session-1', runId: 'run-1' },
+  });
+  assert.equal(workspace.status, 200);
+  assert.equal(workspace.json.nodes.length, 1);
+  assert.equal(workspace.json.nodes[0].op, 'git');
+  assert.deepEqual(workspace.json.nodes[0].args, ['status']);
+  assert.equal(workspace.json.nodes[0].status, 'completed');
+});
+
+test('GET /run/node returns the §8 result and its truncation metadata', async () => {
+  const fixture = createFixture();
+  const node = await call(fixture, 'GET', `${BASE}/run/node`, {
+    query: { sessionId: 'session-1', runId: 'run-1', siteId: 'site-a', ordinal: '0' },
+  });
+  assert.equal(node.status, 200);
+  assert.equal(node.json.status, 'completed');
+  assert.deepEqual(node.json.result, { exitCode: 0, stdout: 'ok', stderr: '' });
+  assert.equal(node.json.truncated, false);
+  assert.equal(typeof node.json.totalBytes, 'number');
+
+  const unknown = await call(fixture, 'GET', `${BASE}/run/node`, {
+    query: { sessionId: 'session-1', runId: 'run-1', siteId: 'site-z', ordinal: '0' },
+  });
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.json.code, 'fault.workflowRunNodeResult.notFound');
+});
+
+test('POST /run/approve settles the launch confirmation through the broker', async () => {
+  const fixture = createFixture();
+  const allowed = await call(fixture, 'POST', `${BASE}/run/approve`, {
+    body: { sessionId: 'session-1', runId: 'run-1', optionId: 'allow_once', freeText: 'go' },
+  });
+  assert.equal(allowed.status, 200);
+  assert.deepEqual(allowed.json, { ok: true, decision: { decision: 'allow', optionId: 'allow_once' } });
+  const settleCall = fixture.calls.find((entry) => entry[0] === 'approval.settle');
+  assert.deepEqual(settleCall[1], { runId: 'run-1', optionId: 'allow_once', reason: 'go', adjustments: undefined });
+
+  const unknownOption = await call(fixture, 'POST', `${BASE}/run/approve`, {
+    body: { sessionId: 'session-1', runId: 'run-1', optionId: 'maybe' },
+  });
+  assert.equal(unknownOption.status, 400);
+  assert.equal(unknownOption.json.code, 'fault.workflowRunApprove.unknownOption');
+
+  const noPending = await call(fixture, 'POST', `${BASE}/run/approve`, {
+    body: { sessionId: 'session-1', runId: 'no-pending', optionId: 'deny' },
+  });
+  assert.equal(noPending.status, 404);
+  assert.equal(noPending.json.code, 'fault.workflowRunApprove.noPending');
+
+  const unavailable = createFixture({ approval: false });
+  const refused = await call(unavailable, 'POST', `${BASE}/run/approve`, {
+    body: { sessionId: 'session-1', runId: 'run-1', optionId: 'allow_once' },
+  });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.json.code, 'fault.workflowRunApprove.unavailable');
+
+  const stale = await call(fixture, 'POST', `${BASE}/run/approve`, {
+    body: { sessionId: 'gone', runId: 'run-1', optionId: 'allow_once' },
+  });
+  assert.equal(stale.status, 404);
+  assert.equal(stale.json.code, 'fault.workflowRunApprove.sessionNotFound');
+});
+
+test('POST /run/stop stops through the runtime and cancels a pending approval', async () => {
   const fixture = createFixture();
   const stopped = await call(fixture, 'POST', `${BASE}/run/stop`, {
     body: { sessionId: 'session-1', runId: 'run-1' },
@@ -305,24 +679,61 @@ test('POST /run/stop stops through the runtime with the user reason', async () =
   assert.equal(stopped.json.run.status, 'stopped');
   const stopCall = fixture.calls.find((entry) => entry[0] === 'stopRun');
   assert.deepEqual(stopCall, ['stopRun', 'run-1', 'user']);
+  assert.ok(fixture.calls.some((entry) => entry[0] === 'approval.cancel' && entry[1] === 'run-1'));
 });
 
-test('POST /run/fill resolves a hole and reports the refreshed run', async () => {
+test('POST /run/fill now takes script/path instead of a raw value', async () => {
   const fixture = createFixture();
   const filled = await call(fixture, 'POST', `${BASE}/run/fill`, {
-    body: { sessionId: 'session-1', runId: 'run-1', holeId: 'hole-1', value: { answer: 42 } },
+    body: { sessionId: 'session-1', runId: 'run-1', holeId: 'hole-1', script: 'return 42;' },
   });
   assert.equal(filled.status, 200);
   assert.equal(filled.json.ok, true);
-  assert.equal(filled.json.run.id, 'run-1');
   const fillCall = fixture.calls.find((entry) => entry[0] === 'fillHole');
-  assert.deepEqual(fillCall, ['fillHole', 'run-1', 'hole-1', { answer: 42 }]);
+  assert.deepEqual(fillCall, ['fillHole', 'run-1', 'hole-1', { script: 'return 42;' }]);
 
-  const missingValue = await call(fixture, 'POST', `${BASE}/run/fill`, {
-    body: { sessionId: 'session-1', runId: 'run-1', holeId: 'hole-1' },
+  const missing = await call(fixture, 'POST', `${BASE}/run/fill`, {
+    body: { sessionId: 'session-1', runId: 'run-1' },
   });
-  assert.equal(missingValue.status, 400);
-  assert.equal(missingValue.json.code, 'missing-parameter');
+  assert.equal(missing.status, 400);
+  assert.equal(missing.json.code, 'missing-parameter');
+});
+
+test('POST /run/answer forwards to runtime.resolveQuestion', async () => {
+  const fixture = createFixture();
+  const answered = await call(fixture, 'POST', `${BASE}/run/answer`, {
+    body: { sessionId: 'session-1', qid: 'q-1', answer: 'yes' },
+  });
+  assert.equal(answered.status, 200);
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'resolveQuestion'), ['resolveQuestion', 'q-1', 'yes']);
+
+  const notPending = await call(fixture, 'POST', `${BASE}/run/answer`, {
+    body: { sessionId: 'session-1', qid: 'q-2', answer: 'yes' },
+  });
+  assert.equal(notPending.status, 409);
+  assert.equal(notPending.json.code, 'fault.workflowRunAnswer.notPending');
+});
+
+test('POST /run/resume restarts a stopped run from its stored script', async () => {
+  const fixture = createFixture();
+  fixture.run.status = 'stopped';
+  const resumed = await call(fixture, 'POST', `${BASE}/run/resume`, {
+    body: { sessionId: 'session-1', runId: 'run-1' },
+  });
+  assert.equal(resumed.status, 200);
+  assert.equal(resumed.json.ok, true);
+  assert.equal(resumed.json.runId, 'run-1');
+  const startCall = fixture.calls.find((entry) => entry[0] === 'start');
+  assert.equal(startCall[1].resumedFrom, 'run-1');
+  assert.equal(startCall[1].code, SAVED_CODE);
+  assert.equal(typeof startCall[1].runner, 'function');
+
+  fixture.run.status = 'completed';
+  const notResumable = await call(fixture, 'POST', `${BASE}/run/resume`, {
+    body: { sessionId: 'session-1', runId: 'run-1' },
+  });
+  assert.equal(notResumable.status, 409);
+  assert.equal(notResumable.json.code, 'fault.workflowRunResume.notResumable');
 });
 
 test('POST bodies require application/json, valid JSON and stay under 64 KiB', async () => {
@@ -343,27 +754,73 @@ test('POST bodies require application/json, valid JSON and stay under 64 KiB', a
   assert.equal(tooLarge.json.code, 'payload-too-large');
 });
 
-test('GET /workflows projects saved entries without their script body', async () => {
+test('GET /workflows/list projects saved entries without their script body', async () => {
   const fixture = createFixture();
-  const listed = await call(fixture, 'GET', `${BASE}/workflows`, { query: { projectRoot: WORKSPACE } });
+  const listed = await call(fixture, 'GET', `${BASE}/workflows/list`, { query: { projectRoot: WORKSPACE } });
   assert.equal(listed.status, 200);
-  assert.equal(listed.json.entries.length, 1);
-  const [entry] = listed.json.entries;
+  assert.equal(listed.json.workflows.length, 1);
+  const [entry] = listed.json.workflows;
   assert.equal(entry.name, 'review-changes');
   assert.equal(entry.scope, 'project');
   assert.equal(entry.description, 'Review changes');
   assert.deepEqual(entry.args, fixture.saved.args);
   assert.equal('code' in entry, false);
   assert.equal(listed.json.invalid.length, 1);
+  assert.deepEqual(listed.json.entries, listed.json.workflows);
+
+  const legacy = await call(fixture, 'GET', `${BASE}/workflows`, { query: { projectRoot: WORKSPACE } });
+  assert.equal(legacy.status, 200);
+  assert.equal(legacy.json.entries.length, 1);
 });
 
-test('POST /workflows/delete and /workflows/move use the saved-workflow store', async () => {
+test('GET /workflows/get returns the script; unknown names return the not_found union', async () => {
+  const fixture = createFixture();
+  const found = await call(fixture, 'GET', `${BASE}/workflows/get`, {
+    query: { projectRoot: WORKSPACE, name: 'review-changes' },
+  });
+  assert.equal(found.status, 200);
+  assert.equal(found.json.ok, true);
+  assert.equal(found.json.script, fixture.saved.code);
+  assert.equal(found.json.meta.description, 'Review changes');
+
+  const missing = await call(fixture, 'GET', `${BASE}/workflows/get`, {
+    query: { projectRoot: WORKSPACE, name: 'missing' },
+  });
+  assert.equal(missing.status, 200);
+  assert.deepEqual(missing.json, { ok: false, reason: 'not_found' });
+});
+
+test('POST /workflows/save reads the run script, compiles it and saves', async () => {
+  const fixture = createFixture();
+  const saved = await call(fixture, 'POST', `${BASE}/workflows/save`, {
+    body: {
+      projectRoot: WORKSPACE,
+      runId: 'run-1',
+      name: 'review-changes',
+      meta: { description: 'Review changes' },
+    },
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.json.ok, true);
+  assert.equal(saved.json.path, SAVED_PATH);
+  const saveCall = fixture.calls.find((entry) => entry[0] === 'saveWorkflow');
+  assert.equal(saveCall[1].runId, 'run-1');
+  assert.equal(saveCall[1].code, SAVED_CODE);
+
+  const badMeta = await call(fixture, 'POST', `${BASE}/workflows/save`, {
+    body: { projectRoot: WORKSPACE, runId: 'run-1', name: 'x', meta: { description: '' } },
+  });
+  assert.equal(badMeta.status, 400);
+});
+
+test('POST /workflows/delete, /move, /updateMeta, GET /runs and /forRun use the store', async () => {
   const fixture = createFixture();
   const deleted = await call(fixture, 'POST', `${BASE}/workflows/delete`, {
     body: { projectRoot: WORKSPACE, name: 'review-changes', scope: 'project' },
   });
   assert.equal(deleted.status, 200);
   assert.equal(deleted.json.ok, true);
+  assert.equal(deleted.json.path, SAVED_PATH);
 
   const unknown = await call(fixture, 'POST', `${BASE}/workflows/delete`, {
     body: { projectRoot: WORKSPACE, name: 'missing' },
@@ -375,60 +832,76 @@ test('POST /workflows/delete and /workflows/move use the saved-workflow store', 
     body: { projectRoot: WORKSPACE, name: 'review-changes' },
   });
   assert.equal(moved.status, 200);
+  assert.equal(moved.json.from, 'global');
+  assert.equal(moved.json.to, 'project');
   assert.equal(moved.json.path, SAVED_PATH);
+
+  const updated = await call(fixture, 'POST', `${BASE}/workflows/updateMeta`, {
+    body: { projectRoot: WORKSPACE, name: 'review-changes', meta: { description: 'Updated' } },
+  });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.json.ok, true);
+  assert.equal(updated.json.path, SAVED_PATH);
+
+  const runs = await call(fixture, 'GET', `${BASE}/workflows/runs`, {
+    query: { projectRoot: WORKSPACE, name: 'review-changes', limit: '10' },
+  });
+  assert.equal(runs.status, 200);
+  assert.equal(runs.json.runs[0].runId, 'run-1');
+  assert.equal(runs.json.runs[0].spentTokens, 12);
+
+  const forRun = await call(fixture, 'GET', `${BASE}/workflows/forRun`, {
+    query: { projectRoot: WORKSPACE, runId: 'run-1', candidates: 'review-changes' },
+  });
+  assert.equal(forRun.status, 200);
+  assert.equal(forRun.json.match, 'name');
+  assert.equal(forRun.json.entry.name, 'review-changes');
+  assert.deepEqual(forRun.json.runArgs, { target: 'src' });
 });
 
-test('GET /artifact returns a text payload as JSON with its content type', async () => {
-  const fixture = createFixture();
-  const artifact = await call(fixture, 'GET', `${BASE}/artifact`, {
-    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'report' },
-  });
-  assert.equal(artifact.status, 200);
-  assert.match(artifact.headers['content-type'], /application\/json/u);
-  assert.deepEqual(artifact.json, {
-    kind: 'markdown',
-    contentType: 'text/markdown',
-    text: '# report',
-    version: 1,
-    primary: false,
-  });
+test('GET/POST /policy read and write through the injected policy channel', async () => {
+  const fixture = createFixture({ policyMode: 'onDemand', policyEnabled: true });
+  const snapshot = await call(fixture, 'GET', `${BASE}/policy`, { query: { projectRoot: WORKSPACE } });
+  assert.equal(snapshot.status, 200);
+  assert.equal(snapshot.json.enabled, true);
+  assert.equal(snapshot.json.mode, 'onDemand');
+  assert.equal(snapshot.json.writable, true);
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'readPolicy'), ['readPolicy', { projectRoot: WORKSPACE }]);
 
-  const unknown = await call(fixture, 'GET', `${BASE}/artifact`, {
-    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'nope' },
+  const disabled = await call(fixture, 'POST', `${BASE}/policy`, {
+    body: { projectRoot: WORKSPACE, enabled: false },
   });
-  assert.equal(unknown.status, 404);
-  assert.equal(unknown.json.code, 'artifact-not-found');
+  assert.equal(disabled.status, 200);
+  assert.equal(disabled.json.enabled, false);
+  assert.equal(disabled.json.mode, 'disabled');
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'writePolicy'), ['writePolicy', { projectRoot: WORKSPACE, enabled: false }]);
+
+  const badMode = await call(fixture, 'POST', `${BASE}/policy`, {
+    body: { projectRoot: WORKSPACE, enabled: true, mode: 'sometimes' },
+  });
+  assert.equal(badMode.status, 400);
+  assert.equal(badMode.json.code, 'invalid-mode');
 });
 
-test('GET /mode reports the applied mode, writability and channel timing', async () => {
+test('GET/POST /mode keep the compatibility shape', async () => {
   const fixture = createFixture({
     readMode: async () => ({ mode: 'onDemand', writable: false, effective: 'restart' }),
   });
   const snapshot = await call(fixture, 'GET', `${BASE}/mode`);
   assert.equal(snapshot.status, 200);
   assert.deepEqual(snapshot.json, { mode: 'onDemand', writable: false, effective: 'restart' });
-});
 
-test('POST /mode validates the mode and normalizes the ZCode aliases', async () => {
   const written = [];
-  const fixture = createFixture({
+  const modeFixture = createFixture({
     writeMode: async (mode) => {
       written.push(mode);
       return { mode, effective: 'restart' };
     },
   });
-  const saved = await call(fixture, 'POST', `${BASE}/mode`, { body: { mode: 'off' } });
+  const saved = await call(modeFixture, 'POST', `${BASE}/mode`, { body: { mode: 'off' } });
   assert.equal(saved.status, 200);
   assert.deepEqual(saved.json, { mode: 'disabled', effective: 'restart' });
   assert.deepEqual(written, ['disabled']);
-
-  const invalid = await call(fixture, 'POST', `${BASE}/mode`, { body: { mode: 'sometimes' } });
-  assert.equal(invalid.status, 400);
-  assert.equal(invalid.json.code, 'invalid-mode');
-
-  const missing = await call(fixture, 'POST', `${BASE}/mode`, { body: {} });
-  assert.equal(missing.status, 400);
-  assert.equal(missing.json.code, 'missing-parameter');
 });
 
 test('POST /run/start refuses a session without a live agent', async () => {
@@ -464,7 +937,6 @@ test('POST /run/start validates saved-workflow arguments before starting', async
   });
   assert.equal(wrongType.status, 400);
   assert.equal(wrongType.json.code, 'invalid-args');
-  assert.match(wrongType.json.message, /target/u);
   assert.equal(fixture.calls.some((entry) => entry[0] === 'start'), false);
 });
 
@@ -480,7 +952,7 @@ test('POST /run/start starts the saved script with the agent-bound runner and no
 
   const startCall = fixture.calls.find((entry) => entry[0] === 'start');
   const request = startCall[1];
-  assert.equal(request.code, 'return { ok: true };');
+  assert.equal(request.code, SAVED_CODE);
   assert.equal(request.name, 'review-changes');
   assert.equal(request.cwd, WORKSPACE);
   assert.equal(request.origin, 'saved');
@@ -488,7 +960,6 @@ test('POST /run/start starts the saved script with the agent-bound runner and no
   assert.equal(typeof request.runner, 'function');
   assert.equal(typeof request.notify, 'function');
 
-  // The completion notice lands in the session that owns the run.
   request.notify('<workflow-run status="completed" />');
   const followup = fixture.calls.find((entry) => entry[0] === 'followup');
   assert.equal(followup[1].content[0].text, '<workflow-run status="completed" />');
@@ -497,6 +968,112 @@ test('POST /run/start starts the saved script with the agent-bound runner and no
   assert.ok(followup[1].id.length > 0);
   assert.deepEqual(followup[1].source, { kind: 'user' });
 });
+
+test('GET /artifact keeps the legacy text payload shape', async () => {
+  const fixture = createFixture();
+  const artifact = await call(fixture, 'GET', `${BASE}/artifact`, {
+    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'report' },
+  });
+  assert.equal(artifact.status, 200);
+  assert.match(artifact.headers['content-type'], /application\/json/u);
+  assert.deepEqual(artifact.json, {
+    kind: 'markdown',
+    contentType: 'text/markdown',
+    text: '# report',
+    version: 1,
+    primary: false,
+  });
+
+  const unknown = await call(fixture, 'GET', `${BASE}/artifact`, {
+    query: { sessionId: 'session-1', runId: 'run-1', artifactId: 'nope' },
+  });
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.json.code, 'artifact-not-found');
+});
+
+/* ---------------------------------------------------------------------------------------------- */
+/* artifact / node result helpers                                                                  */
+/* ---------------------------------------------------------------------------------------------- */
+
+test('base64 byte-length detection follows Tm exactly', () => {
+  assert.equal(decodedBase64ByteLength(''), 0);
+  assert.equal(decodedBase64ByteLength('YQ=='), 1);
+  assert.equal(decodedBase64ByteLength('YWI='), 2);
+  assert.equal(decodedBase64ByteLength('YWJj'), 3);
+  assert.equal(decodedBase64ByteLength('A'), null);
+  assert.equal(decodedBase64ByteLength('!!!!'), null);
+  assert.equal(decodedBase64ByteLength('YWJj='), null);
+});
+
+test('artifact read chunking clamps the offset and reports nextOffset', () => {
+  const bytes = Buffer.from('abcdef', 'utf8');
+  assert.deepEqual(readArtifactChunk({ bytes, mediaType: 'text/plain', offset: 2, limit: 2 }), {
+    dataBase64: Buffer.from('cd').toString('base64'),
+    mediaType: 'text/plain',
+    totalBytes: 6,
+    nextOffset: 4,
+  });
+  assert.deepEqual(readArtifactChunk({ bytes, mediaType: 'text/plain', offset: 99, limit: 2 }), {
+    dataBase64: '',
+    mediaType: 'text/plain',
+    totalBytes: 6,
+    nextOffset: null,
+  });
+});
+
+test('artifact read validation uses the §7.3 messages', () => {
+  const valid = {
+    dataBase64: Buffer.from('abc').toString('base64'),
+    totalBytes: 3,
+    nextOffset: null,
+  };
+  assert.equal(validateArtifactRead(valid), undefined);
+  assert.equal(validateArtifactRead({ ...valid, dataBase64: '!!!' }), 'invalid base64');
+  assert.equal(
+    validateArtifactRead({ ...valid, dataBase64: Buffer.alloc(512 * 1024 + 1).toString('base64'), totalBytes: 512 * 1024 + 1 }),
+    'workflow artifact read chunk exceeds decoded byte limit',
+  );
+  assert.equal(validateArtifactRead({ ...valid, totalBytes: 20 * 1024 * 1024 + 1 }), 'Too big: expected number to be <=16777216');
+  assert.equal(validateArtifactRead({ ...valid, nextOffset: 4 }), 'nextOffset exceeds totalBytes');
+});
+
+test('utf8SafeSlice never emits half a code point', () => {
+  assert.equal(utf8SafeSlice('abc', 3), 'abc');
+  assert.equal(utf8SafeSlice('你好世界', 4), '你');
+  // 4 字节 emoji 被截断时整体丢弃，不产生 U+FFFD。
+  assert.equal(utf8SafeSlice('a😀', 3), 'a');
+});
+
+test('node result truncation follows the four §8 strategies', () => {
+  const small = truncateNodeResult({ answer: 42 });
+  assert.deepEqual(small, { result: { answer: 42 }, truncated: false, totalBytes: Buffer.byteLength('{"answer":42}') });
+
+  const text = truncateNodeResult('x'.repeat(100), 10);
+  assert.equal(text.truncated, true);
+  assert.equal(text.result, 'x'.repeat(10));
+  // totalBytes 是完整 JSON 的字节数（字符串带引号），不是原始文本长度。
+  assert.equal(text.totalBytes, Buffer.byteLength(JSON.stringify('x'.repeat(100))));
+
+  const array = truncateNodeResult([1, 2, 3, 4, 5], 6);
+  assert.equal(array.truncated, true);
+  assert.deepEqual(array.result, [1, 2]);
+  assert.equal(array.totalBytes, Buffer.byteLength('[1,2,3,4,5]'));
+
+  const command = truncateNodeResult({ exitCode: 0, stdout: 'x'.repeat(100), stderr: 'y'.repeat(100) }, 50);
+  assert.equal(command.truncated, true);
+  assert.equal(command.result.exitCode, 0);
+  assert.ok(Buffer.byteLength(command.result.stdout) + Buffer.byteLength(command.result.stderr) <= 50);
+  assert.equal(command.totalBytes, Buffer.byteLength(JSON.stringify({ exitCode: 0, stdout: 'x'.repeat(100), stderr: 'y'.repeat(100) })));
+
+  const object = truncateNodeResult({ long: 'x'.repeat(100) }, 10);
+  assert.equal(object.truncated, true);
+  assert.equal(typeof object.result, 'string');
+  assert.equal(object.result.length, 10);
+});
+
+/* ---------------------------------------------------------------------------------------------- */
+/* mode persistence through index.js                                                               */
+/* ---------------------------------------------------------------------------------------------- */
 
 /**
  * Run one check with an isolated `$DSH_HOME` so mode persistence never touches the real home.

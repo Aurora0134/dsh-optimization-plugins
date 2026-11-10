@@ -39,9 +39,40 @@
  * metadata is skipped rather than thrown on: a bad file must never take down a run listing.
  */
 
+/*
+ * §4 等价映射（SQLite 依赖不可用，用 JSON 文件实现同一套语义）:
+ * - `dwf_run` → `meta.json`：字段名保持 `parent_session_id`/`script_hash`/`args_json`/
+ *   `tool_call_id`/`resumed_from`/`caps_max_concurrency`/`spent_tokens`/`status`/
+ *   `result_json`/`failure_json`/`time_created`/`time_updated`。`script_text` 落到 `script.ts`
+ *   （避免把大段脚本塞进元数据）。DB 侧状态枚举是 pending/running/completed/failed/cancelled，
+ *   事件侧是 pending/running/completed/errored/stopped；两者用 `workflow_state` 扩展字段并存，
+ *   读取旧 meta 时按 §4.2 的映射还原。`superseded` 落在 DB 侧为 cancelled，靠 workflow_state 保留。
+ * - `dwf_actor` → `actors.json`；`dwf_node` → `nodes.json`；`dwf_event` → `journal.jsonl`
+ *   （见 host/journal.js）；artifact 版本 → `artifacts/manifest.json` 的一行（对应 §7.1 的
+ *   `dwf_node(kind='artifact')`）。
+ * - 保留策略：会话快照最多 8 条 run（按到达顺序，见 index.json）、每条 run 最多 32 个 artifact、
+ *   每个 artifact 最多 16 个版本、report 快照上限 64（由投影层执行）。
+ *
+ * 运行表 / actor / 节点 / 事件的读写语义与 §4.3 的 SQL 一一对应；JSON 只是介质替换。
+ */
 import fsp from 'node:fs/promises';
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { pageEvents } from './journal.js';
+import { projectRunEvents } from './projection.js';
 
 /** Maximum length of a saved workflow name. */
 export const MAX_SAVED_NAME_LENGTH = 64;
@@ -68,13 +99,33 @@ export const INVALID_SAVED_NAME_MESSAGE = "workflow names may only contain lette
 /** Charset a saved workflow name must match. */
 export const SAVED_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/u;
 
+/** 会话快照最多保留的 run 数（§3.2 `Lm.maxRuns`）。 */
+export const MAX_RUNS_PER_SNAPSHOT = 8;
+/** `workflowRuns` 默认条数与上限（§1.1(1)：省略 limit 返回 16，上限 64）。 */
+export const DEFAULT_RUN_PAGE = 16;
+export const MAX_RUN_PAGE = 64;
+/** artifact 保留策略（§4.4）：每个 run ≤32 个 id，每个 id ≤16 个版本。 */
+export const MAX_ARTIFACTS_PER_RUN = 32;
+export const MAX_ARTIFACT_VERSIONS = 16;
+/** report 快照上限（§4.4）。 */
+export const MAX_REPORTS_PER_RUN = 64;
+/** 一条 world 调用最多保留 16 个参数（§1.1(6) `M3.maxArgs`）。 */
+export const MAX_WORLD_ARGS = 16;
+/** world 节点结果读取上限（§8 `M3.resultMaxBytes`）。 */
+export const MAX_NODE_RESULT_BYTES = 32 * 1024;
+
+const DB_STATUSES = new Set(['pending', 'running', 'completed', 'failed', 'cancelled']);
+const EVENT_TERMINAL = new Set(['completed', 'errored', 'stopped', 'superseded']);
+const DB_TO_EVENT_STATUS = Object.freeze({ failed: 'errored', cancelled: 'stopped' });
+const EVENT_TO_DB_STATUS = Object.freeze({ errored: 'failed', stopped: 'cancelled', superseded: 'cancelled' });
+
+
 const FRONTMATTER_OPEN = '/* zcode-workflow';
 const FRONTMATTER_CLOSE = '*/';
 const ARTIFACT_KINDS = new Set(['file', 'markdown', 'chart', 'table', 'metrics', 'board']);
 const ARGUMENT_TYPES = new Set(['string', 'number', 'boolean', 'json']);
 const META_KEYS = new Set(['description', 'whenToUse', 'args']);
 const ARG_KEYS = new Set(['type', 'description', 'required', 'default']);
-const MAX_INLINE_META_RESULT = 4000;
 
 /* ---------------------------------------------------------------------------------------------- */
 /* small fs helpers                                                                                */
@@ -152,6 +203,115 @@ async function readDirSafe(dir) {
   } catch {
     return [];
   }
+}
+
+/* ---------------------------------------------------------------------------------------------- */
+/* synchronous equivalents for the engine journal interface                                       */
+/* ---------------------------------------------------------------------------------------------- */
+
+/**
+ * 引擎（runtime.js）的 journal 接口是同步的：`record()` 不 await，`getRun()` 直接取字段。
+ * 因此 run / actor / node / event 这几类核心写入用同步 fs；artifact、draft、saved workflow
+ * 仍走异步实现（不在引擎热路径上）。
+ */
+
+/** @param {string} file @returns {Record<string, any> | undefined} */
+function readJsonSync(file) {
+  try {
+    const text = readFileSync(file, 'utf8');
+    const parsed = JSON.parse(text);
+    return parsed !== null && typeof parsed === 'object' ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** @param {string} file @param {unknown} value */
+function writeJsonAtomicSync(file, value) {
+  const text = safeJson(value);
+  writeFileAtomicSync(file, `${text === undefined ? 'null' : text}\n`);
+}
+
+/** @param {string} file @param {string} text */
+function writeFileAtomicSync(file, text) {
+  mkdirSync(path.dirname(file), { recursive: true });
+  const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  writeFileSync(temp, text, 'utf8');
+  try {
+    renameSync(temp, file);
+  } catch {
+    rmSync(file, { force: true });
+    renameSync(temp, file);
+  }
+}
+
+/** @param {string} dir @returns {import('node:fs').Dirent[]} */
+function readDirSafeSync(dir) {
+  try {
+    return readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Read one JSONL journal file synchronously, tolerating torn/legacy rows.
+ *
+ * @param {string} file
+ * @returns {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }[]}
+ */
+function readJournalRowsFromFile(file) {
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    return [];
+  }
+  /** @type {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }[]} */
+  const rows = [];
+  for (const line of text.split(/\r?\n/u)) {
+    if (line.trim() === '') continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+    const record = /** @type {Record<string, any>} */ (parsed);
+    if (Number.isInteger(record.sequence)) {
+      rows.push({
+        sequence: record.sequence,
+        type: typeof record.type === 'string' ? record.type : 'log',
+        payload: record.payload !== null && typeof record.payload === 'object' ? record.payload : record,
+        time_created: Number.isFinite(record.time_created)
+          ? record.time_created
+          : (Number.isFinite(record.at) ? record.at : 0),
+      });
+    } else {
+      rows.push({
+        sequence: rows.length,
+        type: typeof record.type === 'string' ? record.type : 'log',
+        payload: record,
+        time_created: Number.isFinite(record.at) ? record.at : 0,
+      });
+    }
+  }
+  rows.sort((left, right) => left.sequence - right.sequence);
+  return rows;
+}
+
+/** @param {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }} row */
+function flattenJournalRow(row) {
+  const timeCreated = row.time_created;
+  return {
+    ...row.payload,
+    sequence: row.sequence,
+    type: row.type,
+    payload: row.payload,
+    at: timeCreated,
+    time_created: timeCreated,
+  };
 }
 
 /** @param {string} value @param {string} [fallback] */
@@ -543,6 +703,208 @@ export function validateSavedWorkflowName(name) {
 /* store                                                                                          */
 /* ---------------------------------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------------------------------- */
+/* §4 row encoding: canonical meta.json <-> public run row                                         */
+/* ---------------------------------------------------------------------------------------------- */
+
+/** @param {string} text */
+function sha256Hex(text) {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/** 事件侧状态 → DB 侧状态（§4.2 `kdn`）。 */
+function toDbStatus(status) {
+  if (typeof status !== 'string') return 'running';
+  if (EVENT_TO_DB_STATUS[status] !== undefined) return EVENT_TO_DB_STATUS[status];
+  return DB_STATUSES.has(status) ? status : 'running';
+}
+
+/** DB 侧状态 + `workflow_state` 扩展 → 事件侧状态（§4.2 `fct`）。 */
+function toEventStatus(dbStatus, workflowState) {
+  if (typeof workflowState === 'string' && workflowState !== '') return workflowState;
+  if (typeof dbStatus !== 'string') return 'running';
+  return DB_TO_EVENT_STATUS[dbStatus] ?? dbStatus;
+}
+
+/** @param {unknown} value */
+function parseJsonMaybe(value) {
+  if (typeof value !== 'string' || value === '') return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 把磁盘上的 dwf_run 行归一化。兼容旧版 meta.json（camelCase、status 直接是事件枚举）。
+ *
+ * @param {Record<string, any>} raw
+ * @param {string} fallbackId
+ */
+function normalizeRunMeta(raw, fallbackId) {
+  const id = typeof raw.id === 'string' && raw.id !== '' ? raw.id : fallbackId;
+  const timeCreated = Number.isFinite(raw.time_created)
+    ? raw.time_created
+    : (Number.isFinite(raw.createdAt) ? raw.createdAt : 0);
+  const timeUpdated = Number.isFinite(raw.time_updated)
+    ? raw.time_updated
+    : (Number.isFinite(raw.updatedAt) ? raw.updatedAt : timeCreated);
+  const rawStatus = typeof raw.status === 'string' ? raw.status : 'running';
+  const workflowState = typeof raw.workflow_state === 'string' && raw.workflow_state !== ''
+    ? raw.workflow_state
+    : (DB_STATUSES.has(rawStatus) ? undefined : rawStatus);
+  return {
+    ...raw,
+    id,
+    status: DB_STATUSES.has(rawStatus) ? rawStatus : toDbStatus(rawStatus),
+    ...(workflowState === undefined ? {} : { workflow_state: workflowState }),
+    time_created: timeCreated,
+    time_updated: timeUpdated,
+  };
+}
+
+/**
+ * 把 dwf_run 行投影成 host 公共形状：既包含 §4 的规范字段，也保留旧调用方使用的
+ * camelCase 别名（runtime/tools 仍按旧 API 读）。
+ *
+ * @param {Record<string, any>} meta
+ */
+function publicRunMeta(meta) {
+  const status = toEventStatus(meta.status, meta.workflow_state);
+  const terminal = EVENT_TERMINAL.has(status);
+  const args = parseJsonMaybe(meta.args_json) ?? (meta.args !== null && typeof meta.args === 'object' ? meta.args : {});
+  const resultJson = parseJsonMaybe(meta.result_json);
+  const failure = meta.failure_json !== null && typeof meta.failure_json === 'object'
+    ? meta.failure_json
+    : (typeof meta.failure_json === 'string' ? parseJsonMaybe(meta.failure_json) : undefined);
+  const error = typeof failure?.message === 'string'
+    ? failure.message
+    : (typeof meta.error === 'string' ? meta.error : undefined);
+  return {
+    ...meta,
+    id: meta.id,
+    name: meta.name ?? meta.id,
+    status,
+    cwd: meta.cwd,
+    scriptPath: meta.script_path ?? meta.scriptPath,
+    scriptHash: meta.script_hash ?? meta.scriptHash,
+    args,
+    maxConcurrency: meta.caps_max_concurrency ?? meta.maxConcurrency,
+    subagentModel: meta.subagent_model ?? meta.subagentModel,
+    origin: meta.origin,
+    phases: meta.phases ?? [],
+    agentNames: meta.agent_names ?? meta.agentNames,
+    createdAt: meta.time_created,
+    updatedAt: meta.time_updated,
+    finishedAt: terminal ? meta.time_updated : meta.finishedAt,
+    stopReason: meta.stopReason ?? meta.stop_reason,
+    error,
+    result: resultJson !== undefined ? resultJson : meta.result,
+    resumedFrom: meta.resumed_from ?? meta.resumedFrom,
+    supersededBy: meta.superseded_by ?? meta.supersededBy,
+    parentSessionId: meta.parent_session_id ?? meta.parentSessionId,
+    toolCallId: meta.tool_call_id ?? meta.toolCallId,
+    spentTokens: meta.spent_tokens ?? meta.spentTokens ?? meta.usage?.spentTokens ?? 0,
+    labelSource: meta.labelSource ?? meta.origin,
+    pid: meta.pid,
+  };
+}
+
+/**
+ * 创建/更新时把旧 API 的 patch 映射到 §4 字段名。
+ *
+ * @param {Record<string, any>} patch
+ * @param {Record<string, any>} current 归一化后的当前行
+ * @param {number} now
+ */
+function applyRunPatch(patch, current, now) {
+  /** @type {Record<string, any>} */
+  const next = { ...current };
+  const set = (key, value) => {
+    if (value !== undefined) next[key] = value;
+  };
+  set('name', patch.name);
+  set('cwd', patch.cwd);
+  set('parent_session_id', patch.parentSessionId ?? patch.parent_session_id);
+  set('script_path', patch.scriptPath ?? patch.script_path);
+  set('script_hash', patch.scriptHash ?? patch.script_hash);
+  set('tool_call_id', patch.toolCallId ?? patch.tool_call_id);
+  set('resumed_from', patch.resumedFrom ?? patch.resumed_from);
+  set('superseded_by', patch.supersededBy ?? patch.superseded_by);
+  set('subagent_model', patch.subagentModel ?? patch.subagent_model);
+  set('origin', patch.origin);
+  set('phases', patch.phases);
+  set('agent_names', patch.agentNames ?? patch.agent_names);
+  set('pid', patch.pid);
+  set('last_event_sequence', patch.lastEventSequence ?? patch.last_event_sequence);
+  if (patch.args !== undefined) next.args_json = safeJson(patch.args);
+  if (patch.maxConcurrency !== undefined || patch.caps_max_concurrency !== undefined) {
+    next.caps_max_concurrency = patch.maxConcurrency ?? patch.caps_max_concurrency;
+  }
+  if (patch.spentTokens !== undefined || patch.spent_tokens !== undefined) {
+    next.spent_tokens = patch.spentTokens ?? patch.spent_tokens;
+  }
+  if (patch.usage !== undefined && typeof patch.usage === 'object' && patch.usage !== null) {
+    next.spent_tokens = patch.usage.spentTokens ?? next.spent_tokens;
+  }
+  if (patch.status !== undefined) {
+    next.workflow_state = patch.status;
+    next.status = toDbStatus(patch.status);
+  }
+  if (patch.stopReason !== undefined || patch.stop_reason !== undefined) {
+    next.stop_reason = patch.stopReason ?? patch.stop_reason;
+  }
+  if (patch.error !== undefined) {
+    const record = patch.error !== null && typeof patch.error === 'object' && !Array.isArray(patch.error)
+      ? patch.error
+      : { message: typeof patch.error === 'string' ? patch.error : String(patch.error) };
+    next.failure_json = record;
+    next.error = typeof record.message === 'string' ? record.message : String(record.message ?? '');
+  }
+  if (patch.result !== undefined) {
+    const serialized = safeJson(patch.result);
+    if (serialized !== undefined) {
+      next.result_json = serialized;
+      next.result = patch.result;
+    }
+  }
+  if (patch.finishedAt !== undefined) {
+    next.time_updated = patch.finishedAt;
+  }
+  next.time_updated = Number.isFinite(patch.updatedAt) ? patch.updatedAt : next.time_updated ?? now;
+  return next;
+}
+
+/**
+ * world 调用入参的等价截断（§9 `boundWorldReadInput`）：超过 16 个参数只留前 16 个，
+ * 每个参数序列化超过 400 字符时截断并标记 `truncated`。
+ *
+ * @param {unknown} input
+ * @returns {Record<string, any> | undefined}
+ */
+function boundWorldInput(input) {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  const record = /** @type {Record<string, any>} */ ({ ...input });
+  const args = Array.isArray(record.args) ? record.args : undefined;
+  let truncated = record.truncated === true;
+  let boundedArgs = args;
+  if (args !== undefined) {
+    boundedArgs = args.slice(0, MAX_WORLD_ARGS).map((arg) => {
+      const text = safeJson(arg) ?? String(arg);
+      if (text.length <= 400) return arg;
+      truncated = true;
+      return `${text.slice(0, 399)}\u2026`;
+    });
+    if (args.length > MAX_WORLD_ARGS) truncated = true;
+  }
+  return {
+    ...(typeof record.op === 'string' ? { op: record.op.slice(0, 32) } : {}),
+    ...(boundedArgs === undefined ? {} : { args: boundedArgs }),
+    ...(truncated ? { truncated: true } : {}),
+  };
+}
+
 /**
  * Create the durable store facade.
  *
@@ -562,6 +924,77 @@ export function createStore(options = {}) {
 
   const projectRunsDir = (root) => path.join(root, RUNS_DIR);
   const globalRunsDir = () => path.join(home(), GLOBAL_RUNS_DIR);
+
+  /**
+   * Synchronous run directory lookup for the engine journal interface.
+   *
+   * @param {string} id
+   * @param {string} [cwd]
+   * @returns {string | undefined}
+   */
+  const locateRunDirSync = (id, cwd) => {
+    if (typeof id !== 'string' || id === '') return undefined;
+    const candidates = [
+      path.join(projectRunsDir(resolveRoot(cwd)), id),
+      path.join(globalRunsDir(), id),
+    ];
+    for (const dir of candidates) {
+      if (existsSync(path.join(dir, 'meta.json'))) return dir;
+    }
+    for (const dir of candidates) {
+      if (existsSync(dir)) return dir;
+    }
+    return undefined;
+  };
+
+  /** @param {string} dir @returns {Record<string, any> | undefined} */
+  const readRunMetaSync = (dir) => {
+    const meta = readJsonSync(path.join(dir, 'meta.json'));
+    if (meta === undefined) return undefined;
+    return normalizeRunMeta(meta, path.basename(dir));
+  };
+
+  const snapshotIndexFile = (root) => path.join(projectRunsDir(root), 'index.json');
+
+  /**
+   * 会话快照索引（`Lm` 等价物）：`{revision, runs: runId[]}`，按到达顺序保留最后 8 条。
+   * ZCode 把快照放在会话存储里；这里放在项目运行目录下，语义相同：只影响快照列表，不影响
+   * `workflowRuns` RPC 的 16/64 条枚举。
+   *
+   * @param {string} root
+   * @returns {Promise<{ revision: number, runs: string[] }>}
+   */
+  const readSnapshotIndex = async (root) => {
+    const raw = await readJson(snapshotIndexFile(root));
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return { revision: 0, runs: [] };
+    const runs = Array.isArray(raw.runs) ? raw.runs.filter((id) => typeof id === 'string' && id !== '') : [];
+    return {
+      revision: Number.isInteger(raw.revision) && raw.revision >= 0 ? raw.revision : 0,
+      runs,
+    };
+  };
+
+  /**
+   * Synchronous snapshot-index bump for createRun/appendEvent (the engine calls them without
+   * awaiting). The async reader above sees the same file.
+   *
+   * @param {string} root
+   * @param {string} runId
+   */
+  const touchSnapshotIndexSync = (root, runId) => {
+    const raw = readJsonSync(snapshotIndexFile(root));
+    const current = raw === undefined
+      ? { revision: 0, runs: /** @type {string[]} */ ([]) }
+      : {
+        revision: Number.isInteger(raw.revision) && raw.revision >= 0 ? raw.revision : 0,
+        runs: Array.isArray(raw.runs) ? raw.runs.filter((id) => typeof id === 'string' && id !== '') : [],
+      };
+    const runs = current.runs.filter((id) => id !== runId);
+    runs.push(runId);
+    const trimmed = runs.length > MAX_RUNS_PER_SNAPSHOT ? runs.slice(runs.length - MAX_RUNS_PER_SNAPSHOT) : runs;
+    writeJsonAtomicSync(snapshotIndexFile(root), { revision: current.revision + 1, runs: trimmed });
+  };
+
 
   /** @returns {{ scope: 'project'|'global', dir: string, flavor: 'dsh'|'zcode' }[]} */
   const savedRoots = (root, scope) => {
@@ -600,41 +1033,72 @@ export function createStore(options = {}) {
     return undefined;
   };
 
-  /** @param {string} dir */
-  const readRunMeta = async (dir) => {
-    const meta = await readJson(path.join(dir, 'meta.json'));
-    if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) return undefined;
-    return /** @type {Record<string, any>} */ (meta);
-  };
-
   /* ------------------------------- runs ------------------------------------------------------- */
 
   /**
    * Create one durable run directory.
    *
-   * @param {Record<string, any>} input metadata; `code` becomes `script.ts` and is not stored in meta.json
-   * @returns {Promise<Record<string, any>>} stored metadata (with timestamps)
+   * Synchronous because the engine's journal interface calls it without awaiting; existing async
+   * callers `await` the returned value, which is legal for a plain object.
+   *
+   * @param {Record<string, any>} input engine or legacy run fields
+   * @returns {Record<string, any>} public run row
    */
-  const createRun = async (input = {}) => {
+  const createRun = (input = {}) => {
     const id = input.id ?? input.runId;
     if (typeof id !== 'string' || id === '') throw new Error('createRun requires a string run id');
     const root = resolveRoot(input.cwd);
     const dir = path.join(projectRunsDir(root), id);
-    await fsp.mkdir(dir, { recursive: true });
+    mkdirSync(dir, { recursive: true });
     const now = Date.now();
-    const meta = { ...input, cwd: root, id };
-    delete meta.code;
-    const stored = {
-      ...meta,
+    const scriptText = typeof input.code === 'string'
+      ? input.code
+      : (typeof input.scriptText === 'string' ? input.scriptText : undefined);
+    /** @type {string | undefined} */
+    let scriptHash = typeof input.scriptHash === 'string' ? input.scriptHash : undefined;
+    if (scriptText !== undefined) {
+      scriptHash = scriptHash ?? sha256Hex(scriptText);
+      writeFileAtomicSync(path.join(dir, 'script.ts'), scriptText);
+    }
+    const workflowStatus = typeof input.status === 'string' ? input.status : 'running';
+    const timeCreated = Number.isFinite(input.timeCreated)
+      ? input.timeCreated
+      : (Number.isFinite(input.createdAt) ? input.createdAt : now);
+    /** @type {Record<string, any>} */
+    const meta = {
       id,
-      status: meta.status ?? 'running',
-      createdAt: meta.createdAt ?? now,
-      updatedAt: meta.updatedAt ?? now,
-      pid: meta.pid ?? process.pid,
+      parent_session_id: input.parentSessionId ?? input.parent_session_id ?? input.sessionId ?? null,
+      cwd: root,
+      name: typeof input.name === 'string' && input.name !== '' ? input.name : id,
+      script_path: input.scriptPath ?? input.script_path ?? null,
+      script_hash: scriptHash ?? null,
+      args_json: safeJson(input.args ?? {}) ?? '{}',
+      tool_call_id: input.toolCallId ?? input.tool_call_id ?? null,
+      resumed_from: input.resumedFrom ?? input.resumed_from ?? null,
+      superseded_by: input.supersededBy ?? input.superseded_by ?? null,
+      caps_max_concurrency: input.caps?.maxConcurrency
+        ?? input.maxConcurrency
+        ?? input.caps_max_concurrency
+        ?? 1,
+      spent_tokens: input.spentTokens ?? input.spent_tokens ?? 0,
+      status: toDbStatus(workflowStatus),
+      workflow_state: workflowStatus,
+      ...(input.result !== undefined ? { result_json: safeJson(input.result) } : {}),
+      ...(input.failure !== undefined || input.error !== undefined
+        ? { failure_json: input.failure ?? { message: typeof input.error === 'string' ? input.error : String(input.error?.message ?? input.error) } }
+        : {}),
+      time_created: timeCreated,
+      time_updated: Number.isFinite(input.updatedAt) ? input.updatedAt : timeCreated,
+      last_event_sequence: 0,
+      ...(input.origin === undefined ? {} : { origin: input.origin }),
+      ...(input.subagentModel === undefined ? {} : { subagent_model: input.subagentModel }),
+      ...(input.phases === undefined ? {} : { phases: input.phases }),
+      ...(input.agentNames === undefined ? {} : { agent_names: input.agentNames }),
+      pid: input.pid ?? process.pid,
     };
-    if (typeof input.code === 'string') await writeFileAtomic(path.join(dir, 'script.ts'), input.code);
-    await writeJsonAtomic(path.join(dir, 'meta.json'), stored);
-    return stored;
+    writeJsonAtomicSync(path.join(dir, 'meta.json'), meta);
+    touchSnapshotIndexSync(root, id);
+    return publicRunMeta(meta);
   };
 
   /**
@@ -644,21 +1108,39 @@ export function createStore(options = {}) {
    * @param {{ cwd?: string }} [options]
    * @returns {Promise<Record<string, any> | undefined>}
    */
-  const getRun = async (id, options = {}) => {
-    const dir = await locateRunDir(id, options.cwd);
+  const getRun = (id, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return undefined;
-    const meta = await readRunMeta(dir);
+    const meta = readRunMetaSync(dir);
     if (meta === undefined) return undefined;
-    return { ...meta, id: meta.id ?? id };
+    const run = publicRunMeta(meta);
+    const scriptFile = path.join(dir, 'script.ts');
+    if (typeof run.scriptText !== 'string' && existsSync(scriptFile)) {
+      try {
+        run.scriptText = readFileSync(scriptFile, 'utf8');
+      } catch {
+        // A missing/unreadable script only affects resume; the run row stays usable.
+      }
+    }
+    return {
+      ...run,
+      runId: run.id,
+      sessionId: run.parentSessionId,
+      timeCreated: run.createdAt,
+      timeUpdated: run.updatedAt,
+      caps: { maxConcurrency: run.maxConcurrency ?? 1 },
+      ...(meta.failure_json === undefined ? {} : { failure: meta.failure_json }),
+      phases: meta.phases ?? run.phases,
+    };
   };
 
   /**
-   * List runs newest first.
+   * List runs newest first. Synchronous for the engine's `listRuns`; async callers may await it.
    *
    * @param {{ project?: boolean, limit?: number, cwd?: string }} [options]
-   * @returns {Promise<Record<string, any>[]>}
+   * @returns {Record<string, any>[]}
    */
-  const listRuns = async (options = {}) => {
+  const listRuns = (options = {}) => {
     const root = resolveRoot(options.cwd);
     const dirs = options.project === false
       ? [projectRunsDir(root), globalRunsDir()]
@@ -666,27 +1148,43 @@ export function createStore(options = {}) {
     /** @type {Map<string, Record<string, any>>} */
     const rows = new Map();
     for (const dir of dirs) {
-      const entries = await readDirSafe(dir);
+      const entries = readDirSafeSync(dir);
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         const runDir = path.join(dir, entry.name);
-        const meta = await readRunMeta(runDir);
+        const meta = readRunMetaSync(runDir);
         if (meta === undefined || rows.has(entry.name)) continue;
-        const status = meta.status ?? 'unknown';
-        const runningElsewhere = status === 'running' && typeof meta.pid === 'number' && meta.pid !== process.pid;
+        const run = publicRunMeta(meta);
+        const runningElsewhere = run.status === 'running' && typeof run.pid === 'number' && run.pid !== process.pid;
         rows.set(entry.name, {
-          id: meta.id ?? entry.name,
-          name: meta.name ?? entry.name,
-          status,
-          stopReason: meta.stopReason,
-          resumedFrom: meta.resumedFrom,
-          supersededBy: meta.supersededBy,
-          createdAt: meta.createdAt,
-          finishedAt: meta.finishedAt,
-          cwd: meta.cwd ?? root,
-          labelSource: meta.labelSource ?? meta.origin,
-          spentTokens: meta.usage?.spentTokens ?? meta.spentTokens,
-          possibleInterruption: meta.possibleInterruption === true || (runningElsewhere && !isProcessAlive(meta.pid)),
+          // §1.1(1) 摘要字段
+          runId: run.id,
+          toolCallId: run.toolCallId,
+          label: run.name,
+          updatedAt: run.updatedAt,
+          status: run.status,
+          stopReason: run.stopReason,
+          resumedFrom: run.resumedFrom,
+          supersededBy: run.supersededBy,
+          ...(run.error === undefined ? {} : { failureMessage: run.error }),
+          resumable: run.status === 'stopped',
+          // 旧调用方（runtime / UI 目录）继续读这些别名
+          id: run.id,
+          name: run.name,
+          createdAt: run.createdAt,
+          finishedAt: run.finishedAt,
+          cwd: run.cwd ?? root,
+          args: run.args,
+          labelSource: run.labelSource,
+          spentTokens: run.spentTokens,
+          parentSessionId: run.parentSessionId,
+          sessionId: run.parentSessionId,
+          scriptPath: run.scriptPath,
+          maxConcurrency: run.maxConcurrency,
+          timeCreated: run.createdAt,
+          timeUpdated: run.updatedAt,
+          possibleInterruption: meta.possibleInterruption === true
+            || (runningElsewhere && !isProcessAlive(run.pid)),
         });
       }
     }
@@ -701,21 +1199,116 @@ export function createStore(options = {}) {
   };
 
   /**
+   * 会话内运行列表（§1.1(1)）：按 `time_updated desc, id desc`，默认 16、上限 64。
+   *
+   * 等价映射说明：ZCode 按 `parent_session_id` 精确过滤；本插件的历史运行可能没有记录
+   * parent_session_id（旧 runtime 未传），此时退回"该项目的全部 run"，避免升级后页面空白。
+   *
+   * @param {{ parentSessionId?: string, sessionId?: string, limit?: number, cwd?: string }} [options]
+   * @returns {Promise<Record<string, any>[]>}
+   */
+  const listRunsForSession = async (options = {}) => {
+    const parentSessionId = options.parentSessionId ?? options.sessionId;
+    const rows = await listRuns({ cwd: options.cwd });
+    const attributed = parentSessionId === undefined
+      ? rows
+      : rows.filter((row) => row.parentSessionId === parentSessionId);
+    const usable = attributed.length > 0 || parentSessionId === undefined ? attributed : rows;
+    const rawLimit = Number.isFinite(options.limit) ? Math.floor(options.limit) : DEFAULT_RUN_PAGE;
+    const limit = Math.max(1, Math.min(rawLimit, MAX_RUN_PAGE));
+    return [...usable]
+      .sort((left, right) => {
+        const updated = Number(right.updatedAt ?? right.createdAt ?? 0) - Number(left.updatedAt ?? left.createdAt ?? 0);
+        if (updated !== 0) return updated;
+        return String(right.id).localeCompare(String(left.id));
+      })
+      .slice(0, limit);
+  };
+
+  /**
+   * 读取一条 run 的脚本原文（`dwf_run.script_text` 的等价物）。
+   *
+   * @param {string} id
+   * @param {{ cwd?: string }} [options]
+   * @returns {Promise<string | undefined>}
+   */
+  const readRunScript = (id, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
+    if (dir === undefined) return undefined;
+    const file = path.join(dir, 'script.ts');
+    if (existsSync(file)) {
+      try {
+        return readFileSync(file, 'utf8');
+      } catch {
+        return undefined;
+      }
+    }
+    const meta = readRunMetaSync(dir);
+    return typeof meta?.script_text === 'string' ? meta.script_text : undefined;
+  };
+
+  /**
    * Patch a run's metadata. Missing runs are a no-op (`undefined` result) rather than a throw.
    *
    * @param {string} id
    * @param {Record<string, any>} patch
    * @param {{ cwd?: string }} [options]
-   * @returns {Promise<Record<string, any> | undefined>}
+   * @returns {Record<string, any> | undefined}
    */
-  const updateRun = async (id, patch = {}, options = {}) => {
-    const dir = await locateRunDir(id, options.cwd);
+  const updateRun = (id, patch = {}, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return undefined;
-    const current = (await readRunMeta(dir)) ?? { id };
+    const current = readRunMetaSync(dir) ?? normalizeRunMeta({ id }, id);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
-    const next = { ...current, ...clean, id: current.id ?? id, updatedAt: clean.updatedAt ?? Date.now() };
-    await writeJsonAtomic(path.join(dir, 'meta.json'), next);
-    return next;
+    const next = applyRunPatch(clean, current, Date.now());
+    next.time_updated = Number.isFinite(clean.updatedAt) ? clean.updatedAt : Date.now();
+    writeJsonAtomicSync(path.join(dir, 'meta.json'), next);
+    return publicRunMeta(next);
+  };
+
+  /**
+   * 引擎的终态写入（`updateRunStatus`）：只关心 status + stopReason/supersededBy/failure。
+   *
+   * @param {string} id
+   * @param {'completed'|'stopped'|'errored'} status
+   * @param {{ stopReason?: string, supersededBy?: string, failure?: Record<string, any> }} [info]
+   * @param {{ cwd?: string }} [options]
+   */
+  const updateRunStatus = (id, status, info = {}, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
+    if (dir === undefined) return undefined;
+    const current = readRunMetaSync(dir) ?? normalizeRunMeta({ id }, id);
+    const next = applyRunPatch({
+      status,
+      ...(info.stopReason === undefined ? {} : { stopReason: info.stopReason }),
+      ...(info.supersededBy === undefined ? {} : { supersededBy: info.supersededBy }),
+      ...(info.failure === undefined ? {} : { error: info.failure }),
+      ...(info.result === undefined ? {} : { result: info.result }),
+      finishedAt: Date.now(),
+    }, current, Date.now());
+    next.time_updated = Date.now();
+    if (info.result !== undefined) {
+      const serialized = safeJson(info.result);
+      if (serialized !== undefined) writeFileAtomicSync(path.join(dir, 'result.json'), `${serialized}\n`);
+    }
+    writeJsonAtomicSync(path.join(dir, 'meta.json'), next);
+    return publicRunMeta(next);
+  };
+
+  /**
+   * 引擎的 token 计数写入（`updateRunUsage`）。
+   *
+   * @param {string} id
+   * @param {number} spentTokens
+   * @param {{ cwd?: string }} [options]
+   */
+  const updateRunUsage = (id, spentTokens, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
+    if (dir === undefined) return undefined;
+    const current = readRunMetaSync(dir) ?? normalizeRunMeta({ id }, id);
+    current.spent_tokens = Number.isFinite(spentTokens) ? spentTokens : current.spent_tokens;
+    writeJsonAtomicSync(path.join(dir, 'meta.json'), current);
+    return publicRunMeta(current);
   };
 
   /**
@@ -724,76 +1317,532 @@ export function createStore(options = {}) {
    * @param {string} id
    * @param {{ status?: string, stopReason?: string, error?: unknown, result?: unknown, finishedAt?: number }} outcome
    * @param {{ cwd?: string }} [options]
-   * @returns {Promise<Record<string, any> | undefined>}
+   * @returns {Record<string, any> | undefined}
    */
-  const settleRun = async (id, outcome = {}, options = {}) => {
-    const dir = await locateRunDir(id, options.cwd);
+  const settleRun = (id, outcome = {}, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return undefined;
     const finishedAt = Number.isFinite(outcome.finishedAt) ? /** @type {number} */ (outcome.finishedAt) : Date.now();
     /** @type {Record<string, any>} */
     const patch = { finishedAt, updatedAt: finishedAt };
     if (outcome.status !== undefined) patch.status = outcome.status;
     if (outcome.stopReason !== undefined) patch.stopReason = outcome.stopReason;
-    if (outcome.error !== undefined) {
-      patch.error = typeof outcome.error === 'string'
-        ? outcome.error
-        : (outcome.error?.message !== undefined ? String(outcome.error.message) : String(outcome.error));
-    }
+    if (outcome.error !== undefined) patch.error = outcome.error;
     if (outcome.result !== undefined) {
       const serialized = safeJson(outcome.result);
       if (serialized !== undefined) {
-        await writeFileAtomic(path.join(dir, 'result.json'), `${serialized}\n`);
-        if (serialized.length <= MAX_INLINE_META_RESULT) patch.result = outcome.result;
+        writeFileAtomicSync(path.join(dir, 'result.json'), `${serialized}\n`);
+        patch.result = outcome.result;
       }
     }
-    const current = (await readRunMeta(dir)) ?? { id };
-    const next = { ...current, ...patch, id: current.id ?? id };
-    await writeJsonAtomic(path.join(dir, 'meta.json'), next);
-    return next;
+    const current = readRunMetaSync(dir) ?? normalizeRunMeta({ id }, id);
+    const next = applyRunPatch(patch, current, finishedAt);
+    next.time_updated = finishedAt;
+    writeJsonAtomicSync(path.join(dir, 'meta.json'), next);
+    return publicRunMeta(next);
   };
 
   /**
-   * Append one journal line to `journal.jsonl`.
+   * Append one event to the run journal (`dwf_event`), then refresh the run row's watermark.
+   *
+   * Synchronous: the engine calls `record()` → `appendEvent()` without awaiting, and a rejected
+   * promise there would be an unhandled rejection instead of a logged storage failure. Storage
+   * errors still return `undefined`; the engine treats the journal as best-effort telemetry.
    *
    * @param {string} id
    * @param {Record<string, any>} event
    * @param {{ cwd?: string }} [options]
+   * @returns {Record<string, any> | undefined} the stored row
    */
-  const appendEvent = async (id, event, options = {}) => {
-    // Runtime callers do `void store.appendEvent(...)`: the journal is best-effort telemetry and a
-    // failed append must never surface as an unhandled rejection.
+  const appendEvent = (id, event, options = {}) => {
     try {
-      const dir = (await locateRunDir(id, options.cwd)) ?? path.join(projectRunsDir(resolveRoot(options.cwd)), id);
-      await fsp.mkdir(dir, { recursive: true });
-      const row = { at: Date.now(), ...(event ?? {}) };
-      await fsp.appendFile(path.join(dir, 'journal.jsonl'), `${safeJson(row) ?? '{}'}\n`, 'utf8');
+      const root = resolveRoot(options.cwd);
+      const dir = locateRunDirSync(id, options.cwd) ?? path.join(projectRunsDir(root), id);
+      mkdirSync(dir, { recursive: true });
+      const file = path.join(dir, 'journal.jsonl');
+      const rows = readJournalRowsFromFile(file);
+      const sequence = rows.length === 0 ? 0 : Math.max(rows[rows.length - 1].sequence + 1, rows.length);
+      const { sequence: _ignoredSequence, ...rest } = event ?? {};
+      const payload = { ...rest };
+      const type = typeof payload.type === 'string' && payload.type !== '' ? payload.type : 'log';
+      const timeCreated = Number.isFinite(payload.at)
+        ? /** @type {number} */ (payload.at)
+        : (Number.isFinite(payload.time_created) ? /** @type {number} */ (payload.time_created) : Date.now());
+      const row = { sequence, type, payload, time_created: timeCreated };
+      appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8');
+
+      const meta = readRunMetaSync(dir);
+      if (meta !== undefined) {
+        meta.last_event_sequence = sequence;
+        meta.time_updated = timeCreated;
+        if (payload.type === 'usage-updated' && typeof payload.spentTokens === 'number') {
+          meta.spent_tokens = payload.spentTokens;
+        }
+        if (payload.type === 'run-settled' && typeof payload.status === 'string') {
+          meta.workflow_state = payload.status;
+          meta.status = toDbStatus(payload.status);
+          if (typeof payload.stopReason === 'string') meta.stop_reason = payload.stopReason;
+          if (typeof payload.supersededBy === 'string') meta.superseded_by = payload.supersededBy;
+          if (payload.error !== null && typeof payload.error === 'object' && typeof payload.error.message === 'string') {
+            meta.failure_json = {
+              ...(typeof payload.error.code === 'string' ? { code: payload.error.code.slice(0, 64) } : {}),
+              message: payload.error.message.slice(0, 2048),
+            };
+          }
+        }
+        writeJsonAtomicSync(path.join(dir, 'meta.json'), meta);
+        touchSnapshotIndexSync(root, id);
+      }
+      return row;
     } catch {
-      // ignored on purpose
+      return undefined;
     }
   };
 
   /**
-   * Read the run journal. Corrupt lines are skipped, never thrown.
+   * Read the run journal, flattened to `{...payload, sequence, type, at}`.
    *
    * @param {string} id
    * @param {{ cwd?: string }} [options]
-   * @returns {Promise<Record<string, any>[]>}
+   * @returns {Record<string, any>[]}
    */
-  const readEvents = async (id, options = {}) => {
-    const dir = await locateRunDir(id, options.cwd);
+  const readEvents = (id, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return [];
-    const text = await readTextSafe(path.join(dir, 'journal.jsonl'));
-    if (text === undefined) return [];
-    const events = [];
-    for (const line of text.split(/\r?\n/u)) {
-      if (line.trim() === '') continue;
-      try {
-        events.push(JSON.parse(line));
-      } catch {
-        // A torn last line is expected after a crash: skip it.
-      }
+    return readJournalRowsFromFile(path.join(dir, 'journal.jsonl')).map(flattenJournalRow);
+  };
+
+  /**
+   * `workflowRunEvents` 的分页读取（§1.1(2) / §2.5）。
+   *
+   * @param {string} id
+   * @param {{ cwd?: string, afterSequence?: unknown, limit?: unknown, maxBytes?: number }} [options]
+   * @returns {{ events: Record<string, any>[], hasMore: boolean, lastEventSequence: number }}
+   */
+  const readEventPage = (id, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
+    if (dir === undefined) return { events: [], hasMore: false, lastEventSequence: 0 };
+    const rows = readJournalRowsFromFile(path.join(dir, 'journal.jsonl'));
+    const page = pageEvents(rows, {
+      afterSequence: options.afterSequence,
+      limit: options.limit,
+      maxBytes: options.maxBytes,
+    });
+    const watermark = rows.length === 0 ? 0 : rows[rows.length - 1].sequence;
+    return {
+      events: page.events.map((row) => ({ sequence: row.sequence, type: row.type, payload: row.payload })),
+      hasMore: page.hasMore,
+      lastEventSequence: Math.max(watermark, page.lastEventSequence),
+    };
+  };
+
+  /**
+   * 引擎 `listEvents`：返回 `{sequence, event, timeCreated}` 信封（runtime getRun/eventsAfter 读 `event.event`）。
+   *
+   * @param {string} id
+   * @param {{ cwd?: string, types?: 'all'|string[], afterSequence?: number, limit?: number, reportItems?: object }} [options]
+   * @returns {{ sequence: number, type: string, event: Record<string, any>, timeCreated: number }[]}
+   */
+  const listEvents = (id, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
+    if (dir === undefined) return [];
+    let rows = readJournalRowsFromFile(path.join(dir, 'journal.jsonl'));
+    if (Array.isArray(options.types)) {
+      const allowed = new Set(options.types);
+      rows = rows.filter((row) => allowed.has(row.type));
     }
-    return events;
+    if (Number.isInteger(options.afterSequence)) {
+      rows = rows.filter((row) => row.sequence > options.afterSequence);
+    }
+    if (Number.isInteger(options.limit) && options.limit >= 0) rows = rows.slice(0, options.limit);
+    return rows.map((row) => ({
+      sequence: row.sequence,
+      type: row.type,
+      event: flattenJournalRow(row),
+      timeCreated: row.time_created,
+    }));
+  };
+
+  /**
+   * 折叠一条 run 的事件流，得到 §3.1 的 `Im` 快照。
+   *
+   * @param {string} id
+   * @param {{ cwd?: string }} [options]
+   * @returns {Record<string, any> | undefined}
+   */
+  const projectRun = (id, options = {}) => {
+    const dir = locateRunDirSync(id, options.cwd);
+    if (dir === undefined) return undefined;
+    const meta = readRunMetaSync(dir);
+    if (meta === undefined) return undefined;
+    const run = publicRunMeta(meta);
+    const rows = readJournalRowsFromFile(path.join(dir, 'journal.jsonl'));
+    const lastEventSequence = Number.isInteger(meta.last_event_sequence)
+      ? Math.max(meta.last_event_sequence, rows.length === 0 ? 0 : rows[rows.length - 1].sequence)
+      : (rows.length === 0 ? 0 : rows[rows.length - 1].sequence);
+    const seed = {
+      runId: run.id,
+      ...(run.toolCallId === undefined ? {} : { toolCallId: run.toolCallId }),
+      status: run.status,
+      ...(run.subagentModel === undefined ? {} : { subagentModel: run.subagentModel }),
+      ...(run.resumedFrom === undefined ? {} : { resumedFrom: run.resumedFrom }),
+      ...(run.supersededBy === undefined ? {} : { supersededBy: run.supersededBy }),
+      ...(run.result === undefined
+        ? {}
+        : {
+          resultPreview: (typeof run.result === 'string' ? run.result : (safeJson(run.result) ?? ''))
+            .slice(0, 2048),
+        }),
+      ...(Array.isArray(meta.phases) && meta.phases.length > 0
+        ? {
+          phaseNames: meta.phases
+            .filter((name) => typeof name === 'string' && name !== '')
+            .slice(0, 32)
+            .map((name) => name.slice(0, 128)),
+        }
+        : {}),
+      lastEventSequence,
+      lastEventSequenceUnknown: false,
+    };
+    let snapshot = projectRunEvents(rows, seed);
+    // 旧 runtime 没有 run-settled 事件：终态以 run 表为准，否则快照会永远停在 running。
+    if (EVENT_TERMINAL.has(run.status) && !rows.some((row) => row.type === 'run-settled')) {
+      snapshot = {
+        ...snapshot,
+        status: run.status,
+        ...(run.stopReason === undefined ? {} : { stopReason: run.stopReason }),
+        ...(run.error === undefined ? {} : { error: run.error }),
+        ...(run.resumedFrom === undefined ? {} : { resumedFrom: run.resumedFrom }),
+        ...(run.supersededBy === undefined ? {} : { supersededBy: run.supersededBy }),
+      };
+    }
+    snapshot.lastEventSequence = Math.max(snapshot.lastEventSequence, lastEventSequence);
+    return snapshot;
+  };
+
+  /**
+   * 会话快照容器（§3.2 `Lm`）：`{revision, runs}`，按到达顺序最多 8 条。
+   *
+   * @param {{ cwd?: string, limit?: number }} [options]
+   * @returns {Promise<{ revision: number, runs: Record<string, any>[] }>}
+   */
+  const listRunSnapshots = async (options = {}) => {
+    const root = resolveRoot(options.cwd);
+    const index = await readSnapshotIndex(root);
+    const max = Math.max(1, Math.min(options.limit ?? MAX_RUNS_PER_SNAPSHOT, MAX_RUNS_PER_SNAPSHOT));
+    let ids = index.runs.slice(index.runs.length - max);
+    if (ids.length === 0) {
+      // 没有索引（旧数据）时按更新时间取最近的 run，再翻成"旧 → 新"。
+      const rows = await listRuns({ cwd: root, limit: max });
+      ids = rows.map((row) => row.id).reverse();
+    }
+    const runs = [];
+    for (const id of ids) {
+      const snapshot = await projectRun(id, { cwd: root });
+      if (snapshot !== undefined) runs.push(snapshot);
+    }
+    return { revision: index.revision, runs };
+  };
+
+  /* ------------------------------- actors / nodes -------------------------------------------- */
+
+  /** @param {string} file @returns {Record<string, any>[]} */
+  const readRowArraySync = (file) => {
+    const raw = readJsonSync(file);
+    if (raw !== undefined && Array.isArray(raw.rows)) {
+      return raw.rows.filter((row) => row !== null && typeof row === 'object');
+    }
+    return Array.isArray(raw) ? raw.filter((row) => row !== null && typeof row === 'object') : [];
+  };
+
+  /**
+   * Public actor row: §4 snake_case storage plus the camelCase aliases the engine reads.
+   *
+   * @param {Record<string, any>} row
+   * @param {{ withPersona?: boolean }} [options]
+   */
+  const publicActor = (row, options = {}) => ({
+    ...row,
+    runId: row.run_id,
+    siteId: row.site_id,
+    resolvedModel: row.resolved_model,
+    sessionId: row.session_id,
+    ...(options.withPersona === false || row.persona_json === undefined ? {} : { persona: row.persona_json }),
+    timeCreated: row.time_created,
+    timeUpdated: row.time_updated,
+  });
+
+  /**
+   * Upsert one `dwf_actor` row (engine `putActor`). Keyed by run + siteId + ordinal.
+   *
+   * @param {Record<string, any>} actor
+   * @param {{ cwd?: string }} [options]
+   * @returns {Record<string, any> | undefined}
+   */
+  const putActor = (actor = {}, options = {}) => {
+    const runId = actor.runId ?? actor.run_id;
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return undefined;
+    if (typeof actor.siteId !== 'string' || actor.siteId === '' || !Number.isInteger(actor.ordinal)) {
+      throw new Error('putActor requires siteId and an integer ordinal');
+    }
+    const file = path.join(dir, 'actors.json');
+    const rows = readRowArraySync(file);
+    const index = rows.findIndex((row) => row.site_id === actor.siteId && row.ordinal === actor.ordinal);
+    const now = Date.now();
+    const previous = index >= 0 ? rows[index] : undefined;
+    const entry = {
+      ...previous,
+      id: previous?.id ?? rows.length + 1,
+      run_id: runId,
+      site_id: actor.siteId,
+      ordinal: actor.ordinal,
+      ...(actor.name === undefined ? {} : { name: actor.name }),
+      ...(actor.persona === undefined ? {} : { persona_json: actor.persona }),
+      ...(actor.resolvedModel === undefined && actor.model === undefined
+        ? {}
+        : { resolved_model: actor.resolvedModel ?? actor.model }),
+      ...(actor.sessionId === undefined ? {} : { session_id: actor.sessionId }),
+      status: actor.status ?? previous?.status ?? 'waiting',
+      time_created: previous?.time_created ?? now,
+      time_updated: now,
+    };
+    if (index >= 0) rows[index] = entry;
+    else rows.push(entry);
+    writeJsonAtomicSync(file, rows);
+    return publicActor(entry);
+  };
+
+  /**
+   * Legacy alias used by the UI/test layer; synchronous and await-compatible.
+   *
+   * @param {string} runId
+   * @param {Record<string, any>} actor
+   * @param {{ cwd?: string }} [options]
+   */
+  const recordActor = (runId, actor = {}, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return undefined;
+    return putActor({ ...actor, runId }, { cwd: options.cwd });
+  };
+
+  /**
+   * @param {string} runId
+   * @param {string} siteId
+   * @param {number} ordinal
+   * @param {{ cwd?: string, withPersona?: boolean }} [options]
+   */
+  const getActor = (runId, siteId, ordinal, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return undefined;
+    const row = readRowArraySync(path.join(dir, 'actors.json'))
+      .find((candidate) => candidate.site_id === siteId && candidate.ordinal === ordinal);
+    return row === undefined ? undefined : publicActor(row, options);
+  };
+
+  /**
+   * @param {string} runId
+   * @param {{ cwd?: string, withPersona?: boolean }} [options]
+   * @returns {Record<string, any>[]}
+   */
+  const listActors = (runId, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return [];
+    return readRowArraySync(path.join(dir, 'actors.json')).map((row) => publicActor(row, options));
+  };
+
+  /** @param {Record<string, any>} row */
+  function publicNode(row) {
+    return {
+      ...row,
+      runId: row.run_id,
+      siteId: row.site_id,
+      actorSiteId: row.actor_site_id,
+      actorOrdinal: row.actor_ordinal,
+      inputHash: row.input_hash,
+      artifactId: row.artifact_id,
+      messageBoundary: row.message_boundary,
+      phase: row.phase ?? (row.status === 'running' ? 'executing' : 'settled'),
+      timeCreated: row.time_created,
+      timeUpdated: row.time_updated,
+    };
+  }
+
+  /**
+   * Upsert one `dwf_node` row (engine `putNode`). Keyed by run + siteId + ordinal.
+   *
+   * @param {Record<string, any>} node
+   * @param {{ cwd?: string }} [options]
+   * @returns {Record<string, any> | undefined}
+   */
+  const putNode = (node = {}, options = {}) => {
+    const runId = node.runId ?? node.run_id;
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return undefined;
+    if (typeof node.siteId !== 'string' || node.siteId === '' || !Number.isInteger(node.ordinal)) {
+      throw new Error('putNode requires siteId and an integer ordinal');
+    }
+    const kind = ['ask', 'world-read', 'world-run', 'report', 'artifact'].includes(node.kind) ? node.kind : 'ask';
+    const status = ['running', 'completed', 'failed'].includes(node.status) ? node.status : 'running';
+    const file = path.join(dir, 'nodes.json');
+    const rows = readRowArraySync(file);
+    const index = rows.findIndex((row) => row.site_id === node.siteId && row.ordinal === node.ordinal);
+    const now = Date.now();
+    const previous = index >= 0 ? rows[index] : undefined;
+    const input = kind === 'world-read' || kind === 'world-run' ? boundWorldInput(node.input) : node.input;
+    const entry = {
+      ...previous,
+      id: previous?.id ?? rows.length + 1,
+      run_id: runId,
+      site_id: node.siteId,
+      ordinal: node.ordinal,
+      kind,
+      ...(node.actorSiteId === undefined ? {} : { actor_site_id: node.actorSiteId }),
+      ...(node.actorOrdinal === undefined ? {} : { actor_ordinal: node.actorOrdinal }),
+      ...(node.actorSeq === undefined ? {} : { actor_seq: node.actorSeq }),
+      input_hash: node.inputHash ?? previous?.input_hash ?? sha256Hex(safeJson(input) ?? ''),
+      ...(input === undefined ? {} : { input }),
+      status,
+      ...(node.phase === undefined ? {} : { phase: node.phase }),
+      ...(node.outcome === undefined ? {} : { outcome: node.outcome }),
+      ...(node.result === undefined ? {} : { result: node.result }),
+      ...(node.error === undefined ? {} : { error: node.error }),
+      ...(node.stats === undefined ? {} : { stats: node.stats }),
+      ...(node.messageBoundary === undefined ? {} : { message_boundary: node.messageBoundary }),
+      ...(node.artifactId === undefined ? {} : { artifact_id: node.artifactId }),
+      time_created: previous?.time_created ?? now,
+      time_updated: now,
+    };
+    if (index >= 0) rows[index] = entry;
+    else rows.push(entry);
+    writeJsonAtomicSync(file, rows);
+    return publicNode(entry);
+  };
+
+  /**
+   * Legacy alias used by the UI/test layer; synchronous and await-compatible.
+   *
+   * @param {string} runId
+   * @param {Record<string, any>} node
+   * @param {{ cwd?: string }} [options]
+   */
+  const recordNode = (runId, node = {}, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return undefined;
+    return putNode({ ...node, runId }, { cwd: options.cwd });
+  };
+
+  /**
+   * @param {string} runId
+   * @param {string} siteId
+   * @param {number} ordinal
+   * @param {{ cwd?: string, withResult?: boolean }} [options]
+   */
+  const getNode = (runId, siteId, ordinal, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return undefined;
+    const row = readRowArraySync(path.join(dir, 'nodes.json'))
+      .find((candidate) => candidate.site_id === siteId && candidate.ordinal === ordinal);
+    if (row === undefined) return undefined;
+    const node = publicNode(row);
+    if (options.withResult === false) delete node.result;
+    return node;
+  };
+
+  /**
+   * @param {string} runId
+   * @param {{ cwd?: string, kinds?: string[], withResult?: boolean, limit?: number }} [options]
+   * @returns {Record<string, any>[]}
+   */
+  const listNodes = (runId, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return [];
+    let rows = readRowArraySync(path.join(dir, 'nodes.json'));
+    if (Array.isArray(options.kinds)) {
+      const allowed = new Set(options.kinds);
+      rows = rows.filter((row) => allowed.has(row.kind));
+    }
+    if (Number.isInteger(options.limit) && options.limit >= 0) rows = rows.slice(0, options.limit);
+    return rows.map((row) => {
+      const node = publicNode(row);
+      if (options.withResult === false) delete node.result;
+      return node;
+    });
+  };
+
+  /**
+   * @param {string} runId
+   * @param {string} kind
+   * @param {{ cwd?: string }} [options]
+   * @returns {number}
+   */
+  const countNodes = (runId, kind, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return 0;
+    return readRowArraySync(path.join(dir, 'nodes.json')).filter((row) => row.kind === kind).length;
+  };
+
+  /**
+   * @param {string} runId
+   * @param {string} kind
+   * @param {{ cwd?: string }} [options]
+   * @returns {number}
+   */
+  const sumResultBytes = (runId, kind, options = {}) => {
+    const dir = locateRunDirSync(runId, options.cwd);
+    if (dir === undefined) return 0;
+    let total = 0;
+    for (const row of readRowArraySync(path.join(dir, 'nodes.json'))) {
+      if (row.kind !== kind || row.result === undefined) continue;
+      total += Buffer.byteLength(safeJson(row.result) ?? 'null', 'utf8');
+    }
+    return total;
+  };
+
+  /**
+   * `workflowRunWorkspace` 的等价查询：只取 world-read/world-run，映射成 §9 台账行。
+   *
+   * @param {string} runId
+   * @param {{ cwd?: string, limit?: number }} [options]
+   * @returns {{ nodes: Record<string, any>[], truncated: boolean }}
+   */
+  const listWorldNodes = (runId, options = {}) => {
+    const rows = listNodes(runId, { ...options, withResult: true });
+    const world = rows
+      .filter((row) => row.kind === 'world-read' || row.kind === 'world-run')
+      .map((row) => ({
+        siteId: row.siteId,
+        ordinal: row.ordinal,
+        kind: row.kind,
+        ...(row.input === undefined ? {} : {
+          ...(typeof row.input.op === 'string' ? { op: row.input.op } : {}),
+          ...(Array.isArray(row.input.args) ? { args: row.input.args } : {}),
+          ...(row.input.truncated === true ? { inputTruncated: true } : {}),
+        }),
+        status: row.status,
+        ...(row.error === undefined ? {} : {
+          error: {
+            code: typeof row.error.code === 'string' ? row.error.code.slice(0, 64) : 'error',
+            message: typeof row.error.message === 'string' ? row.error.message.slice(0, 2000) : '',
+          },
+        }),
+        ...(row.status === 'completed' ? (() => {
+          const serialized = safeJson(row.result ?? null) ?? 'null';
+          const summary = { resultBytes: Buffer.byteLength(serialized, 'utf8') };
+          if (Array.isArray(row.result)) summary.resultCount = row.result.length;
+          if (row.result !== null && typeof row.result === 'object' && !Array.isArray(row.result)) {
+            if (Number.isInteger(row.result.exitCode)) summary.exitCode = row.result.exitCode;
+            if (typeof row.result.stdout === 'string') summary.stdoutBytes = Buffer.byteLength(row.result.stdout, 'utf8');
+            if (typeof row.result.stderr === 'string') summary.stderrBytes = Buffer.byteLength(row.result.stderr, 'utf8');
+          }
+          return { summary };
+        })() : {}),
+        createdAt: row.timeCreated ?? 0,
+        updatedAt: row.timeUpdated ?? row.timeCreated ?? 0,
+      }));
+    const max = 2000;
+    const nodes = world.slice(0, max);
+    return { nodes, truncated: world.length > max };
   };
 
   /* ------------------------------- artifacts ------------------------------------------------- */
@@ -862,8 +1911,26 @@ export function createStore(options = {}) {
     const idSegment = safeSegment(artifactId, 'artifact');
     const kind = ARTIFACT_KINDS.has(artifact.kind) ? artifact.kind : 'file';
     const version = Number.isFinite(artifact.version) && artifact.version > 0 ? Math.floor(artifact.version) : 1;
+
+    // §4.4 保留策略：每 run ≤32 个 artifact id，每 id ≤16 个版本。超限必须报错而不是静默丢弃，
+    // 否则脚本会以为自己发布了产物。
+    const existing = await readArtifactManifest(runId);
+    const versionsForId = existing.filter((row) => row.id === artifactId);
+    const distinctIds = new Set(existing.map((row) => row.id));
+    if (!distinctIds.has(artifactId) && distinctIds.size >= MAX_ARTIFACTS_PER_RUN) {
+      const error = new Error(`artifact cap exceeded: run "${runId}" already has ${MAX_ARTIFACTS_PER_RUN} artifacts`);
+      error.name = 'ArtifactCapExceeded';
+      throw error;
+    }
+    if (!versionsForId.some((row) => Number(row.version) === version) && versionsForId.length >= MAX_ARTIFACT_VERSIONS) {
+      const error = new Error(`artifact version cap exceeded: "${artifactId}" already has ${MAX_ARTIFACT_VERSIONS} versions`);
+      error.name = 'ArtifactVersionCapExceeded';
+      throw error;
+    }
+
     const versionDir = path.join(runDir, 'artifacts', idSegment, `v${version}`);
     await fsp.mkdir(versionDir, { recursive: true });
+    const now = Date.now();
 
     /** @type {Record<string, any>} */
     const record = {
@@ -873,8 +1940,11 @@ export function createStore(options = {}) {
       ...(artifact.title === undefined ? {} : { title: artifact.title }),
       ...(artifact.description === undefined ? {} : { description: artifact.description }),
       ...(artifact.primary === true ? { primary: true } : {}),
+      ...(artifact.sourcePath === undefined ? {} : { sourcePath: artifact.sourcePath }),
       contentType: artifact.contentType ?? inferContentType(kind, artifact.sourcePath),
-      createdAt: Date.now(),
+      createdAt: now,
+      // §7.1 的版本行字段：uri/publishedAt 与 dwf_node.result_json 对齐。
+      publishedAt: now,
     };
 
     if (typeof artifact.sourcePath === 'string' && artifact.sourcePath !== '') {
@@ -884,6 +1954,7 @@ export function createStore(options = {}) {
       await fsp.copyFile(source, target);
       const stat = await fsp.stat(target).catch(() => undefined);
       record.file = `artifacts/${idSegment}/v${version}/${baseName}`;
+      record.uri = record.file;
       record.bytes = stat?.size ?? 0;
     } else if (typeof artifact.text === 'string') {
       const fileName = `${artifactFileName(artifact.title, artifactId, record.contentType)}`;
@@ -891,6 +1962,7 @@ export function createStore(options = {}) {
       await writeFileAtomic(target, artifact.text);
       const stat = await fsp.stat(target).catch(() => undefined);
       record.file = `artifacts/${idSegment}/v${version}/${fileName}`;
+      record.uri = record.file;
       record.bytes = stat?.size ?? Buffer.byteLength(artifact.text, 'utf8');
       if (artifact.text.length <= 100_000) record.text = artifact.text;
     }
@@ -900,6 +1972,7 @@ export function createStore(options = {}) {
       await writeJsonAtomic(target, artifact.spec);
       record.spec = artifact.spec;
       record.specFile = `artifacts/${idSegment}/v${version}/spec.json`;
+      record.uri = record.uri ?? record.specFile;
       if (record.bytes === undefined) record.bytes = (await fsp.stat(target).catch(() => undefined))?.size ?? 0;
     }
 
@@ -907,6 +1980,7 @@ export function createStore(options = {}) {
       const target = path.join(versionDir, 'items.json');
       await writeJsonAtomic(target, artifact.items);
       record.itemsFile = `artifacts/${idSegment}/v${version}/items.json`;
+      record.uri = record.uri ?? record.itemsFile;
       record.itemCount = artifact.items.length;
       if (record.bytes === undefined) record.bytes = (await fsp.stat(target).catch(() => undefined))?.size ?? 0;
     }
@@ -917,10 +1991,112 @@ export function createStore(options = {}) {
     kept.sort((left, right) => String(left.id).localeCompare(String(right.id)) || Number(left.version) - Number(right.version));
     await writeJsonAtomic(path.join(runDir, 'artifacts', 'manifest.json'), {
       runId,
-      updatedAt: Date.now(),
+      updatedAt: now,
       artifacts: kept,
     });
     return record;
+  };
+
+  /**
+   * `workflowRunArtifacts` 的等价投影（§1.1(3)）：按 artifact id 分组，附版本明细。
+   *
+   * `itemCount` 来自 `type='report'` 且 `artifactId` 指向该 id 的事件条数（§4.3）。
+   *
+   * @param {string} runId
+   * @param {{ cwd?: string }} [options]
+   * @returns {Promise<Record<string, any>[]>}
+   */
+  const listArtifacts = async (runId, options = {}) => {
+    const rows = await readArtifactManifest(runId);
+    if (rows.length === 0) return [];
+    const events = await readEvents(runId, options);
+    /** @type {Map<string, number>} */
+    const itemCounts = new Map();
+    for (const event of events) {
+      if (event.type !== 'report') continue;
+      const artifactId = typeof event.artifactId === 'string' ? event.artifactId : undefined;
+      if (artifactId === undefined) continue;
+      itemCounts.set(artifactId, (itemCounts.get(artifactId) ?? 0) + 1);
+    }
+    /** @type {Map<string, Record<string, any>[]>} */
+    const groups = new Map();
+    for (const row of rows) {
+      const id = typeof row.id === 'string' ? row.id : undefined;
+      if (id === undefined) continue;
+      const list = groups.get(id) ?? [];
+      list.push(row);
+      groups.set(id, list);
+    }
+    const artifacts = [];
+    for (const [id, versions] of groups) {
+      versions.sort((left, right) => Number(left.version) - Number(right.version));
+      const latest = versions[versions.length - 1];
+      const primary = versions.some((row) => row.primary === true);
+      artifacts.push({
+        id,
+        kind: latest.kind,
+        ...(latest.title === undefined ? {} : { title: latest.title }),
+        ...(latest.description === undefined ? {} : { description: latest.description }),
+        ...(latest.contentType === undefined ? {} : { contentType: latest.contentType }),
+        ...(latest.sourcePath === undefined ? {} : { sourcePath: latest.sourcePath }),
+        ...(latest.spec === undefined ? {} : { spec: latest.spec }),
+        version: Number(latest.version),
+        versions: versions.map((row) => ({
+          version: Number(row.version),
+          ...(row.title === undefined ? {} : { title: row.title }),
+          ...(row.description === undefined ? {} : { description: row.description }),
+          ...(row.contentType === undefined ? {} : { contentType: row.contentType }),
+          ...(row.bytes === undefined ? {} : { bytes: row.bytes }),
+          ...(row.uri === undefined ? {} : { uri: row.uri }),
+          ...(row.sourcePath === undefined ? {} : { sourcePath: row.sourcePath }),
+          ...(row.spec === undefined ? {} : { spec: row.spec }),
+          publishedAt: row.publishedAt ?? row.createdAt ?? 0,
+          ...(row.primary === true ? { primary: true } : {}),
+        })),
+        itemCount: itemCounts.get(id) ?? (latest.itemCount ?? 0),
+        ...(primary ? { primary: true } : {}),
+      });
+    }
+    // primary 优先（§1.1(3) 的排序），其余按 id 稳定。
+    artifacts.sort((left, right) => {
+      const primaryDelta = Number(right.primary === true) - Number(left.primary === true);
+      if (primaryDelta !== 0) return primaryDelta;
+      return String(left.id).localeCompare(String(right.id));
+    });
+    return artifacts.slice(0, MAX_ARTIFACTS_PER_RUN);
+  };
+
+  /**
+   * 读取某个 artifact 版本的完整字节（§7.1/§7.2），供 base64 分片路由使用。
+   *
+   * @param {string} runId
+   * @param {string} artifactId
+   * @param {number | string} version
+   * @returns {Promise<{ bytes: Buffer, mediaType: string, totalBytes: number, record: Record<string, any> } | undefined>}
+   */
+  const readArtifactPayload = async (runId, artifactId, version) => {
+    const runDir = await locateRunDir(runId);
+    if (runDir === undefined) return undefined;
+    const record = (await readArtifactManifest(runId)).find(
+      (row) => row.id === artifactId && Number(row.version) === Number(version),
+    );
+    if (record === undefined) return undefined;
+    const mediaType = typeof record.contentType === 'string' && record.contentType !== ''
+      ? record.contentType
+      : 'application/octet-stream';
+    let bytes;
+    if (typeof record.file === 'string' && record.file !== '') {
+      const file = path.join(runDir, ...record.file.split('/'));
+      bytes = await fsp.readFile(file).catch(() => undefined);
+    }
+    if (bytes === undefined && typeof record.text === 'string') bytes = Buffer.from(record.text, 'utf8');
+    if (bytes === undefined && record.spec !== undefined) bytes = Buffer.from(JSON.stringify(record.spec), 'utf8');
+    if (bytes === undefined && typeof record.itemsFile === 'string') {
+      const file = path.join(runDir, ...record.itemsFile.split('/'));
+      bytes = await fsp.readFile(file).catch(() => undefined);
+    }
+    if (bytes === undefined) return undefined;
+    return { bytes, mediaType, totalBytes: bytes.byteLength, record };
   };
 
   /* ------------------------------- drafts ---------------------------------------------------- */
@@ -969,7 +2145,7 @@ export function createStore(options = {}) {
     const invalid = [];
     const seen = new Set();
 
-    for (const { scope, dir } of savedRoots(root, undefined)) {
+    for (const { scope, dir } of savedRoots(root, options.scope)) {
       for (const dirent of await readDirSafe(dir)) {
         if (!dirent.isFile() || !dirent.name.endsWith(SAVED_EXTENSION)) continue;
         const file = path.join(dir, dirent.name);
@@ -1134,6 +2310,217 @@ export function createStore(options = {}) {
     return { ok: true, from, to, path: target };
   };
 
+  /**
+   * Locate one saved workflow file without parsing it.
+   *
+   * @param {string} name
+   * @param {{ scope?: 'project'|'global', cwd?: string }} [options]
+   * @returns {Promise<{ file: string, scope: 'project'|'global' } | undefined>}
+   */
+  const findSavedFile = async (name, options = {}) => {
+    const nameCheck = validateSavedWorkflowName(name);
+    if (!nameCheck.ok) return undefined;
+    const root = resolveRoot(options.cwd);
+    for (const { scope, dir } of savedRoots(root, options.scope)) {
+      const file = path.join(dir, `${name}${SAVED_EXTENSION}`);
+      if (await exists(file)) return { file, scope };
+    }
+    return undefined;
+  };
+
+  /**
+   * `workflows/updateMeta`（§1.2 #3）：只改元数据，保留脚本正文。
+   *
+   * @param {string} name
+   * @param {{ description?: string, whenToUse?: string, args?: unknown }} meta
+   * @param {{ scope?: 'project'|'global', cwd?: string }} [options]
+   * @returns {Promise<{ ok: true, path: string, scope: string } | { ok: false, reason: string, detail?: string }>}
+   */
+  const updateSavedWorkflowMeta = async (name, meta = {}, options = {}) => {
+    const nameCheck = validateSavedWorkflowName(name);
+    if (!nameCheck.ok) return { ok: false, reason: 'invalid_name', detail: INVALID_SAVED_NAME_MESSAGE };
+    const found = await findSavedFile(name, options);
+    if (found === undefined) return { ok: false, reason: 'not_found' };
+    const text = await readTextSafe(found.file);
+    if (text === undefined) return { ok: false, reason: 'read_error', detail: 'the workflow file could not be read' };
+    const parsed = parseSavedWorkflowFile(text);
+    if (!parsed.ok) return { ok: false, reason: 'parse_error', detail: parsed.detail };
+    const nextMeta = {
+      description: typeof meta.description === 'string' && meta.description.trim() !== ''
+        ? meta.description
+        : parsed.meta.description,
+      whenToUse: meta.whenToUse !== undefined ? meta.whenToUse : parsed.meta.whenToUse,
+      args: meta.args !== undefined ? meta.args : parsed.meta.args,
+    };
+    try {
+      await writeFileAtomic(found.file, serializeSavedWorkflowFile(nextMeta, parsed.body));
+    } catch (error) {
+      return { ok: false, reason: 'write_error', detail: error instanceof Error ? error.message : String(error) };
+    }
+    return { ok: true, path: found.file, scope: found.scope };
+  };
+
+  /**
+   * `workflows/delete` 的契约形态：返回被删除的文件路径（旧 API 只返回布尔值）。
+   *
+   * @param {string} name
+   * @param {{ scope?: 'project'|'global', cwd?: string }} [options]
+   * @returns {Promise<{ ok: true, path: string, scope: string } | { ok: false, reason: string }>}
+   */
+  const removeSavedWorkflow = async (name, options = {}) => {
+    const nameCheck = validateSavedWorkflowName(name);
+    if (!nameCheck.ok) return { ok: false, reason: 'invalid_name' };
+    const found = await findSavedFile(name, options);
+    if (found === undefined) return { ok: false, reason: 'not_found' };
+    try {
+      await fsp.unlink(found.file);
+    } catch (error) {
+      return { ok: false, reason: 'write_error', detail: error instanceof Error ? error.message : String(error) };
+    }
+    return { ok: true, path: found.file, scope: found.scope };
+  };
+
+  /**
+   * `workflows/runs`（§1.2 #5）：按保存名反查运行历史，附 artifacts 摘要（最多 8 条）。
+   *
+   * @param {string} [name] 省略时返回全部保存名的运行
+   * @param {{ scope?: 'project'|'global', cwd?: string, limit?: number }} [options]
+   * @returns {Promise<{ runs: Record<string, any>[], truncated: boolean }>}
+   */
+  const listSavedWorkflowRuns = async (name, options = {}) => {
+    const rawLimit = Number.isFinite(options.limit) ? Math.floor(options.limit) : 20;
+    const limit = Math.max(1, Math.min(rawLimit, 50));
+    const rows = (await listRuns({ cwd: options.cwd }))
+      .filter((row) => name === undefined || row.name === name)
+      .sort((left, right) => {
+        const updated = Number(right.updatedAt ?? 0) - Number(left.updatedAt ?? 0);
+        return updated !== 0 ? updated : String(right.id).localeCompare(String(left.id));
+      });
+    const page = rows.slice(0, limit);
+    const runs = [];
+    for (const row of page) {
+      const artifacts = (await listArtifacts(row.id, { cwd: options.cwd })).slice(0, 8).map((artifact) => ({
+        id: artifact.id,
+        kind: artifact.kind,
+        ...(artifact.title === undefined ? {} : { title: artifact.title }),
+        version: artifact.version,
+        ...(artifact.contentType === undefined ? {} : { contentType: artifact.contentType }),
+      }));
+      runs.push({
+        runId: row.id,
+        name: row.name,
+        status: row.status,
+        ...(row.stopReason === undefined ? {} : { stopReason: row.stopReason }),
+        createdAt: row.createdAt ?? 0,
+        updatedAt: row.updatedAt ?? row.createdAt ?? 0,
+        spentTokens: row.spentTokens ?? 0,
+        ...(row.parentSessionId === undefined ? {} : { parentSessionId: row.parentSessionId }),
+        ...(row.toolCallId === undefined ? {} : { toolCallId: row.toolCallId }),
+        ...(row.args === undefined ? {} : { args: row.args }),
+        ...(row.cwd === undefined ? {} : { cwd: row.cwd }),
+        ...(artifacts.length === 0 ? {} : { artifacts }),
+      });
+    }
+    return { runs, truncated: rows.length > limit };
+  };
+
+  /**
+   * `workflows/save`（§1.2 #7）的契约形态：从 run 的脚本落盘并返回 `reason` 词表。
+   * 编译校验由调用方完成（store 不依赖 compiler），脚本缺失在这里判定。
+   *
+   * @param {{ runId?: string, code?: string, name: string, meta?: Record<string, any>,
+   *   scope?: 'project'|'global', overwrite?: boolean, cwd?: string }} input
+   * @returns {Promise<{ ok: true, name: string, scope: string, path: string, overwritten: boolean, shadowing?: string }
+   *   | { ok: false, reason: string, path?: string, detail?: string }>}
+   */
+  const saveWorkflow = async (input = /** @type {any} */ ({})) => {
+    const nameCheck = validateSavedWorkflowName(input.name);
+    if (!nameCheck.ok) return { ok: false, reason: 'invalid_name', detail: INVALID_SAVED_NAME_MESSAGE };
+    const scope = input.scope === undefined ? 'project' : input.scope;
+    if (scope !== 'project' && scope !== 'global') {
+      return { ok: false, reason: 'invalid_name', detail: `unknown workflow scope "${String(scope)}"` };
+    }
+    let code = typeof input.code === 'string' ? input.code : undefined;
+    if (code === undefined && typeof input.runId === 'string') {
+      const run = await getRun(input.runId, { cwd: input.cwd });
+      if (run === undefined) return { ok: false, reason: 'run_not_found' };
+      code = await readRunScript(run.id, { cwd: input.cwd });
+    }
+    if (typeof code !== 'string' || code.trim() === '') return { ok: false, reason: 'script_missing' };
+    const root = resolveRoot(input.cwd);
+    const file = path.join(savedTargetDir(root, scope), `${input.name}${SAVED_EXTENSION}`);
+    const alreadyThere = await exists(file);
+    if (alreadyThere && input.overwrite === false) {
+      return {
+        ok: false,
+        reason: 'target_exists',
+        path: file,
+        detail: `a ${scope} workflow named "${input.name}" already exists`,
+      };
+    }
+    const description = typeof input.meta?.description === 'string' && input.meta.description.trim() !== ''
+      ? input.meta.description
+      : `Saved workflow "${input.name}".`;
+    try {
+      await writeFileAtomic(file, serializeSavedWorkflowFile({
+        description,
+        ...(input.meta?.whenToUse === undefined ? {} : { whenToUse: input.meta.whenToUse }),
+        ...(input.meta?.args === undefined ? {} : { args: input.meta.args }),
+      }, code));
+    } catch (error) {
+      return { ok: false, reason: 'write_error', path: file, detail: error instanceof Error ? error.message : String(error) };
+    }
+    /** @type {Record<string, any>} */
+    const result = { ok: true, name: input.name, scope, path: file, overwritten: alreadyThere };
+    const otherScopeExists = await exists(path.join(
+      scope === 'project' ? path.join(home(), GLOBAL_SAVED_DIR) : savedTargetDir(root, 'project'),
+      `${input.name}${SAVED_EXTENSION}`,
+    ));
+    if (otherScopeExists) result.shadowing = scope === 'project' ? 'hides_global' : 'hidden_by_project';
+    return result;
+  };
+
+  /**
+   * `workflows/forRun`（§1.2 #8）：判断一个 run 是从哪个保存工作流跑出来的。
+   *
+   * 匹配优先级按契约：显式 candidate → 脚本正文相同 → run 名称相同。`entry` 是 Aw 形状
+   * （不含脚本正文），`runArgs` 是 run 实际使用的实参。
+   *
+   * @param {{ runId: string, candidates?: { name: string, scope?: 'project'|'global' }[], cwd?: string }} input
+   * @returns {Promise<{ entry?: Record<string, any>, match?: 'candidate'|'script'|'name', runArgs?: Record<string, any> }>}
+   */
+  const resolveSavedWorkflowForRun = async (input = /** @type {any} */ ({})) => {
+    const run = await getRun(input.runId, { cwd: input.cwd });
+    if (run === undefined) return {};
+    const runArgs = run.args ?? {};
+    const candidates = Array.isArray(input.candidates) ? input.candidates.slice(0, 8) : [];
+    /** @type {Record<string, any> | undefined} */
+    let firstCandidate;
+    for (const candidate of candidates) {
+      if (candidate === null || typeof candidate !== 'object' || typeof candidate.name !== 'string') continue;
+      const entry = await getSavedWorkflow(candidate.name, {
+        cwd: input.cwd,
+        ...(candidate.scope === undefined ? {} : { scope: candidate.scope }),
+      });
+      if (entry === undefined) continue;
+      firstCandidate = entry;
+      if (candidate.name === run.name) {
+        return { entry: savedWorkflowSummary(entry), match: 'candidate', runArgs };
+      }
+    }
+    const script = await readRunScript(run.id, { cwd: input.cwd });
+    const listed = await listSavedWorkflows({ cwd: input.cwd });
+    const entries = Array.isArray(listed) ? listed : [];
+    if (script !== undefined && script.trim() !== '') {
+      const byScript = entries.find((entry) => typeof entry.code === 'string' && entry.code.trim() === script.trim());
+      if (byScript !== undefined) return { entry: savedWorkflowSummary(byScript), match: 'script', runArgs };
+    }
+    const byName = entries.find((entry) => entry.name === run.name);
+    if (byName !== undefined) return { entry: savedWorkflowSummary(byName), match: 'name', runArgs };
+    if (firstCandidate !== undefined) return { entry: savedWorkflowSummary(firstCandidate), match: 'candidate', runArgs };
+    return {};
+  };
+
   /* ------------------------------- misc ------------------------------------------------------ */
 
   return {
@@ -1146,13 +2533,35 @@ export function createStore(options = {}) {
     createRun,
     getRun,
     listRuns,
+    listRunsForSession,
     updateRun,
+    updateRunStatus,
+    updateRunUsage,
     settleRun,
     appendEvent,
     readEvents,
+    readEventPage,
+    listEvents,
+    projectRun,
+    listRunSnapshots,
+    readRunScript,
+    // actors / nodes / workspace
+    putActor,
+    getActor,
+    recordActor,
+    listActors,
+    putNode,
+    getNode,
+    recordNode,
+    listNodes,
+    countNodes,
+    sumResultBytes,
+    listWorldNodes,
     // artifacts
     publishArtifact,
     readArtifactManifest,
+    listArtifacts,
+    readArtifactPayload,
     artifactFilePath,
     // drafts
     writeDraft,
@@ -1160,6 +2569,11 @@ export function createStore(options = {}) {
     listSavedWorkflows,
     getSavedWorkflow,
     saveSavedWorkflow,
+    saveWorkflow,
+    updateSavedWorkflowMeta,
+    removeSavedWorkflow,
+    listSavedWorkflowRuns,
+    resolveSavedWorkflowForRun,
     deleteSavedWorkflow,
     moveSavedWorkflow,
     // paths (handy for callers / tests)
@@ -1190,6 +2604,22 @@ function savedEntry(name, scope, file, parsed) {
     whenToUse: parsed.meta.whenToUse,
     args: parsed.meta.args,
     bodyLineOffset: parsed.bodyLineOffset,
+  };
+}
+
+/**
+ * Aw（§1.2 列表条目）投影：脚本正文不进目录列表，避免把大段脚本送到浏览器。
+ *
+ * @param {Record<string, any>} entry
+ */
+function savedWorkflowSummary(entry) {
+  return {
+    name: entry.name,
+    ...(entry.description === undefined ? {} : { description: entry.description }),
+    ...(entry.whenToUse === undefined ? {} : { whenToUse: entry.whenToUse }),
+    ...(entry.args === undefined ? {} : { args: entry.args }),
+    scope: entry.scope,
+    path: entry.path,
   };
 }
 

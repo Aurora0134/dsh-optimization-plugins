@@ -16,6 +16,7 @@ import {
   validateSavedWorkflowName,
   INVALID_SAVED_NAME_MESSAGE,
   MAX_SAVED_NAME_LENGTH,
+  MAX_RUNS_PER_SNAPSHOT,
   SAVED_EXTENSION,
   DEFAULT_IGNORE,
 } from '../host/store.js';
@@ -436,3 +437,296 @@ test('saved workflows: invalid name, overwrite, delete, move', async (t) => {
   assert.equal(await f.store.deleteSavedWorkflow('same', { cwd: f.project }), true);
   assert.equal(await f.store.getSavedWorkflow('same', { cwd: f.project }), undefined);
 });
+
+test('meta.json uses the §4 dwf_run field names and maps the two status enums', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  const created = await f.store.createRun({
+    id: 'run-canon',
+    name: 'canonical',
+    code: 'return 1;\\n',
+    args: { target: 'prod' },
+    maxConcurrency: 3,
+    parentSessionId: 'session-1',
+    toolCallId: 'tool-1',
+  });
+  assert.equal(created.status, 'running');
+  const dir = path.join(f.project, '.dsh', 'workflow-runs', 'run-canon');
+  const raw = JSON.parse(await fsp.readFile(path.join(dir, 'meta.json'), 'utf8'));
+  assert.equal(raw.parent_session_id, 'session-1');
+  assert.equal(raw.tool_call_id, 'tool-1');
+  assert.equal(raw.caps_max_concurrency, 3);
+  assert.equal(raw.args_json, JSON.stringify({ target: 'prod' }));
+  assert.equal(raw.status, 'running');
+  assert.equal(typeof raw.script_hash, 'string');
+  assert.equal(raw.code, undefined);
+  assert.equal(typeof raw.time_created, 'number');
+  assert.equal(typeof raw.time_updated, 'number');
+
+  const errored = await f.store.settleRun('run-canon', { status: 'errored', error: 'boom', result: null });
+  assert.equal(errored.status, 'errored');
+  assert.equal(errored.error, 'boom');
+  assert.equal(errored.result, null);
+  const stored = JSON.parse(await fsp.readFile(path.join(dir, 'meta.json'), 'utf8'));
+  // DB 侧 failed/cancelled ↔ 事件侧 errored/stopped（§4.2）。
+  assert.equal(stored.status, 'failed');
+  assert.equal(stored.workflow_state, 'errored');
+  assert.equal(stored.failure_json.message, 'boom');
+});
+
+test('appendEvent assigns sequence, updates the watermark and projectRun folds the events', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  await f.store.createRun({ id: 'run-proj', name: 'projection', status: 'running', code: 'return 1;\\n' });
+  const first = await f.store.appendEvent('run-proj', { type: 'run-started', caps: { maxConcurrency: 2 } });
+  await f.store.appendEvent('run-proj', { type: 'run-launched', phaseNames: ['prep', 'ship'], holes: [1] });
+  await f.store.appendEvent('run-proj', {
+    type: 'actor-created',
+    actor: { siteId: 'actor-a', ordinal: 0 },
+    name: 'reviewer',
+    phaseName: 'prep',
+  });
+  await f.store.appendEvent('run-proj', {
+    type: 'node-queued',
+    instance: { siteId: 'node-a', ordinal: 0 },
+    kind: 'ask',
+    phaseName: 'prep',
+  });
+  await f.store.appendEvent('run-proj', {
+    type: 'node-dispatched',
+    instance: { siteId: 'node-a', ordinal: 0 },
+    actor: { siteId: 'actor-a', ordinal: 0 },
+  });
+  assert.equal(first.sequence, 0);
+
+  const page = await f.store.readEventPage('run-proj', { afterSequence: 1, limit: 2 });
+  assert.deepEqual(page.events.map((event) => event.sequence), [2, 3]);
+  assert.equal(page.hasMore, true);
+  assert.equal(page.lastEventSequence, 4);
+
+  const snapshot = await f.store.projectRun('run-proj');
+  assert.equal(snapshot.status, 'running');
+  assert.equal(snapshot.actors.length, 1);
+  assert.equal(snapshot.actors[0].status, 'waiting');
+  assert.equal(snapshot.nodes.length, 1);
+  assert.equal(snapshot.nodes[0].phase, 'dispatched');
+  assert.equal(snapshot.lastEventSequence, 4);
+  assert.deepEqual(snapshot.phaseNames, ['prep', 'ship']);
+  assert.deepEqual(snapshot.phaseHoles, [1]);
+
+  const events = await f.store.readEvents('run-proj');
+  assert.equal(events[0].type, 'run-started');
+  assert.equal(events[0].caps.maxConcurrency, 2);
+  assert.equal(typeof events[0].at, 'number');
+});
+
+test('the session snapshot keeps the last 8 runs in arrival order and bumps revision', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  for (let index = 0; index < 10; index += 1) {
+    await f.store.createRun({ id: `snap-${index}`, name: `snap-${index}`, status: 'running' });
+  }
+  const snapshot = await f.store.listRunSnapshots({ cwd: f.project });
+  assert.equal(snapshot.runs.length, MAX_RUNS_PER_SNAPSHOT);
+  assert.deepEqual(snapshot.runs.map((run) => run.runId), [
+    'snap-2', 'snap-3', 'snap-4', 'snap-5', 'snap-6', 'snap-7', 'snap-8', 'snap-9',
+  ]);
+  assert.equal(snapshot.revision, 10);
+
+  await f.store.appendEvent('snap-3', { type: 'usage-updated', spentTokens: 7 });
+  const after = await f.store.listRunSnapshots({ cwd: f.project });
+  assert.equal(after.revision, 11);
+  assert.equal(after.runs[after.runs.length - 1].runId, 'snap-3');
+});
+
+test('listRunsForSession orders by updatedAt and defaults to 16 rows', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  for (let index = 0; index < 20; index += 1) {
+    await f.store.createRun({
+      id: `page-${String(index).padStart(2, '0')}`,
+      name: `page-${index}`,
+      status: 'completed',
+      createdAt: 1,
+      updatedAt: index,
+    });
+  }
+  const rows = await f.store.listRunsForSession({ cwd: f.project });
+  assert.equal(rows.length, 16);
+  assert.equal(rows[0].id, 'page-19');
+  assert.equal(rows[15].id, 'page-04');
+
+  await f.store.updateRun('page-00', { parentSessionId: 'session-x' });
+  const attributed = await f.store.listRunsForSession({ cwd: f.project, parentSessionId: 'session-x' });
+  assert.deepEqual(attributed.map((row) => row.id), ['page-00']);
+
+  // 旧运行没有 parent_session_id 时退回项目全部 run，避免升级后页面空白。
+  const fallback = await f.store.listRunsForSession({ cwd: f.project, parentSessionId: 'missing-session' });
+  assert.equal(fallback.length, 16);
+});
+
+test('actor/node persistence backs workspace and node-result reads', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  await f.store.createRun({ id: 'run-world', name: 'world', status: 'running' });
+  await f.store.recordActor('run-world', {
+    siteId: 'actor-a',
+    ordinal: 0,
+    name: 'runner',
+    persona: { tone: 'terse' },
+    model: 'model-a',
+    sessionId: 'session-child',
+  });
+  const actors = await f.store.listActors('run-world');
+  assert.equal(actors[0].site_id, 'actor-a');
+  assert.equal(actors[0].resolved_model, 'model-a');
+
+  const args = Array.from({ length: 20 }, (_, index) => (index === 0 ? 'x'.repeat(500) : index));
+  await f.store.recordNode('run-world', {
+    siteId: 'site-a',
+    ordinal: 0,
+    kind: 'world-run',
+    input: { op: 'git', args },
+    status: 'completed',
+    result: { exitCode: 0, stdout: 'ok', stderr: 'noise' },
+  });
+  const node = await f.store.getNode('run-world', 'site-a', 0);
+  assert.equal(node.kind, 'world-run');
+  assert.equal(node.input.args.length, 16);
+  assert.equal(node.input.truncated, true);
+  assert.equal(node.input.args[0].at(-1), '…');
+
+  const workspace = await f.store.listWorldNodes('run-world');
+  assert.equal(workspace.truncated, false);
+  assert.equal(workspace.nodes[0].op, 'git');
+  assert.equal(workspace.nodes[0].args.length, 16);
+  assert.equal(workspace.nodes[0].inputTruncated, true);
+  assert.equal(workspace.nodes[0].summary.exitCode, 0);
+  assert.equal(workspace.nodes[0].summary.stdoutBytes, 2);
+  assert.equal(workspace.nodes[0].summary.stderrBytes, 5);
+});
+
+test('artifacts group versions, count tagged reports and read payload bytes', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  await f.store.createRun({ id: 'run-new-art', name: 'art', status: 'running' });
+  await f.store.publishArtifact('run-new-art', {
+    id: 'summary',
+    kind: 'markdown',
+    version: 1,
+    title: 'Summary',
+    text: '# One\\n',
+  });
+  await f.store.publishArtifact('run-new-art', {
+    id: 'summary',
+    kind: 'markdown',
+    version: 2,
+    title: 'Summary',
+    primary: true,
+    text: '# Two\\n',
+  });
+  await f.store.appendEvent('run-new-art', {
+    type: 'report',
+    instance: { siteId: 'site-a', ordinal: 0 },
+    item: { ok: true },
+    artifactId: 'summary',
+  });
+
+  const artifacts = await f.store.listArtifacts('run-new-art');
+  assert.equal(artifacts.length, 1);
+  assert.equal(artifacts[0].id, 'summary');
+  assert.equal(artifacts[0].version, 2);
+  assert.equal(artifacts[0].versions.length, 2);
+  assert.equal(artifacts[0].versions[1].uri, 'artifacts/summary/v2/Summary.md');
+  assert.equal(artifacts[0].itemCount, 1);
+  assert.equal(artifacts[0].primary, true);
+
+  const payload = await f.store.readArtifactPayload('run-new-art', 'summary', 2);
+  assert.equal(payload.bytes.toString('utf8'), '# Two\\n');
+  assert.equal(payload.mediaType, 'text/markdown');
+  assert.equal(payload.totalBytes, payload.bytes.byteLength);
+
+  assert.equal(await f.store.readArtifactPayload('run-new-art', 'summary', 9), undefined);
+});
+
+test('artifact versions are capped at 16 per id', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  await f.store.createRun({ id: 'run-cap', name: 'cap', status: 'running' });
+  for (let version = 1; version <= 16; version += 1) {
+    await f.store.publishArtifact('run-cap', { id: 'many', kind: 'markdown', version, text: `# ${version}\\n` });
+  }
+  await assert.rejects(
+    () => f.store.publishArtifact('run-cap', { id: 'many', kind: 'markdown', version: 17, text: '# 17\\n' }),
+    (error) => error?.name === 'ArtifactVersionCapExceeded',
+  );
+});
+
+test('workflows save/list runs/forRun/updateMeta/remove use the contract methods', async (t) => {
+  const f = await fixture();
+  t.after(f.cleanup);
+
+  await f.store.createRun({
+    id: 'run-saved',
+    name: 'saved-one',
+    status: 'completed',
+    code: 'return 42;\\n',
+    args: { target: 'prod' },
+    spentTokens: 9,
+  });
+  const saved = await f.store.saveWorkflow({
+    cwd: f.project,
+    runId: 'run-saved',
+    name: 'saved-one',
+    meta: { description: 'Saved from a run.' },
+  });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.name, 'saved-one');
+  assert.equal(saved.scope, 'project');
+  assert.equal(saved.overwritten, false);
+  assert.equal(saved.path, path.join(f.project, '.dsh', 'workflows', `saved-one${SAVED_EXTENSION}`));
+
+  const runs = await f.store.listSavedWorkflowRuns('saved-one', { cwd: f.project, limit: 10 });
+  assert.equal(runs.runs.length, 1);
+  assert.equal(runs.runs[0].runId, 'run-saved');
+  assert.equal(runs.runs[0].spentTokens, 9);
+
+  const forRun = await f.store.resolveSavedWorkflowForRun({ cwd: f.project, runId: 'run-saved' });
+  assert.equal(forRun.match, 'script');
+  assert.equal(forRun.entry.name, 'saved-one');
+  assert.deepEqual(forRun.runArgs, { target: 'prod' });
+
+  const updated = await f.store.updateSavedWorkflowMeta('saved-one', { description: 'Updated.' }, { cwd: f.project });
+  assert.equal(updated.ok, true);
+  assert.equal((await f.store.getSavedWorkflow('saved-one', { cwd: f.project })).meta.description, 'Updated.');
+
+  const refused = await f.store.saveWorkflow({
+    cwd: f.project,
+    runId: 'run-saved',
+    name: 'saved-one',
+    meta: { description: 'Again.' },
+    overwrite: false,
+  });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.reason, 'target_exists');
+
+  const missingRun = await f.store.saveWorkflow({
+    cwd: f.project,
+    runId: 'no-run',
+    name: 'ghost',
+    meta: { description: 'Ghost.' },
+  });
+  assert.deepEqual(missingRun, { ok: false, reason: 'run_not_found' });
+
+  const removed = await f.store.removeSavedWorkflow('saved-one', { cwd: f.project });
+  assert.equal(removed.ok, true);
+  assert.equal(removed.path, saved.path);
+});
+

@@ -45,8 +45,8 @@ share and everything to parallelize. Do not hoist `agent(...)` above the `map`.
 
 The name carries the path because subagent names must be unique within a run: `agent("auditor")`
 inside the `map` would create one subagent per file all claiming the same name, which is rejected
-at compile time. `` `auditor-${p}` `` is also what lets a revised re-run (`AmendWorkflow`) keep
-the verdicts for files whose question did not change. Anonymous — `agent()` — is legal too,
+at compile time. `` `auditor-${p}` `` also keeps each file's work a distinct station in the
+run's graph. Anonymous — `agent()` — is legal too,
 and starts every file with an empty context.
 
 **Narrow before you fan out.** A glob over a large repository is a large fan-out. If only
@@ -318,7 +318,7 @@ return found;
 
 Two guards, and you need both: the round cap keeps the loop from running forever when the
 hunter keeps finding things, and the dry check stops it once the hunter stops finding anything
-new. The cap is a knob you pick and amend in the script — the harness enforces no node limit,
+new. The cap is a knob you pick and change in the script — the harness enforces no node limit,
 so a loop without one only ends when the user cancels the run. Deduplicate against everything
 **seen**, not against everything kept — dedup against the kept list makes rejected findings
 reappear every round and the loop never converges.
@@ -458,7 +458,7 @@ const confirmed = (
 One join, at the end, where the report needs every item. Compare the two-barrier version —
 `Promise.all` over the hunters, then `Promise.all` over the confirmers — which starts no
 confirmer until the slowest hunter is done and leaves the concurrency slots idle in between.
-The cache identity of a revised re-run is unchanged: each subagent is still named and asked in
+The actor identity of a revised re-run is unchanged: each subagent is still named and asked in
 the same order.
 
 One phase covers the whole pipeline, named for what it does to each item. Do not put a marker
@@ -541,10 +541,10 @@ channel where the next stage should start early; a join where it cannot.
 
 The pools here (`researcher-1…3`, `verifier-1…4`) share a context across the items each
 worker happens to receive, which is what you want when the items must be judged on one scale
-or when what was learnt on one item helps with the next. The price is cache locality on a
-revised run: which item lands on which worker depends on timing, so an amendment that changes
-one upstream item shifts the assignment and misses the cache for the whole pool. When the items
-are independent and you expect to amend, spawn a fresh, item-named subagent per item inside the
+or when what was learnt on one item helps with the next. The price is replay locality on a
+resumed run: which item lands on which worker depends on timing, so a resume can only replay
+the asks whose site and text match. When the items are independent and you expect to resume,
+spawn a fresh, item-named subagent per item inside the
 `for await` instead — a `future` pushed into an array and joined before the stage ends
 (examples #6).
 
@@ -640,7 +640,7 @@ propose it and ask before the call (SKILL.md §2).
 
 <!-- compile -->
 ```ts
-// Every model the run can use, declared once; names come from ListModels.
+// Every model the run can use, declared once; names come from the model ids the user named.
 const MODELS = {
   light: model("GLM-5.3-Flash"),
   strong: model("GLM-5.3$high"),
@@ -672,8 +672,8 @@ return replies.map((reply) => reply.answer);
 ```
 
 A fixed choice needs no table: `agent("评审员", { model: "GLM-5.3-Flash" })`. Keep the table at
-the top of the script: an amend changes a model in one place, and the finished work of a
-subagent whose model changed is still reused — its next live ask runs on the new model.
+the top of the script: a revision changes a model in one place. A changed model does not make
+an amendment replay the predecessor's work — a revision starts a new run.
 
 ---
 
