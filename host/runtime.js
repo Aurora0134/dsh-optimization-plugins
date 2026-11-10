@@ -74,7 +74,7 @@ export const MAX_LOG_TAIL_MESSAGE = 1024;
 /** `GetWorkflowRun.summary` 的上限（契约 §1.5 `summary(max 400)`，cli.md:162）。 */
 const MAX_RUN_SUMMARY = 400;
 
-/** `run-settled` 通知 `<summary>` 的上限（终态载荷 `summary: max(500)`，cli.md:1297）。 */
+/** `run-settled` 通知 `<summary>` 的上限（终态通知载荷 `summary: max(500)`，见契约 §7）。 */
 const MAX_NOTIFICATION_SUMMARY = 500;
 
 /** 会被当作“有进展”的事件：停滞判定读它刷新 lastProgressAt。 */
@@ -2663,13 +2663,19 @@ export function createRuntime({
       if (stored === undefined) {
         return { ok: false, code: 'RUN_NOT_FOUND', message: `run_not_found: no workflow run with ID ${runId} exists for this project.` };
       }
+      // 已经结束 → run_settled；进程里没有它（另一个进程在跑、或上次进程退出留下的行）→ run_not_retunable。
+      if (entry === undefined && !TERMINAL.has(stored.status)) {
+        return { ok: false, code: 'RUN_NOT_RETUNABLE', message: `workflow_run_not_retunable: run ${runId} is ${stored.status}, but this agent is not executing it, so it cannot retune it.` };
+      }
       return { ok: false, code: 'RUN_NOT_ACTIVE', message: `workflow_run_not_active: run ${runId} is ${entry === undefined ? stored.status : 'finished'}; only a running run takes a new concurrency limit.` };
     }
-    const changed = entry.engine?.setMaxConcurrency?.(value) === true;
+    // 契约把并发上限封在 1024（engine.md:1104）：超过就按上限算，不把越界值写进 caps。
+    const bounded = Math.min(value, RUNTIME_CAPS.maxConcurrencyCeiling);
+    const changed = entry.engine?.setMaxConcurrency?.(bounded) === true;
     if (!changed) {
       return { ok: false, code: 'CAPS_UNCHANGED', message: `workflow_run_settings_unchanged: run ${runId} already runs at that limit.` };
     }
-    return { ok: true, runId, caps: { maxConcurrency: Math.max(1, Math.floor(value)) } };
+    return { ok: true, runId, caps: { maxConcurrency: Math.max(1, Math.floor(bounded)) } };
   };
 
   /**
@@ -2935,7 +2941,7 @@ export function createRuntime({
           // 契约 §1.5 的 `health.lastProgressAt`/`stalledSince`：模型面读得到才有用（评审 R6）。
           lastProgressAt: entry.engine.lastProgressAt,
           ...(entry.engine.stalledSince === undefined ? {} : { stalledSince: entry.engine.stalledSince }),
-          concurrency: entry.engine.concurrency.snapshot(),
+          concurrency: entry.engine.concurrency.contractSnapshot(entry.engine.now()),
         }),
       },
       ...(snapshot === undefined ? {} : { projection: snapshot }),
@@ -3331,7 +3337,7 @@ export { WorkflowEngine };
 function capHoleRows(rows) {
   const limit = RUNTIME_CAPS.maxSnapshotHoles;
   if (rows.length <= limit) return rows;
-  const waiting = rows.filter((row) => row.state === 'waiting');
-  const filled = rows.filter((row) => row.state !== 'waiting').slice(-(Math.max(0, limit - waiting.length)));
-  return [...waiting, ...filled];
+  const waiting = rows.filter((row) => row.state === 'waiting').slice(-limit);
+  const filled = rows.filter((row) => row.state !== 'waiting').slice(-(limit - waiting.length));
+  return [...waiting, ...filled].slice(-limit);
 }

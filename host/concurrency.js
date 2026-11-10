@@ -169,6 +169,25 @@ export class ConcurrencyController {
   }
 
   /**
+   * 契约 `health.concurrency` 的形状（cli.md:171）：`{effective, cap, reason?, since?}`。
+   * 内部的 key/epoch/streak 这些是实现细节，不往模型面透。
+   * @param {number} [now]
+   * @returns {{effective: number, cap: number, reason?: string, since?: number}}
+   */
+  contractSnapshot(now = this.now()) {
+    const snapshot = this.snapshot();
+    const reason = snapshot.cooldownUntil !== undefined && snapshot.cooldownUntil > now
+      ? (snapshot.lastThrottledAt === undefined ? 'throttled' : 'throttled')
+      : (snapshot.lastBad !== undefined && snapshot.lastGood === undefined ? 'seed' : undefined);
+    return {
+      effective: snapshot.cap,
+      cap: snapshot.growthLimit,
+      ...(reason === undefined ? {} : { reason }),
+      ...(snapshot.cooldownUntil === undefined ? {} : { since: snapshot.cooldownUntil }),
+    };
+  }
+
+  /**
    * @param {number} [now]
    * @returns {boolean}
    */

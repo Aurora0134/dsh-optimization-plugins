@@ -30,9 +30,9 @@
  * - 没有语义类型检查：`strict` 下的类型错误（未判空的 `.find()` 结果等）不在编译期报出。
  * - 「facade 值被重定型」那条 9001 无法检测（需要类型系统）；「取引用」那条能检测。
  * - 未声明的名字只查**调用点**：`frobnicate(1)`、`process`/`require`/`fetch`、以及 G1 旧 facade
- *   名字（`parallel`/`pipeline`/`budget`/`workflow`）报 TS 的 2304 `Cannot find name 'x'.`
- *   （契约 §3.2 A 把语义诊断交给 TS；bundle 的文案表见 `cli.md:441455`）。读一个未声明变量
- *   （`return nope;`）不报，真 TS 会报。
+ *   名字（`parallel`/`pipeline`/`budget`/`workflow`）报 TS 的 2304 `Cannot find name 'x'.`（契约 §3.2 A
+ *   把语义诊断交给 TS；这条文案是 TypeScript 自带的，不在 bundle 的 9001–9012 码表里）。读一个未声明
+ *   变量（`return nope;`）不报，真 TS 会报。
  * - `Date.now()`/`new Date()`/`Math.random()` 是**运行期**禁令（§2.13，cell 抛错），不是编译期
  *   诊断；`eval`/`Function` 在 bundle 的 cell 里同样可达（lowering 自己就发 `eval`）。
  * - 模板字面量被当作一个不透明 token，`${…}` 里的 facade 调用不做站点改写（与旧实现同一边界）。
@@ -381,9 +381,9 @@ export const COMPILER_DIAGNOSTIC_CODES = Object.freeze({
   FACADE_MISUSE: 9001,
   /**
    * TS 的语义诊断 `Cannot find name '{0}'.`。契约的自定义码是 9001 与 9003–9012，**没有 9002**
-   * （`cli.md` §3.2 的码表：9001、9003、9004、9005、9006、9007、9008、9009、9010、9011、9012），
-   * 所以「名字不存在」走 TS 自己的码：§3.2 A 说语义诊断由 TS 出，bundle 的文案表里 2304 正是
-   * 这个形状（`cli.md:441455`）。本实现只覆盖调用点与 Node/web 全局，不覆盖普通标识符读取。
+   * （`cli.md` §3.2 的码表）。§3.2 A 把语义诊断交给 TS，所以「名字不存在」走 TS 自己的 2304：这条
+   * 文案由 TypeScript 产出，不在 bundle 的码表里。本实现只覆盖调用点与 Node/web 全局，不覆盖普通
+   * 标识符读取。
    */
   UNKNOWN_NAME: 2304,
   WORLD_COMMAND: 9003,
@@ -784,6 +784,22 @@ const isPunct = (token, value) => token !== undefined && token.kind === 'punct' 
  * @param {object | undefined} token
  * @returns {string | undefined}
  */
+/**
+ * 去掉实参外层的冗余括号：`agent(("rev"))` 与 `agent("rev")` 在契约里都是定名字面量。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @param {{from: number, to: number}} range
+ * @returns {{from: number, to: number}}
+ */
+function unwrapArgument(tokens, pairs, range) {
+  let { from, to } = range;
+  while (to - from >= 2 && isPunct(tokens[from], '(') && pairs.get(from) === to - 1) {
+    from += 1;
+    to -= 1;
+  }
+  return { from, to };
+}
+
 function literalText(token) {
   if (token === undefined) return undefined;
   if (token.kind === 'string') return token.value;
@@ -799,6 +815,31 @@ function literalText(token) {
  * @param {number} to 开区间
  * @returns {string}
  */
+/**
+ * 从 `<` 扫到配对的 `>`，返回 `>` 所在 token 的下标。
+ *
+ * tokenizer 会把 `>>`/`>>>` 合成一个 token（`Map<string, number>` 的结尾就是 `>>`），逐 token
+ * 数 `<`/`>` 的写法在这里永远回不到 0，会让整个站点被静默跳过，所以按字符数减深度。
+ * @param {object[]} tokens
+ * @param {number} openIndex `<` 的 token 下标
+ * @returns {{index: number, depthBefore: number} | undefined}
+ */
+function typeArgumentsEnd(tokens, openIndex) {
+  let depth = 0;
+  for (let cursor = openIndex; cursor < tokens.length; cursor += 1) {
+    const value = isPunct(tokens[cursor]) ? String(tokens[cursor].value) : undefined;
+    const depthBefore = depth;
+    if (value === undefined) continue;
+    if (value === '<') depth += 1;
+    else if (value === '>') depth -= 1;
+    else if (value === '>>' || value === '>>>') depth -= value.length;
+    else if (value === '>=') depth -= 1;
+    else continue;
+    if (depth <= 0) return { index: cursor, depthBefore };
+  }
+  return undefined;
+}
+
 function rangeText(code, tokens, from, to) {
   const first = tokens[from];
   const last = tokens[to - 1];
@@ -1596,7 +1637,10 @@ function analyze(code, tokens, pairs, mode) {
       const methodDefinition = callClose !== undefined && isPunct(tokens[callClose + 1], '{')
         && (isPunct(tokens[index - 1], '{') || isPunct(tokens[index - 1], ';')
           || isPunct(tokens[index - 1], '}') || isPunct(tokens[index - 1], ','));
-      if (!methodDefinition) report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
+      // 方法签名不是调用点：`interface P { check(x: string): boolean }` 里的 `check(` 后面
+      // 跟的是返回类型标注，不是代码块。
+      const signature = callClose !== undefined && isPunct(tokens[callClose + 1], ':');
+      if (!methodDefinition && !signature) report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
     }
   }
 
@@ -1624,19 +1668,16 @@ function analyze(code, tokens, pairs, mode) {
     let open = index + 1;
     let typeArgFrom = -1;
     let typeArgTo = -1;
+    let typeArgText;
     if (!isPunct(tokens[open], '(') && isPunct(tokens[open], '<')) {
-      let depth = 0;
-      for (let cursor = open; cursor < tokens.length; cursor += 1) {
-        if (isPunct(tokens[cursor], '<')) depth += 1;
-        else if (isPunct(tokens[cursor], '>')) {
-          depth -= 1;
-          if (depth === 0) {
-            typeArgTo = cursor;
-            open = cursor + 1;
-            typeArgFrom = index + 2;
-            break;
-          }
-        }
+      const closerInfo = typeArgumentsEnd(tokens, open);
+      const closer = closerInfo?.index;
+      if (closer !== undefined) {
+        typeArgTo = closer;
+        open = closer + 1;
+        typeArgFrom = index + 2;
+        // 类型文本含内层闭合的 `>`，不含收尾自己那个：收尾 token 内第 depthBefore 个字符才是本层。
+        typeArgText = code.slice(tokens[index + 1].end, tokens[closer].start + (closerInfo.depthBefore - 1));
       }
     }
     // 直接调用（`name(...)`）与成员调用（`artifact.file(...)`）都要继续；其他形态跳过。
@@ -1655,8 +1696,10 @@ function analyze(code, tokens, pairs, mode) {
       // 名字是「站点身份」的一部分：只有整个实参就是一个字符串字面量时才算定名，
       // 否则 `agent("reviewer-" + item)` 这种逐元素名字会被当成固定名而误报 9006——
       // 而那正是 9006 文案推荐的写法。
-      const literalName = nameArg === undefined ? undefined
-        : (nameArg.to - nameArg.from === 1 ? literalText(tokens[nameArg.from]) : undefined);
+      const nameToken = nameArg === undefined ? undefined : unwrapArgument(tokens, pairs, nameArg);
+      const literalName = nameToken !== undefined && nameToken.to - nameToken.from === 1
+        ? literalText(tokens[nameToken.from])
+        : undefined;
       const site = {
         kind: 'actor',
         id: siteId,
@@ -1683,7 +1726,7 @@ function analyze(code, tokens, pairs, mode) {
       const receiverEnd = index - 1;
       const receiverStart = expressionStart(tokens, pairs, receiverEnd - 1);
       const siteId = counters.next('ask');
-      const spec = askSpecAt(typeArgFrom, typeArgTo, token);
+      const spec = askSpecAt(typeArgFrom, typeArgTo, token, typeArgText);
       sites.push({
         kind: 'ask',
         id: siteId,
@@ -1735,7 +1778,7 @@ function analyze(code, tokens, pairs, mode) {
         && functionVariables.has(String(tokens[holeArgs[1].from].value))) {
         report(CODE.HOLE, tokens[holeArgs[1].from], DIAGNOSTIC_MESSAGES.holeBodyNotArrow);
       }
-      const typeText = typeArgFrom >= 0 ? rangeText(code, tokens, typeArgFrom, typeArgTo) : undefined;
+      const typeText = typeArgFrom >= 0 ? typeArgText : undefined;
       sites.push({
         kind: 'hole',
         id: literalName !== undefined && literalName.trim() !== '' ? `hole#${fnv1a(literalName.trim())}` : counters.next('hole'),
@@ -1922,10 +1965,10 @@ function analyze(code, tokens, pairs, mode) {
     return inRanges(functionArgs, callIndex) || enclosingFunctionBodies(tokens, pairs, callIndex).length > 0;
   }
 
-  function askSpecAt(typeFrom, typeTo, siteToken) {
+  function askSpecAt(typeFrom, typeTo, siteToken, typeText) {
     const spec = { typed: false, typeText: undefined, schema: undefined, typeName: undefined };
     if (typeFrom < 0) return spec;
-    const typeText = rangeText(code, tokens, typeFrom, typeTo);
+    if (typeof typeText !== 'string' || typeText.length === 0) typeText = rangeText(code, tokens, typeFrom, typeTo);
     const plain = /^([A-Za-z_$][\w$]*)(\[\])?$/u.exec(typeText.trim());
     if (plain === null) {
       report(CODE.HOLE, siteToken, DIAGNOSTIC_MESSAGES.askTypeUnsupported(typeText));
@@ -2705,26 +2748,6 @@ function decorateSite(code, tokens, pairs, site) {
   }
   if (site.kind === 'artifact' || site.kind === 'worldRead') {
     enriched.memberStartOffset = callee !== undefined ? callee.start : 0;
-  }
-  if (site.kind === 'hole' && site.callee !== undefined) {
-    enriched.typeRange = undefined;
-    if (site.hasTypeArg === true) {
-      // `hole<T>` 的 `<` 紧跟在 callee 后
-      const less = tokens[site.callee + 1];
-      if (isPunct(less, '<')) {
-        let depth = 0;
-        for (let cursor = site.callee + 1; cursor < tokens.length; cursor += 1) {
-          if (isPunct(tokens[cursor], '<')) depth += 1;
-          else if (isPunct(tokens[cursor], '>')) {
-            depth -= 1;
-            if (depth === 0) {
-              enriched.typeRange = { start: less.start, end: tokens[cursor].end };
-              break;
-            }
-          }
-        }
-      }
-    }
   }
   return enriched;
 }

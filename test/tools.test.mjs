@@ -560,7 +560,8 @@ test('AmendWorkflow: a settled predecessor and a revised script report both sent
   const result = await h.byName.AmendWorkflow.execute({ run_id: 'r1', script: 'return 4;' }, execFor());
   assert.equal(result.ok, true);
   assert.equal(result.runId, 'dwf-new');
-  assert.equal(result.supersededRunId, 'r1');
+  // 契约 cli.md:135：supersededRunId 只在前驱仍在跑时出现。
+  assert.equal(Object.hasOwn(result, 'supersededRunId'), false);
   assert.ok(result.text.startsWith('Run r1 had already settled; its finished work is imported as cache. The revised script started in the background as run dwf-new.'));
   assert.ok(result.text.includes('It is still running — you will be notified with the final output when it completes.'));
   const amended = h.calls.find(([name]) => name === 'amend')[1];
@@ -1000,6 +1001,11 @@ test('GetWorkflowRun：response 是 Uoe 形状，health/holes/logTail/pendingQue
   assert.deepEqual(result.phases.map((phase) => `${phase.name}:${phase.state}`), ['Plan:done', 'Review:current']);
   assert.equal(result.health.lastProgressAt, 1_700_000_000_000);
   assert.equal(result.health.stalledSince, stalledSince);
+  // 契约 cli.md:190：`<superseded_by>` 指名后继，模型面文本里要真的出现。
+  assert.match(result.text, /<superseded_by>dwf-next<\/superseded_by>/);
+  // health.concurrency 只透契约四字段，内部 key/epoch/streak 不外泄（cli.md:171）。
+  // 快照没给 concurrency 就不造一个（投影发生在 runtime，不在这层）。
+  assert.equal(result.health.concurrency, undefined);
   assert.deepEqual(result.logTail, [{ sequence: 4, message: `${'x'.repeat(1023)}…`, at: 1234 }]);
   assert.deepEqual(result.holes.map((hole) => `${hole.siteId}:${hole.state}`), ['hole#a:waiting', 'hole#b:filled']);
   assert.equal(result.holes[1].filledAt, 7);

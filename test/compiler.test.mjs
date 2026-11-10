@@ -339,3 +339,39 @@ test('内联链 agent("…").ask(…) 同样建站点：一个 actor 配一个 a
   assert.match(result.lowered, /__host\.ask\("ask#1", __host\.createActor\("actor#1", "scout"\), "find the tests"\)/);
   assert.equal(result.askSpecs.get('ask#1').typed, false);
 });
+
+test('嵌套泛型实参（结尾是 >> 或 >>>）不会让站点消失', () => {
+  // tokenizer 把 `>>` 合成一个 token，旧写法在这里回不到深度 0，整个 hole 站点被静默跳过。
+  const hole = compileWorkflowScript({ code: 'const m = await hole<Map<string, number>>("decide", "pick");\nreturn m.size;' });
+  assert.equal(hole.ok, true, text(hole));
+  assert.equal(hole.holes.length, 1);
+  assert.equal(hole.holes[0].typeText, 'Map<string, number>');
+  assert.match(hole.lowered, /__host\.hole\("hole#[0-9a-f]+", "decide", "pick"/);
+  assert.doesNotMatch(hole.lowered, /<Map</);
+
+  const deeper = compileWorkflowScript({ code: 'const m = await hole<Array<Array<string>>>("decide", "pick");\nreturn m.length;' });
+  assert.equal(deeper.ok, true, text(deeper));
+  assert.equal(deeper.holes[0].typeText, 'Array<Array<string>>');
+
+  // ask 的嵌套泛型进不了 schema：要报 9012 而不是当成「没写类型参数」。
+  const ask = compileWorkflowScript({ code: 'const a = agent("p");\nconst m = await a.ask<Map<string, number>>("go");\nreturn m;' });
+  assert.deepEqual(codes(ask), [COMPILER_DIAGNOSTIC_CODES.HOLE]);
+  assert.match(text(ask), /ask<Map<string, number>> needs an interface or type alias/);
+});
+
+test('interface 里的方法签名不是调用点（不报 2304）', () => {
+  const result = compileWorkflowScript({
+    code: 'interface Plan { check(x: string): boolean; }\nconst plan: Plan = { check: (x) => x.length > 0 };\nreturn plan.check("ok");',
+  });
+  assert.equal(result.ok, true, text(result));
+});
+
+test('冗余括号里的字面量名字仍算定名：9005 / 9006 照契约触发', () => {
+  const duplicate = compileWorkflowScript({ code: 'const a = agent(("rev"));\nconst b = agent(("rev"));\nreturn [a, b];' });
+  assert.deepEqual(codes(duplicate), [COMPILER_DIAGNOSTIC_CODES.DUPLICATE_ACTOR]);
+
+  const fanOut = compileWorkflowScript({
+    code: 'const items = [1, 2];\nconst all = await Promise.all(items.map(async (item) => {\n  const r = agent(("rev"));\n  return r.ask("hi");\n}));\nreturn all;',
+  });
+  assert.deepEqual(codes(fanOut), [COMPILER_DIAGNOSTIC_CODES.FIXED_ACTOR_NAME]);
+});

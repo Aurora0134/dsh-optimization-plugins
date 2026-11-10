@@ -64,7 +64,7 @@ function budget(text, limit = MAX_MODEL_TEXT) {
 }
 
 /** @param {string} text @param {object} [extra] */
-const fail = (text, extra = {}) => ({ ok: false, text, response: text, ...extra });
+const fail = (text, extra = {}) => ({ ok: false, text, response: text, diagnostics: [], ...extra });
 /** @param {string} text @param {object} [extra] */
 const succeed = (text, extra = {}) => ({ ok: true, text, response: text, ...extra });
 
@@ -620,8 +620,11 @@ const STOP_REASONS = new Set(['user', 'model', 'provider', 'interrupted', 'super
  */
 function toRunRow(run) {
   const runId = run.id ?? run.runId ?? '';
-  const explicitName = typeof run.name === 'string' && run.name.trim() !== '' ? run.name : undefined;
-  const label = explicitName ?? (typeof run.label === 'string' && run.label !== '' ? run.label : undefined);
+    // store.listRuns 的 `name` 恒有值（缺省回填 runId），不能拿它判断「有没有显式名字」；
+    // `label` 才是 store 按「显式 name → 脚本首行 → runId」算过的那一列（cli.md:205 的 V0e）。
+    const explicitName = run.labelSource === 'name' && typeof run.label === 'string' && run.label !== '' ? run.label : undefined;
+    const storedLabel = typeof run.label === 'string' && run.label !== '' ? run.label : undefined;
+    const label = storedLabel ?? explicitName;
   const rawStatus = run.status;
   const status = RUN_STATUSES.has(rawStatus) ? rawStatus : 'pending';
   const rawStopReason = run.stopReason ?? run.stop_reason;
@@ -1442,7 +1445,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       return succeed(text, {
         diagnostics: [],
         runId: successor,
-        supersededRunId: runId,
+        ...(wasRunning ? { supersededRunId: runId } : {}),
         status: 'backgrounded',
         backgroundTaskId: successor,
         ...(typeof amended.scriptPath === 'string' ? { scriptPath: amended.scriptPath } : {}),
