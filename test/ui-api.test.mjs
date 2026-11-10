@@ -37,6 +37,7 @@ const ROUTE_PATHS = [
   // interaction
   `${BASE}/run/approve`,
   `${BASE}/run/stop`,
+  `${BASE}/run/configure`,
   `${BASE}/run/resume`,
   `${BASE}/run/fill`,
   `${BASE}/run/answer`,
@@ -298,6 +299,12 @@ function createFixture(options = {}) {
       calls.push(['stopRun', id, reason]);
       return id === run.id ? { ...run, status: 'stopped', stopReason: reason } : undefined;
     },
+    configureRun(id, value) {
+      calls.push(['configureRun', id, value]);
+      return id === run.id
+        ? { ok: true, runId: id, caps: { maxConcurrency: value } }
+        : { ok: false, code: 'RUN_NOT_FOUND', message: `run_not_found: no workflow run with ID ${id} exists for this project.` };
+    },
     async fillHole(id, holeId, value) {
       calls.push(['fillHole', id, holeId, value]);
       return true;
@@ -497,7 +504,7 @@ test('GET /run returns the legacy runtime snapshot, requiring runId and a known 
   assert.equal(unknown.json.code, 'run-not-found');
 });
 
-test('GET /run/events pages after a sequence and reports the watermark', async () => {
+test('GET /run/events pages after a sequence and reports whether more remain', async () => {
   const fixture = createFixture();
   const page = await call(fixture, 'GET', `${BASE}/run/events`, {
     query: { sessionId: 'session-1', runId: 'run-1', afterSequence: '2', limit: '10' },
@@ -506,7 +513,8 @@ test('GET /run/events pages after a sequence and reports the watermark', async (
   assert.equal(page.json.events[0].sequence, 3);
   assert.equal(page.json.events[0].type, 'report');
   assert.equal(page.json.hasMore, true);
-  assert.equal(page.json.lastEventSequence, 7);
+  // 上游回包只有 events + hasMore；水位由快照自带，这里不能多带字段。
+  assert.equal('lastEventSequence' in page.json, false);
   const storeCall = fixture.calls.find((entry) => entry[0] === 'readEventPage');
   assert.deepEqual(storeCall[2], { cwd: WORKSPACE, afterSequence: 2, limit: 10 });
 
@@ -543,6 +551,8 @@ test('GET /artifact/data pages report events and projects requested fields', asy
   assert.equal(page.json.items.length, 1);
   assert.equal(page.json.items[0].sequence, 3);
   assert.equal(page.json.items[0].siteId, 'site-a');
+  // 投影读取只回投影后的字段，不回整条 item。
+  assert.equal('item' in page.json.items[0], false);
   assert.deepEqual(page.json.items[0].fields, {
     kind: 'summary',
     rows: [{ a: 1 }],
@@ -682,6 +692,28 @@ test('POST /run/stop stops through the runtime and cancels a pending approval', 
   assert.ok(fixture.calls.some((entry) => entry[0] === 'approval.cancel' && entry[1] === 'run-1'));
 });
 
+test('POST /run/configure retunes a running run and rejects a non-integer bound', async () => {
+  const fixture = createFixture();
+  const retuned = await call(fixture, 'POST', `${BASE}/run/configure`, {
+    body: { sessionId: 'session-1', runId: 'run-1', maxConcurrency: 6 },
+  });
+  assert.equal(retuned.status, 200);
+  assert.equal(retuned.json.ok, true);
+  assert.deepEqual(retuned.json.caps, { maxConcurrency: 6 });
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'configureRun'), ['configureRun', 'run-1', 6]);
+
+  const fractional = await call(fixture, 'POST', `${BASE}/run/configure`, {
+    body: { sessionId: 'session-1', runId: 'run-1', maxConcurrency: 2.5 },
+  });
+  assert.equal(fractional.status, 400);
+  assert.equal(fractional.json.code, 'invalid-request');
+
+  const unknown = await call(fixture, 'POST', `${BASE}/run/configure`, {
+    body: { sessionId: 'session-1', runId: 'run-9', maxConcurrency: 3 },
+  });
+  assert.equal(unknown.status, 404);
+});
+
 test('POST /run/fill now takes script/path instead of a raw value', async () => {
   const fixture = createFixture();
   const filled = await call(fixture, 'POST', `${BASE}/run/fill`, {
@@ -765,6 +797,8 @@ test('GET /workflows/list projects saved entries without their script body', asy
   assert.equal(entry.description, 'Review changes');
   assert.deepEqual(entry.args, fixture.saved.args);
   assert.equal('code' in entry, false);
+  // §1.2 #1: the list response always names the directory the entries came from.
+  assert.equal(listed.json.dir, path.join(WORKSPACE, '.dsh', 'workflows'));
   assert.equal(listed.json.invalid.length, 1);
   assert.deepEqual(listed.json.entries, listed.json.workflows);
 
@@ -1040,7 +1074,7 @@ test('artifact read validation uses the §7.3 messages', () => {
     validateArtifactRead({ ...valid, dataBase64: Buffer.alloc(512 * 1024 + 1).toString('base64'), totalBytes: 512 * 1024 + 1 }),
     'workflow artifact read chunk exceeds decoded byte limit',
   );
-  assert.equal(validateArtifactRead({ ...valid, totalBytes: 20 * 1024 * 1024 + 1 }), 'Too big: expected number to be <=16777216');
+  assert.equal(validateArtifactRead({ ...valid, totalBytes: 20 * 1024 * 1024 + 1 }), 'Too big: expected number to be <=20971520');
   assert.equal(validateArtifactRead({ ...valid, nextOffset: 4 }), 'nextOffset exceeds totalBytes');
 });
 
@@ -1061,9 +1095,10 @@ test('node result truncation follows the four §8 strategies', () => {
   // totalBytes 是完整 JSON 的字节数（字符串带引号），不是原始文本长度。
   assert.equal(text.totalBytes, Buffer.byteLength(JSON.stringify('x'.repeat(100))));
 
-  const array = truncateNodeResult([1, 2, 3, 4, 5], 6);
+  // 每个元素占「JSON 字节 + 1 个逗号」，首元素也不例外：预算 5 只放得下 `[1]`。
+  const array = truncateNodeResult([1, 2, 3, 4, 5], 5);
   assert.equal(array.truncated, true);
-  assert.deepEqual(array.result, [1, 2]);
+  assert.deepEqual(array.result, [1]);
   assert.equal(array.totalBytes, Buffer.byteLength('[1,2,3,4,5]'));
 
   const command = truncateNodeResult({ exitCode: 0, stdout: 'x'.repeat(100), stderr: 'y'.repeat(100) }, 50);

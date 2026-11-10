@@ -1661,27 +1661,28 @@ the run resumable with `ResumeWorkflowRun`; finished steps replay from the journ
 script that is going wrong, prefer `AmendWorkflow`: one call stops the run and starts the
 revision. Do not stop a run merely to wait for it.
 
-### 16.12 The subagent side: `submit_result` and `escalate`
+### 16.12 The subagent side: the reply protocol
 
-Subagents never see the workflow-management tools. Their tool set is the regular working
-tools plus two actor tools (the actor policy also denies `AskUserQuestion`, `EnterPlanMode`,
-`ExitPlanMode`, `CreateWorkflow`, `AmendWorkflow`, `ReadSessionContext` and
-`ResolveWorkflowQuestion`):
+Subagents never see the workflow-management tools: the actor policy denies `AskUserQuestion`,
+`EnterPlanMode`, `ExitPlanMode`, `CreateWorkflow`, `AmendWorkflow`, `ReadSessionContext` and
+`ResolveWorkflowQuestion`. They cannot register tools mid-turn either, so both the result and
+any question travel in the reply text.
 
-- `submit_result({ result })` — typed asks only. The subagent finishes by calling it with a
-  JSON value matching the schema built from the ask's type argument. A mismatch comes back as
-  `The submitted result does not match the required schema:` plus `<path>: expected
-  <expected>, got <got>` lines; the engine repairs up to 3 times, nudges once if the turn
-  ended without submitting, then fails the ask (`ValidationFailed` / `ResultNotSubmitted`).
-  An untyped ask has no such tool: its final message is the result.
-- `escalate({ question, context? })` — blocks that one ask until you answer with
-  `ResolveWorkflowQuestion`. One focused question answerable in a sentence, with the evidence
-  in `context`. Three per ask; the fourth returns the budget-exhausted text. It is a last
-  resort for a gate that cannot pass, contradictory instructions, or a fact only the run's
-  owner knows — not for progress reports or permission.
+- **Result** — typed asks only. The ask's prompt ends with the schema built from its type
+  argument and the instruction to output that JSON as the final reply, bare and unfenced. A
+  reply that does not parse comes back as `The reply did not match the required schema:` plus
+  `<path>: expected <expected>, got <got>` lines; the engine repairs up to 3 times, nudges once
+  if the turn ended with no result, then fails the ask (`ValidationFailed` /
+  `ResultNotSubmitted`). An untyped ask has no schema: its final message is the result.
+- **Question** — a fenced block in the reply, `\`\`\`json {"escalate": {"question": "…",
+  "context": "…"}} \`\`\``, which parks that one ask until `ResolveWorkflowQuestion` answers
+  it; the answer arrives as the next turn's text. One focused question answerable in a
+  sentence, with the evidence in `context`. Three per ask; the fourth returns the
+  budget-exhausted text. It is a last resort for a gate that cannot pass, contradictory
+  instructions, or a fact only the run's owner knows — not for progress reports or permission.
 
-Personas describe role and standard, not tools: "If a check is impossible to pass, or your
-instructions contradict each other, escalate and say so plainly rather than working around
-it." Every subagent already carries the same contract (cite `path:line`, never report a check
-it did not run, say what it could not do).
+Personas describe role and standard, not mechanics: "If a check is impossible to pass, or your
+instructions contradict each other, raise the question in your reply and say so plainly rather
+than working around it." Every subagent already carries the same contract (cite `path:line`,
+never report a check it did not run, say what it could not do).
 

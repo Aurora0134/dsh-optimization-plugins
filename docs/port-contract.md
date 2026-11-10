@@ -2,6 +2,8 @@
 
 本插件把 ZCode Desktop 的动态工作流移植到 DeepSeek Harness。**唯一权威依据是 ZCode Desktop 3.17.2 的安装产物**（`app.asar` 的 `out/host`、`out/renderer`、`out/main`、`out/preload` 与 `resources/glm/zcode.cjs`），不是任何旧版快照或历史文档。凡与本文冲突处，以真实产物为准并回头修本文。
 
+代码注释里的 `cli.md`、`engine.md`、`ui.md` 是解包 3.17.2 后整理的取证笔记，`beauty/*.js:行号` 是同一份产物的 prettify 副本坐标。两者都是**取证坐标**（指明某条文案/行为在真实产物里的出处），不随仓库分发；要复核某一条，按本节开头的方式重新解包同一版本即可得到相同行号。
+
 ## 分层
 
 | 层 | 位置 | 对应真实实现 |
@@ -78,12 +80,13 @@
 | 子代理会话正文 | 打开 actor 的只读会话 | 只展示该 actor 的步骤台账与「尚未启动」两态 | Harness 没有给插件按 actor 会话读消息的通道；为只读视图新增数据面契约不划算 |
 | 数据推送 | 会话快照订阅 + `workflowRunDeltas` 三层协商的增量 | 只有按需拉取：会话级 run 列表与单 run 增量轮询（隐藏页面暂停） | 插件没有会话主题订阅通道；`Lm` 快照容器因此不上线，`lastEventSequence` 水位由快照自带 |
 | `workflows/runs` 的 `limit` | 必填 1..50 | 省略时按 20 | 前端始终显式传值，缺省值只是容错 |
-| 产物读取上限文案 | 上限 `20 MiB`，但拒绝文案里印的是 `<=16777216`（16 MiB） | 逐字照搬：上限 20 MiB，文案保留上游的 16 MiB 数字 | 上游自身不一致；移植优先"文案逐字"，只在代码里标注，不擅自改成自洽值 |
 | `/run/fill`、`/run/answer` 错误码 | §1 未定义 | `fault.workflowRunFill.*`、`fault.workflowRunAnswer.notPending` | 语义自洽的补充命名 |
+| run 列表的会话过滤 | 按所属会话取行 | 行里没有会话字段时退回整项目列表 | 早期 run 行没记会话，退回比整行消失更可解释 |
+| 运行中改并发 | 运行设置弹层可调并发上限 | `POST /run/configure` → 引擎 `setMaxConcurrency`，记 `run-caps-changed` 并对齐 AIMD 上界 | 语义等价，走插件自己的数据面路由 |
 
 ## 验收
 
 1. 规格里每个表面、每个状态、每条文案、每个 testid 都能在代码里指到。
-2. `node --test test/*.mjs` 全绿；`node scripts/build-client.mjs` 后 `client.js` 与源码一致。
+2. `node --test test/*.test.mjs` 全绿；`node scripts/build-client.mjs` 后 `client.js` 与源码一致。
 3. 插件在真实 Harness 里加载：探针工具可见、运行一次真实脚本、五个界面入口都能打开。
 4. 独立评审按规格逐项核对，问题清零后才算完成。

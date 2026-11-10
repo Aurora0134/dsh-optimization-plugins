@@ -218,6 +218,27 @@ test('listRuns merges scopes, sorts newest first, skips corrupt metadata', async
   assert.equal(stale.possibleInterruption, true);
   const live = (await f.store.listRuns({ cwd: f.project })).find((row) => row.id === 'r-new');
   assert.equal(live.possibleInterruption, false);
+
+  // label: 显式 name → 脚本首个非空行 → runId；resumable 跟随停止原因。
+  const unnamedDir = path.join(f.project, '.dsh', 'workflow-runs', 'r-script');
+  await fsp.mkdir(unnamedDir, { recursive: true });
+  await fsp.writeFile(path.join(unnamedDir, 'meta.json'), JSON.stringify({ id: 'r-script', status: 'stopped', stopReason: 'user', createdAt: 4000, cwd: f.project, script_path: 'script.ts' }), 'utf8');
+  await fsp.writeFile(path.join(unnamedDir, 'script.ts'), '\n// A workflow that reviews changes\nphase("review");\n', 'utf8');
+  await f.store.createRun({ id: 'r-superseded', status: 'stopped', createdAt: 5000, cwd: f.project });
+  await f.store.updateRunStatus('r-superseded', 'stopped', { stopReason: 'superseded', supersededBy: 'r-new' });
+  const rows = await f.store.listRuns({ cwd: f.project });
+  const scriptLabeled = rows.find((row) => row.id === 'r-script');
+  assert.equal(scriptLabeled.label, '// A workflow that reviews changes');
+  const resumed = rows.find((row) => row.id === 'r-script');
+  assert.equal(resumed.resumable, true);
+  const superseded = rows.find((row) => row.id === 'r-superseded');
+  assert.equal(superseded.resumable, false);
+
+  // A settled run exposes the failure code recorded in meta.json.
+  await f.store.createRun({ id: 'r-failed', name: 'failed', status: 'errored', createdAt: 6000, cwd: f.project, error: { code: 'SCRIPT_ERROR', message: 'boom' } });
+  const failed = (await f.store.listRuns({ cwd: f.project })).find((row) => row.id === 'r-failed');
+  assert.equal(failed.failureCode, 'SCRIPT_ERROR');
+  assert.equal(failed.failureMessage, 'boom');
 });
 
 test('artifacts: file copy, markdown versions, spec/items, manifest', async (t) => {
@@ -604,6 +625,18 @@ test('actor/node persistence backs workspace and node-result reads', async (t) =
 
   // Over the 4 KiB whole-input budget the recorded call keeps eight args, each clipped at 400
   // characters with an ellipsis — the contract's `boundWorldReadInput` behaviour.
+  // A call whose whole `{op,args}` fits in the 4 KiB budget is recorded untouched.
+  await f.store.recordNode('run-world', {
+    siteId: 'site-small',
+    ordinal: 0,
+    kind: 'world-run',
+    input: { op: 'git', args: ['status', '--short'] },
+    status: 'completed',
+    result: { exitCode: 0, stdout: 'ok', stderr: '' },
+  });
+  const small = await f.store.getNode('run-world', 'site-small', 0);
+  assert.deepEqual(small.input, { op: 'git', args: ['status', '--short'] });
+
   const args = Array.from({ length: 20 }, (_, index) => (index === 0 ? 'x'.repeat(900) : 'y'.repeat(900)));
   await f.store.recordNode('run-world', {
     siteId: 'site-a',
@@ -621,12 +654,13 @@ test('actor/node persistence backs workspace and node-result reads', async (t) =
 
   const workspace = await f.store.listWorldNodes('run-world');
   assert.equal(workspace.truncated, false);
-  assert.equal(workspace.nodes[0].op, 'git');
-  assert.equal(workspace.nodes[0].args.length, 8);
-  assert.equal(workspace.nodes[0].inputTruncated, true);
-  assert.equal(workspace.nodes[0].summary.exitCode, 0);
-  assert.equal(workspace.nodes[0].summary.stdoutBytes, 2);
-  assert.equal(workspace.nodes[0].summary.stderrBytes, 5);
+  const truncatedNode = workspace.nodes.find((candidate) => candidate.siteId === 'site-a');
+  assert.equal(truncatedNode.op, 'git');
+  assert.equal(truncatedNode.args.length, 8);
+  assert.equal(truncatedNode.inputTruncated, true);
+  assert.equal(truncatedNode.summary.exitCode, 0);
+  assert.equal(truncatedNode.summary.stdoutBytes, 2);
+  assert.equal(truncatedNode.summary.stderrBytes, 5);
 });
 
 test('artifacts group versions, count tagged reports and read payload bytes', async (t) => {

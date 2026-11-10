@@ -134,11 +134,17 @@ test('alwaysOn registers the full tool surface, both commands, the prompt sectio
       '/zcode-workflow/workflows/updateMeta',
       '/zcode-workflow/workflows/runs',
       '/zcode-workflow/workflows/forRun',
+      '/zcode-workflow/run/configure',
       '/zcode-workflow/policy',
+      // 兼容旧前端的三条遗留路由（前端已不再调用，保留一版以容忍缓存中的旧 bundle）。
+      '/zcode-workflow/mode',
+      '/zcode-workflow/run/start',
+      '/zcode-workflow/workflows',
+      '/zcode-workflow/artifact',
     ]) {
       assert.ok(registry.routes.includes(route), `missing route ${route}`);
     }
-    assert.equal(registry.routes.length, 26, `unexpected route count: ${registry.routes.join(', ')}`);
+    assert.equal(registry.routes.length, 27, `unexpected route count: ${registry.routes.join(', ')}`);
   } finally {
     for (const [, dispose] of disposers) {
       try {

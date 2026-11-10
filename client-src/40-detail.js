@@ -593,6 +593,23 @@ function WfDetailPane(props) {
   const workspaceScope = React.useMemo(() => ({ sessionId: params?.sessionId, runId }), [params?.sessionId, runId]);
   const workspace = useWfWorkspace(workspaceScope, 0);
   const run = state.run;
+  // 配置弹层的「应用」：只调并发上限，模型行是只读的（没有模型目录）。成功后重取快照。
+  const retune = async ({ bound }) => {
+    try {
+      const answer = await WF_API.post('/run/configure', {
+        sessionId: params?.sessionId,
+        runId,
+        maxConcurrency: bound,
+      });
+      if (answer?.ok !== true) {
+        return { key: 'run.settings.rejection.generic', params: { code: String(answer?.error?.code ?? 'run-settings-failed') } };
+      }
+      state.reload();
+      return undefined;
+    } catch (error) {
+      return { key: 'run.settings.rejection.generic', params: { code: String(error?.code ?? 'run-settings-failed') } };
+    }
+  };
   const artifacts = useWfArtifacts(scope, run);
   const now = useWfClock();
   const [copied, flash] = React.useState('');
@@ -825,6 +842,7 @@ function WfDetailPane(props) {
     t,
     open: settingsOpen,
     onClose: () => setSettingsOpen(false),
+    onConfigure: retune,
   }),
   WF_H('div', { className: 'zwf-run-body' },
     WF_H(WfRunResultBlock, { run, t, rejection }),

@@ -71,7 +71,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { pageEvents } from './journal.js';
+import { appendJournalRowSync, flattenJournalRow, pageEvents, readJournalRowsSync } from './journal.js';
 import { projectRunEvents } from './projection.js';
 import { isResumable } from './resumability.js';
 
@@ -257,66 +257,6 @@ function readDirSafeSync(dir) {
   } catch {
     return [];
   }
-}
-
-/**
- * Read one JSONL journal file synchronously, tolerating torn/legacy rows.
- *
- * @param {string} file
- * @returns {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }[]}
- */
-function readJournalRowsFromFile(file) {
-  let text;
-  try {
-    text = readFileSync(file, 'utf8');
-  } catch {
-    return [];
-  }
-  /** @type {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }[]} */
-  const rows = [];
-  for (const line of text.split(/\r?\n/u)) {
-    if (line.trim() === '') continue;
-    let parsed;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
-    const record = /** @type {Record<string, any>} */ (parsed);
-    if (Number.isInteger(record.sequence)) {
-      rows.push({
-        sequence: record.sequence,
-        type: typeof record.type === 'string' ? record.type : 'log',
-        payload: record.payload !== null && typeof record.payload === 'object' ? record.payload : record,
-        time_created: Number.isFinite(record.time_created)
-          ? record.time_created
-          : (Number.isFinite(record.at) ? record.at : 0),
-      });
-    } else {
-      rows.push({
-        sequence: rows.length,
-        type: typeof record.type === 'string' ? record.type : 'log',
-        payload: record,
-        time_created: Number.isFinite(record.at) ? record.at : 0,
-      });
-    }
-  }
-  rows.sort((left, right) => left.sequence - right.sequence);
-  return rows;
-}
-
-/** @param {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }} row */
-function flattenJournalRow(row) {
-  const timeCreated = row.time_created;
-  return {
-    ...row.payload,
-    sequence: row.sequence,
-    type: row.type,
-    payload: row.payload,
-    at: timeCreated,
-    time_created: timeCreated,
-  };
 }
 
 /** 代理对安全的 80 字符截断（`mRt` 的展示回退）。 */
@@ -1137,7 +1077,14 @@ export function createStore(options = {}) {
       workflow_state: workflowStatus,
       ...(input.result !== undefined ? { result_json: safeJson(input.result) } : {}),
       ...(input.failure !== undefined || input.error !== undefined
-        ? { failure_json: input.failure ?? { message: typeof input.error === 'string' ? input.error : String(input.error?.message ?? input.error) } }
+        ? {
+          failure_json: input.failure ?? (typeof input.error === 'string'
+            ? { message: input.error }
+            : {
+              ...(typeof input.error?.code === 'string' ? { code: input.error.code.slice(0, 64) } : {}),
+              message: String(input.error?.message ?? input.error),
+            }),
+        }
         : {}),
       time_created: timeCreated,
       time_updated: Number.isFinite(input.updatedAt) ? input.updatedAt : timeCreated,
@@ -1413,16 +1360,8 @@ export function createStore(options = {}) {
       const dir = locateRunDirSync(id, options.cwd) ?? path.join(projectRunsDir(root), id);
       mkdirSync(dir, { recursive: true });
       const file = path.join(dir, 'journal.jsonl');
-      const rows = readJournalRowsFromFile(file);
-      const sequence = rows.length === 0 ? 0 : Math.max(rows[rows.length - 1].sequence + 1, rows.length);
-      const { sequence: _ignoredSequence, ...rest } = event ?? {};
-      const payload = { ...rest };
-      const type = typeof payload.type === 'string' && payload.type !== '' ? payload.type : 'log';
-      const timeCreated = Number.isFinite(payload.at)
-        ? /** @type {number} */ (payload.at)
-        : (Number.isFinite(payload.time_created) ? /** @type {number} */ (payload.time_created) : Date.now());
-      const row = { sequence, type, payload, time_created: timeCreated };
-      appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8');
+      const row = appendJournalRowSync(file, event);
+      const { sequence, payload, type, time_created: timeCreated } = row;
 
       const meta = readRunMetaSync(dir);
       if (meta !== undefined) {
@@ -1462,7 +1401,7 @@ export function createStore(options = {}) {
   const readEvents = (id, options = {}) => {
     const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return [];
-    return readJournalRowsFromFile(path.join(dir, 'journal.jsonl')).map(flattenJournalRow);
+    return readJournalRowsSync(path.join(dir, 'journal.jsonl')).map(flattenJournalRow);
   };
 
   /**
@@ -1475,7 +1414,7 @@ export function createStore(options = {}) {
   const readEventPage = (id, options = {}) => {
     const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return { events: [], hasMore: false, lastEventSequence: 0 };
-    const rows = readJournalRowsFromFile(path.join(dir, 'journal.jsonl'));
+    const rows = readJournalRowsSync(path.join(dir, 'journal.jsonl'));
     const page = pageEvents(rows, {
       afterSequence: options.afterSequence,
       limit: options.limit,
@@ -1499,7 +1438,7 @@ export function createStore(options = {}) {
   const listEvents = (id, options = {}) => {
     const dir = locateRunDirSync(id, options.cwd);
     if (dir === undefined) return [];
-    let rows = readJournalRowsFromFile(path.join(dir, 'journal.jsonl'));
+    let rows = readJournalRowsSync(path.join(dir, 'journal.jsonl'));
     if (Array.isArray(options.types)) {
       const allowed = new Set(options.types);
       rows = rows.filter((row) => allowed.has(row.type));
@@ -1529,7 +1468,7 @@ export function createStore(options = {}) {
     const meta = readRunMetaSync(dir);
     if (meta === undefined) return undefined;
     const run = publicRunMeta(meta);
-    const rows = readJournalRowsFromFile(path.join(dir, 'journal.jsonl'));
+    const rows = readJournalRowsSync(path.join(dir, 'journal.jsonl'));
     const lastEventSequence = Number.isInteger(meta.last_event_sequence)
       ? Math.max(meta.last_event_sequence, rows.length === 0 ? 0 : rows[rows.length - 1].sequence)
       : (rows.length === 0 ? 0 : rows[rows.length - 1].sequence);

@@ -374,6 +374,87 @@ test('stopRun：在飞 run 记 stopped + stop_reason=user', async () => {
   assert.equal(events.includes('run-settled'), true);
 });
 
+test('configureRun：活跃 run 改并发上限并记 run-caps-changed，未知/已结算 run 有可判别错误', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", void 0);',
+      'return await __host.ask("ask#1", reader, "hold");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+    phases: ['look'],
+    sitePhases: new Map([['ask#1', 'look']]),
+    actors: [{ siteId: 'actor#1', name: 'reader' }],
+  });
+  /** @type {(value: string) => void} */
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const runtime = createRuntime({
+    compiler,
+    workspaceFor: stubWorkspace,
+    config: { maxConcurrency: 4 },
+    logger: { warn() {}, info() {} },
+  });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'caps',
+    cwd: '/tmp/ws',
+    runner: async () => ({ text: await gate }),
+    notify: () => {},
+  });
+  assert.equal(started.ok, true, String(started.error));
+  await until(() => runtime.eventsAfter(started.runId, -1, 200).some((row) => row.type === 'node-executing'));
+  const changed = runtime.configureRun(started.runId, 7);
+  assert.equal(changed.ok, true);
+  const caps = runtime.eventsAfter(started.runId, -1, 400).filter((row) => row.type === 'run-caps-changed');
+  assert.equal(caps.length, 1);
+  assert.equal(caps[0].event.caps.maxConcurrency, 7);
+  assert.equal(runtime.configureRun(started.runId, 7).code, 'CAPS_UNCHANGED');
+  assert.equal(runtime.configureRun('nope', 3).code, 'RUN_NOT_FOUND');
+  release('done');
+  await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+  assert.equal(runtime.configureRun(started.runId, 5).code, 'RUN_NOT_ACTIVE');
+});
+
+test('run-stalled：超过 stallMs 无进展时记事件并只催两次', async (t) => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", void 0);',
+      'return await __host.ask("ask#1", reader, "hold");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+    phases: ['look'],
+    sitePhases: new Map([['ask#1', 'look']]),
+    actors: [{ siteId: 'actor#1', name: 'reader' }],
+  });
+  /** @type {(value: string) => void} */
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const notifications = [];
+  const runtime = createRuntime({
+    compiler,
+    workspaceFor: stubWorkspace,
+    config: { stallMs: 40, stallCheckMs: 20 },
+    logger: { warn() {}, info() {} },
+  });
+  t.after(() => { release('late'); });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'stall',
+    cwd: '/tmp/ws',
+    runner: async () => ({ text: await gate }),
+    notify: (text) => notifications.push(text),
+  });
+  assert.equal(started.ok, true, String(started.error));
+  const stalled = await until(() => runtime.eventsAfter(started.runId, -1, 400).find((row) => row.type === 'run-stalled'), 3000);
+  assert.ok(stalled !== undefined, 'expected a run-stalled event');
+  assert.equal(typeof stalled.event.since, 'number');
+  const reminders = await until(() => notifications.filter((text) => /stalled|no progress/u.test(text)).length >= 2, 3000);
+  assert.equal(Boolean(reminders), true);
+  assert.equal(notifications.filter((text) => /no progress|still stalled/u.test(text)).length <= 2, true);
+  release('done');
+  await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+});
+
 test('ResumeWorkflowRun：runtime.resume 是同一实现，stopped run 用同一 runId 续跑', async () => {
   const compiler = stubCompiler({
     lowered: [

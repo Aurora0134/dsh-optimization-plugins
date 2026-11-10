@@ -434,4 +434,9 @@ test('workflowRunSummary returns the §1.1(1) summary shape', () => {
     failureMessage: 'stopped by user',
     resumable: true,
   });
+
+  // A superseded run is finished for good: it has a successor, so resume must not be offered.
+  assert.equal(workflowRunSummary({ runId: 'run-2', status: 'stopped', stopReason: 'superseded' }).resumable, false);
+  assert.equal(workflowRunSummary({ runId: 'run-3', status: 'completed' }).resumable, false);
+  assert.equal(workflowRunSummary({ runId: 'run-4', status: 'pending' }).resumable, false);
 });

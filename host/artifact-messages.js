@@ -1,9 +1,9 @@
 /**
- * 产物（artifact）的逐字错误文案与 MIME 规则（`cli.md` §6.3/§6.6）。
+ * 产物（artifact）的逐字错误文案与 MIME 规则（契约见 `docs/port-contract.md`）。
  *
  * 为什么单独成文件：这些字符串是**契约**的一部分（模型会照着修），而且被发布路径、
  * 宿主侧校验和测试同时引用；散在 runtime.js 里既容易被改写，也无法逐条断言。
- * 文案逐字来自 `beauty/zcode-cli.js:738755-738914`（见 cli.md §6.6）。注意上游这些
+ * 文案逐字照搬 ZCode Desktop 3.17.2 的 CLI 契约。注意上游这些
  * 文案**不带** `(at site@ordinal)` 后缀——站点定位信息只在 journal/事件里，不进面向模型的错误。
  */
 

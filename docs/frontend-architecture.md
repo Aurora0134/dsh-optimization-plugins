@@ -60,7 +60,7 @@ part 的职责：
 
 - 运行态：`GET /runs`、`GET /run`、`GET /run/events`、`GET /run/artifacts`、`GET /run/workspace`、`GET /run/node`。
 - 产物：`GET /artifact/data`（看板条目分页）、`GET /artifact/read`（字节分片）。
-- 运行操作：`POST /run/approve`、`POST /run/stop`、`POST /run/resume`、`POST /run/fill`、`POST /run/answer`。
+- 运行操作：`POST /run/approve`、`POST /run/stop`、`POST /run/configure`（运行中改并发上限）、`POST /run/resume`、`POST /run/fill`、`POST /run/answer`。
 - 保存的工作流：`GET /workflows/list|get|runs|forRun`、`POST /workflows/save|delete|move|updateMeta`。
 - 策略：`GET /policy`、`POST /policy`。
 

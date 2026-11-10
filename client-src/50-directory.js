@@ -1204,7 +1204,9 @@ function WfHubHistory(props) {
         WF_H(WF_UI.StatusDot, { tone: WF_UI.statusTone(typeof row?.status === 'string' ? row.status : 'unknown') }),
         WF_H('div', { className: 'zwf-hub-history-main' },
           WF_H('span', { className: 'zwf-hub-history-name' },
-            typeof row?.name === 'string' && row.name !== '' ? row.name : wfHubRunStatusWord(t, row)),
+            typeof row?.label === 'string' && row.label !== ''
+              ? row.label
+              : (typeof row?.name === 'string' && row.name !== '' ? row.name : wfHubRunStatusWord(t, row))),
           WF_H('span', { className: 'zwf-hub-history-meta' },
             [
               wfHubRunStatusWord(t, row),

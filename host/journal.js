@@ -13,7 +13,7 @@
  * 一行一个 `{sequence, type, payload, time_created}`。读取时把 payload 摊平回事件对象，
  * 这样旧的扁平日志（没有 sequence）也能继续读。
  */
-import fsp from 'node:fs/promises';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /** 26 种事件类型（桌面端事件全集，见 docs/port-contract.md）。 */
@@ -170,6 +170,89 @@ export function pageEvents(events, options = {}) {
 }
 
 /**
+ * 读一个 JSONL 日志文件，容忍半行/旧格式（没有 `sequence` 的旧行按有效行补号）。
+ *
+ * 同步版本供 store 使用：引擎的 `record()` → `appendEvent()` 是不 await 的同步调用。
+ *
+ * @param {string} file
+ * @returns {{ sequence: number, type: string, payload: any, time_created: number }[]}
+ */
+export function readJournalRowsSync(file) {
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    return [];
+  }
+  /** @type {{ sequence: number, type: string, payload: any, time_created: number }[]} */
+  const rows = [];
+  for (const line of text.split(/\r?\n/u)) {
+    if (line.trim() === '') continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+    const record = /** @type {Record<string, any>} */ (parsed);
+    if (Number.isInteger(record.sequence)) {
+      rows.push({
+        sequence: record.sequence,
+        type: typeof record.type === 'string' ? record.type : 'log',
+        payload: record.payload ?? record,
+        time_created: Number.isFinite(record.time_created)
+          ? record.time_created
+          : (Number.isFinite(record.at) ? record.at : 0),
+      });
+    } else {
+      rows.push({
+        sequence: rows.length,
+        type: typeof record.type === 'string' ? record.type : 'log',
+        payload: record,
+        time_created: Number.isFinite(record.at) ? record.at : 0,
+      });
+    }
+  }
+  rows.sort((left, right) => left.sequence - right.sequence);
+  return rows;
+}
+
+/**
+ * 分配下一行的 sequence 并同步追加一行。
+ *
+ * @param {string} file
+ * @param {Record<string, any>} event
+ * @returns {{ sequence: number, type: string, payload: Record<string, any>, time_created: number }}
+ */
+export function appendJournalRowSync(file, event) {
+  const rows = readJournalRowsSync(file);
+  const last = rows.length === 0 ? -1 : rows[rows.length - 1].sequence;
+  // 旧日志的行号与 sequence 可能不一致：取两者最大值保证严格递增。
+  const sequence = Math.max(last + 1, rows.length);
+  const { sequence: _ignoredSequence, ...rest } = event ?? {};
+  const payload = { ...rest };
+  const type = typeof payload.type === 'string' && payload.type !== '' ? payload.type : 'log';
+  const timeCreated = Number.isFinite(payload.at)
+    ? /** @type {number} */ (payload.at)
+    : (Number.isFinite(payload.time_created) ? /** @type {number} */ (payload.time_created) : Date.now());
+  const row = { sequence, type, payload, time_created: timeCreated };
+  mkdirSync(path.dirname(file), { recursive: true });
+  appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8');
+  return row;
+}
+
+/**
+ * 把存储行摊平成调用方熟悉的形状（`{...payload, sequence, type, at}`）。
+ *
+ * @param {{ sequence: number, type: string, payload?: any, time_created?: number }} row
+ * @returns {Record<string, any>}
+ */
+export function flattenJournalRow(row) {
+  return flattenRow(row, row.sequence);
+}
+
+/**
  * 一个 run 的 JSONL 事件日志。
  *
  * 同一进程内的 append 通过 promise 链串行化，保证并发 `record()` 不会拿到重复 sequence；
@@ -193,47 +276,7 @@ export class Journal {
    * @returns {Promise<{ sequence: number, type: string, payload: unknown, time_created: number }[]>}
    */
   async readRows() {
-    let text;
-    try {
-      text = await fsp.readFile(this.file, 'utf8');
-    } catch {
-      return [];
-    }
-    /** @type {{ sequence: number, type: string, payload: unknown, time_created: number }[]} */
-    const rows = [];
-    for (const line of text.split(/\r?\n/u)) {
-      if (line.trim() === '') continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        continue;
-      }
-      const record = /** @type {Record<string, any>} */ (parsed);
-      if (Number.isInteger(record.sequence)) {
-        rows.push({
-          sequence: record.sequence,
-          type: typeof record.type === 'string' ? record.type : 'log',
-          payload: record.payload ?? record,
-          time_created: Number.isFinite(record.time_created)
-            ? record.time_created
-            : (Number.isFinite(record.at) ? record.at : 0),
-        });
-      } else {
-        // 旧版日志没有 sequence：按"有效行"补号，保证升级后仍然连续。
-        rows.push({
-          sequence: rows.length,
-          type: typeof record.type === 'string' ? record.type : 'log',
-          payload: record,
-          time_created: Number.isFinite(record.at) ? record.at : 0,
-        });
-      }
-    }
-    rows.sort((left, right) => left.sequence - right.sequence);
-    return rows;
+    return readJournalRowsSync(this.file);
   }
 
   /**
@@ -263,20 +306,8 @@ export class Journal {
    * @param {Record<string, any>} event
    */
   async appendNow(event) {
-    const rows = await this.readRows();
-    const last = rows.length === 0 ? -1 : rows[rows.length - 1].sequence;
-    // 旧日志的行号与 sequence 可能不一致：取两者最大值保证严格递增。
-    const sequence = Math.max(last + 1, rows.length);
-    const { sequence: _ignoredSequence, ...rest } = event ?? {};
-    const payload = { ...rest };
-    const type = typeof payload.type === 'string' && payload.type !== '' ? payload.type : 'log';
-    const timeCreated = Number.isFinite(payload.at)
-      ? /** @type {number} */ (payload.at)
-      : (Number.isFinite(payload.time_created) ? /** @type {number} */ (payload.time_created) : Date.now());
-    const row = { sequence, type, payload, time_created: timeCreated };
-    await fsp.mkdir(path.dirname(this.file), { recursive: true });
-    await fsp.appendFile(this.file, `${JSON.stringify(row)}\n`, 'utf8');
-    this.cachedWatermark = Math.max(this.cachedWatermark ?? 0, sequence);
+    const row = appendJournalRowSync(this.file, event);
+    this.cachedWatermark = Math.max(this.cachedWatermark ?? 0, row.sequence);
     return row;
   }
 

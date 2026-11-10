@@ -1638,7 +1638,7 @@ class AskScheduler {
         }
         this.settleFailed(node, new WorkflowError(
           'ValidationFailed',
-          'submit_result failed schema validation repeatedly and the repair budget is exhausted.',
+          'The reply never matched the required schema and the repair budget is exhausted.',
           { violations: normalized.violations },
         ));
         return;
@@ -1653,7 +1653,7 @@ class AskScheduler {
       }
       this.settleFailed(node, new WorkflowError(
         'ResultNotSubmitted',
-        'The typed ask ended without a submit_result call, so there is no result.',
+        'The typed ask ended without a reply carrying the result, so there is no result.',
         { finalText },
       ));
       return;
@@ -2596,6 +2596,29 @@ export function createRuntime({
   };
 
   /**
+   * 运行中调整并发上限（上游的运行设置）：活跃 run 交给引擎改 caps 并记 `run-caps-changed`；
+   * 已结算的 run 已经没有调度器，改不了。
+   * @param {string} runId
+   * @param {number} value
+   * @returns {object}
+   */
+  const configureRun = (runId, value) => {
+    const entry = entryFor(runId);
+    if (entry === undefined || entry.settled === true) {
+      const stored = store.getRun(runId);
+      if (stored === undefined) {
+        return { ok: false, code: 'RUN_NOT_FOUND', message: `run_not_found: no workflow run with ID ${runId} exists for this project.` };
+      }
+      return { ok: false, code: 'RUN_NOT_ACTIVE', message: `workflow_run_not_active: run ${runId} is ${entry === undefined ? stored.status : 'finished'}; only a running run takes a new concurrency limit.` };
+    }
+    const changed = entry.engine?.setMaxConcurrency?.(value) === true;
+    if (!changed) {
+      return { ok: false, code: 'CAPS_UNCHANGED', message: `workflow_run_settings_unchanged: run ${runId} already runs at that limit.` };
+    }
+    return { ok: true, runId, caps: { maxConcurrency: Math.max(1, Math.floor(value)) } };
+  };
+
+  /**
    * 停止一个 run。
    * @param {string} runId
    * @param {'user'|'model'|'provider'} [reason]
@@ -2827,7 +2850,9 @@ export function createRuntime({
       .map((run) => ({
         runId: run.runId,
         id: run.runId,
-        ...(run.name === undefined ? {} : { label: run.name, name: run.name }),
+        // store 已按 name → 脚本首行 → runId 解析出 label（§1.1(1)），直接透出。
+        label: run.label ?? run.name,
+        ...(run.name === undefined ? {} : { name: run.name }),
         status: run.status,
         ...(run.stopReason === undefined ? {} : { stopReason: run.stopReason }),
         ...(run.resumedFrom === undefined ? {} : { resumedFrom: run.resumedFrom }),
@@ -3031,6 +3056,8 @@ export function createRuntime({
     // 工具层（Host 评审 B2）按名字 `resume` 调用 ResumeWorkflowRun；两个名字同一实现。
     resume: resumeRun,
     amend,
+    configureRun,
+    configure: configureRun,
     stopRun,
     fillHole,
     resolveQuestion,

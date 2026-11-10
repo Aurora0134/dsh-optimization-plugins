@@ -2,8 +2,8 @@
  * 编译器单测：facade 声明、lowering（`__host.*` + 站点 id）、诊断码/文案、typed ask 的 schema、
  * 以及保存工作流的元数据块。
  *
- * 诊断文案按 `notes/cli.md` §3.2 逐字（9001/9003–9012），所以断言用文案里的稳定片段——
- * 那正是模型与用户会看到的东西。
+ * 诊断文案按 ZCode Desktop 3.17.2 的脚本编译契约逐字（9001/9003–9012），所以断言用文案里
+ * 的稳定片段——那正是模型与用户会看到的东西。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';

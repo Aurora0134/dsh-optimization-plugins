@@ -443,8 +443,8 @@ export function readArtifactChunk({ bytes, mediaType, offset, limit }) {
 export function validateArtifactRead(payload) {
   const totalBytes = Number(payload?.totalBytes);
   if (!Number.isInteger(totalBytes) || totalBytes < 0) return 'totalBytes must be a non-negative integer';
-  // 上游 zod 文案与实际 20 MiB 上限不一致（engine.md §7.3）；移植原则是文案逐字复刻。
-  if (totalBytes > ATTACHMENT_MAX_BYTES) return 'Too big: expected number to be <=16777216';
+  // 上游把 20 MiB 上限交给 zod `.max()`，默认文案会代入实参（20971520），这里逐字复刻。
+  if (totalBytes > ATTACHMENT_MAX_BYTES) return 'Too big: expected number to be <=20971520';
   const decoded = decodedBase64ByteLength(String(payload?.dataBase64 ?? ''));
   if (decoded === null) return 'invalid base64';
   if (decoded > ATTACHMENT_CHUNK_MAX_BYTES) return 'workflow artifact read chunk exceeds decoded byte limit';
@@ -593,6 +593,7 @@ function normalizeEvent(event, index) {
  * @param {() => Promise<{ enabled: boolean, mode: string }>} [options.readPolicy] workspace policy reader (index.js)
  * @param {(input: { projectRoot: string, enabled: boolean, mode?: string }) => Promise<{ enabled: boolean, mode: string }>} [options.writePolicy]
  * @param {object} [options.approval] launch-confirmation broker (`host/approval.js`)
+ * @param {object} [options.config] 插件配置（子代理 provider/model 等），数据面启动的运行同样要吃
  * @param {{ warn?: Function }} [options.logger]
  */
 export function registerWorkflowUiApi({
@@ -605,6 +606,7 @@ export function registerWorkflowUiApi({
   readPolicy,
   writePolicy,
   approval,
+  config = {},
   logger = console,
 }) {
   const webServer = ctx.get?.('webServer') ?? ctx.webServer;
@@ -760,8 +762,11 @@ export function registerWorkflowUiApi({
       summary.phases = derivePhaseStates(snapshot);
       summary.agentsWorking = (snapshot.actors ?? []).filter((actor) => actor.status === 'running').length;
       if (typeof snapshot.currentPhase === 'string') summary.currentPhase = snapshot.currentPhase;
-      const waitingHole = (snapshot.holes ?? []).find((hole) => hole.state === 'waiting');
-      if (waitingHole !== undefined && typeof waitingHole.name === 'string') summary.waitingHole = waitingHole.name;
+      // 留白只对活跃 run 有意义：已结束的 run 里残留的 waiting 留白不再算待答。
+      if (isRunActive(snapshot.status)) {
+        const waitingHole = (snapshot.holes ?? []).find((hole) => hole.state === 'waiting');
+        if (waitingHole !== undefined && typeof waitingHole.name === 'string') summary.waitingHole = waitingHole.name;
+      }
     } catch (error) {
       // A corrupt journal must not take the whole run list down; the summary stays usable.
       logger.warn?.(`zcode-workflow: could not project run ${summary.runId}: ${error instanceof Error ? error.message : String(error)}`);
@@ -813,7 +818,6 @@ export function registerWorkflowUiApi({
         sendJson(res, 200, {
           events: page.events,
           hasMore: page.hasMore,
-          lastEventSequence: page.lastEventSequence,
         });
       },
     },
@@ -900,8 +904,8 @@ export function registerWorkflowUiApi({
           throw fault(404, 'fault.workflowRunArtifactRead.notFound', `${runId}/${artifactId}@${version}`);
         }
         if (payload.totalBytes > ATTACHMENT_MAX_BYTES) {
-          // 同 §7.3：上游文案写的是 16 MiB，实际上限是 20 MiB，逐字复刻。
-          throw new ApiError(400, 'invalid-request', 'Too big: expected number to be <=16777216');
+          // 同 validateArtifactRead：上限 20 MiB，文案代入 zod `.max()` 的实参。
+          throw new ApiError(400, 'invalid-request', 'Too big: expected number to be <=20971520');
         }
         const response = readArtifactChunk({
           bytes: payload.bytes,
@@ -983,6 +987,28 @@ export function registerWorkflowUiApi({
       },
     },
     {
+      path: `${BASE}/run/configure`,
+      async POST(req, res, query, body) {
+        const runId = requiredString(body, 'runId');
+        const cwd = await cwdFrom(body);
+        const rawLimit = body?.maxConcurrency;
+        const limit = typeof rawLimit === 'number' ? rawLimit : Number(rawLimit);
+        if (!Number.isFinite(limit) || limit < 1 || Math.floor(limit) !== limit) {
+          throw new ApiError(400, 'invalid-request', 'maxConcurrency must be a positive integer');
+        }
+        const runtime = runtimeFor(cwd);
+        if (typeof runtime.configureRun !== 'function') {
+          throw new ApiError(409, 'run-settings-unsupported', 'this runtime cannot retune a running run');
+        }
+        const result = runtime.configureRun(runId, limit);
+        if (result?.ok === false) {
+          const status = result.code === 'RUN_NOT_FOUND' ? 404 : (result.code === 'RUN_NOT_ACTIVE' ? 409 : 400);
+          throw new ApiError(status, 'run-settings-failed', result.message ?? `could not retune "${runId}"`);
+        }
+        sendJson(res, 200, { ok: true, caps: result?.caps, run: await runtime.getRun(runId) });
+      },
+    },
+    {
       path: `${BASE}/run/stop`,
       async POST(req, res, query, body) {
         const runId = requiredString(body, 'runId');
@@ -1022,7 +1048,7 @@ export function registerWorkflowUiApi({
         if (agent === undefined) {
           throw new ApiError(400, 'session-not-live', `resuming a workflow needs the session that owns it; "${sessionId}" is not live`);
         }
-        const runner = (request) => createSubagentRunner({ ctx, logger })({ ...request, agent, cwd });
+        const runner = (request) => createSubagentRunner({ ctx, logger, config })({ ...request, agent, cwd });
         const notify = (text) => notifyAgent(agent, text);
         // The engine owns resume semantics (same run id, replay settled nodes); only fall back to
         // a fresh start when an older runtime has no resumeRun.
@@ -1439,7 +1465,7 @@ export function registerWorkflowUiApi({
         const violation = validateArgsSchema(args, argsSchemaFor(declarations), 'args');
         if (violation !== undefined) throw new ApiError(400, 'invalid-args', violation);
         const runtime = runtimeFor(cwd);
-        const askChild = createSubagentRunner({ ctx, logger });
+        const askChild = createSubagentRunner({ ctx, logger, config });
         const started = await runtime.start({
           code: saved.code,
           name,
@@ -1791,13 +1817,18 @@ function artifactsFromManifest(rows) {
  */
 function nodeResultPayload(node, maxBytes) {
   if (node.status === 'failed') {
+    const code = typeof node.error?.code === 'string' ? node.error.code : undefined;
     const message = typeof node.error?.message === 'string' ? node.error.message : '';
     return {
       status: 'failed',
-      error: {
-        code: typeof node.error?.code === 'string' ? node.error.code.slice(0, 64) : 'error',
-        message: message.length <= 2000 ? message : `${message.slice(0, 1999)}\u2026`,
-      },
+      ...(node.error === undefined
+        ? {}
+        : {
+          error: {
+            ...(code === undefined ? {} : { code }),
+            message: message.length <= 2000 ? message : `${message.slice(0, 1999)}…`,
+          },
+        }),
       truncated: false,
       totalBytes: 0,
     };

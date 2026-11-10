@@ -612,7 +612,8 @@ const STOP_REASONS = new Set(['user', 'model', 'provider', 'interrupted', 'super
  */
 function toRunRow(run) {
   const runId = run.id ?? run.runId ?? '';
-  const label = run.name ?? run.label;
+  const explicitName = typeof run.name === 'string' && run.name.trim() !== '' ? run.name : undefined;
+  const label = explicitName ?? (typeof run.label === 'string' && run.label !== '' ? run.label : undefined);
   const rawStatus = run.status;
   const status = RUN_STATUSES.has(rawStatus) ? rawStatus : 'pending';
   const rawStopReason = run.stopReason ?? run.stop_reason;
@@ -622,8 +623,8 @@ function toRunRow(run) {
     ?? (owned === true && stopReason !== 'user' && run.introducesProviders === undefined && (status === 'running' || status === 'pending'));
   return {
     runId,
-    label: typeof label === 'string' ? label : runId,
-    labelSource: typeof label === 'string' ? 'name' : 'script',
+    label: label ?? runId,
+    labelSource: explicitName === undefined ? 'script' : 'name',
     status,
     ...(stopReason === undefined ? {} : { stopReason }),
     ...(typeof run.resumedFrom === 'string' ? { resumedFrom: run.resumedFrom } : {}),
