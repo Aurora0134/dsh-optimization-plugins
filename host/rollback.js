@@ -35,25 +35,27 @@ export const REASONS = Object.freeze({
 })
 
 /**
- * One invisible developer message: the replacement payload the replace event
+ * One invisible system message: the replacement payload the replace event
  * carries.
  *
  * The session contract identifies every persisted message (`id`, `source`), and
  * a stored log is revalidated on load; a marker without those fields would make
- * the rolled-back session unreadable. Empty content still projects to no visible
- * row and no model message, which is what makes the node itself invisible. The
- * fresh identity keeps two rollbacks of the same session from sharing a message
- * id.
+ * the rolled-back session unreadable. Empty content projects to no model message,
+ * the Chat target excludes system-prompt nodes from transcript rows, and the
+ * Trajectory target only projects nonempty appended prompts, so this node leaves
+ * no visible record. A developer node would add a visible context record in the
+ * trajectory. The fresh identity keeps two rollbacks of the same session from
+ * sharing a message id.
  * @returns {object} the replacement message
  */
 function replacementMessage() {
   return {
     id: randomUUID(),
-    role: 'developer',
+    role: 'system',
     content: [],
-    // The source kind the framework itself uses for developer messages; an empty
-    // content list means it adds or removes no tool.
-    source: { kind: 'tool-registry' },
+    // The only source a system message admits; empty content is what keeps it
+    // out of the effective prompt.
+    source: { kind: 'system-prompt' },
   }
 }
 
@@ -357,7 +359,7 @@ export async function performRollback({ ctx, session, store, recorder, request, 
   let replacement
   try {
     replacement = session.append(
-      'developer/message',
+      'system/message',
       {
         // The node projects to no message, so its turn/step only carry the
         // position it closed; the target turn is the closest truthful value.
