@@ -1059,7 +1059,7 @@ revising a script; the compiler holds you to it. The run tools — `GetWorkflowR
 
 ### 16.1 `CreateWorkflow`
 
-Typechecks the script; on a clean compile asks the user to confirm and starts the run in the
+Compiles the script; on a clean compile asks the user to confirm and starts the run in the
 background; you are notified with the script's final `return` value when the run settles.
 Compilation errors come back as diagnostics, counted in the script's file (§13).
 
@@ -1105,7 +1105,7 @@ still running — call `AmendWorkflow` (§13, §16.4), never `CreateWorkflow` ag
 ### 16.2 The facade
 
 Every script and snippet is checked against these declarations. They are the same constant
-the compiler is fed, so what you read here is what typechecks. The block uses `declare`
+the compiler is fed, so what you read here is what the compiler reads. The block uses `declare`
 because it is the host's ambient API description — do not imitate it; your script defines
 plain interfaces and never uses `declare`.
 
@@ -1424,7 +1424,7 @@ declare function future<T>(body: () => Promise<T>): Promise<T>;
   final `return`. No `import` statements.
 - Top-level `await` and a final `return <value>` are allowed; the returned value is exactly
   what the completion notification carries.
-- No Node or web APIs: `process`, `fetch`, `fs` do not exist and fail typechecking.
+- No Node or web APIs: `process`, `fetch`, `fs` do not exist, so naming one is a compile error.
 - `world.run` executes a real command. Its first argument must be a compile-time string
   literal — the script's command set is shown to the user at confirmation — so interpolate
   runtime values into the args array, never into the command name. A nonzero exit code
@@ -1566,7 +1566,7 @@ with `.dsh` winning when both define a name; new saves always go to `.dsh`.
   and a `default`; every future call is validated against them.
 
 The saved file is valid TypeScript: a `/* zcode-workflow` block of YAML metadata, then the
-script verbatim. The script is typechecked by the same compiler as `CreateWorkflow` before
+script verbatim. The script is compiled by the same compiler as `CreateWorkflow` before
 anything is written; diagnostics mean nothing was saved. The rules in §16.3 apply, phases
 included — future callers did not see this conversation, so the phase names are all they
 get.
@@ -1585,7 +1585,7 @@ fixed logic of a script or of a hole's body; it is not for orchestration.
 - The snippet facade is the `args`, `run`, `log`, `files`/`git`, `world.run`, `channel` and
   `future` parts of the block in §16.2 (a snippet's `run.id` is a throwaway `dwfeval-…` id); `agent()`, `report()`, `artifact.*`, `hole()` and the `phase`
   marker are the only absentees — they do not exist here and
-  fail typechecking. The language rules are a script's: plain interfaces, top-level `await`, a
+  fail compilation. The language rules are a script's: plain interfaces, top-level `await`, a
   final `return <value>`. The returned value is serialized into the result, so return a
   summary, not a dump; over 256KB fails the call. `log(...)` lines come back in order. A
   snippet's `world.run` executes immediately: nothing is confirmed and nothing is journaled.
@@ -1663,10 +1663,11 @@ revision. Do not stop a run merely to wait for it.
 
 ### 16.12 The subagent side: the reply protocol
 
-Subagents never see the workflow-management tools: the actor policy denies `AskUserQuestion`,
-`EnterPlanMode`, `ExitPlanMode`, `CreateWorkflow`, `AmendWorkflow`, `ReadSessionContext` and
-`ResolveWorkflowQuestion`. They cannot register tools mid-turn either, so both the result and
-any question travel in the reply text.
+Subagents run with the harness's own tool set, so the workflow-management tools are not part of an
+ask's vocabulary: do not call `CreateWorkflow`, `AmendWorkflow`, `ReadSessionContext`,
+`ResolveWorkflowQuestion` or `AskUserQuestion` — an ask is finished in the reply, not by starting
+another workflow or by asking the user directly. They cannot register tools mid-turn either, so
+both the result and any question travel in the reply text.
 
 - **Result** — typed asks only. The ask's prompt ends with the schema built from its type
   argument and the instruction to output that JSON as the final reply, bare and unfenced. A

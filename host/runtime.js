@@ -68,6 +68,15 @@ const PROVIDER_ERROR_CODES = new Set([
 /** 一个 ask 的升级回合上限（防止模型反复提同一个问题把回合循环拖死）。 */
 const MAX_ESCALATION_ROUNDS = ESCALATIONS_PER_ASK + 1;
 
+/** `GetWorkflowRun.logTail[].message` 的上限（契约 `Q0e`，cli.md:540）。 */
+export const MAX_LOG_TAIL_MESSAGE = 1024;
+
+/** `GetWorkflowRun.summary` 的上限（契约 §1.5 `summary(max 400)`，cli.md:162）。 */
+const MAX_RUN_SUMMARY = 400;
+
+/** `run-settled` 通知 `<summary>` 的上限（终态载荷 `summary: max(500)`，cli.md:1297）。 */
+const MAX_NOTIFICATION_SUMMARY = 500;
+
 /** 会被当作“有进展”的事件：停滞判定读它刷新 lastProgressAt。 */
 const PROGRESS_EVENTS = new Set([
   'node-queued', 'node-dispatched', 'node-executing', 'node-progress', 'node-settled',
@@ -240,7 +249,7 @@ function newRunId() {
 }
 
 /**
- * actor 会话 id（`mintActorSessionId`，cli:739755-739760）。
+ * actor 会话 id（`mintActorSessionId`，cli.md:739755-739760）。
  * @param {string} runId
  * @param {{siteId: string, ordinal: number}} ref
  * @returns {string}
@@ -266,16 +275,19 @@ class WorkflowEngine {  /**
    * @param {{maxConcurrency: number}} options.caps
    * @param {Map<string, object>} [options.askSpecs]
    * @param {Map<string, string>} [options.sitePhases]
+   * @param {Map<string, string>} [options.holeTypes] 站点 id → 类型文本（`holes[].type`）
    * @param {object} [options.launch] run-launched 载荷
    * @param {number} [options.now]
    */
-  constructor({ runId, journal, driver, caps, askSpecs = new Map(), sitePhases = new Map(), launch, now = Date.now }) {
+  constructor({ runId, journal, driver, caps, askSpecs = new Map(), sitePhases = new Map(), holeTypes = new Map(), launch, now = Date.now }) {
     this.runId = runId;
     this.journal = journal;
     this.driver = driver;
     this.caps = { maxConcurrency: Math.max(1, Math.floor(caps.maxConcurrency)) };
     this.askSpecs = askSpecs;
     this.sitePhases = sitePhases;
+    /** @type {Map<string, string>} */
+    this.holeTypes = holeTypes;
     this.now = now;
     this.ordinals = new Map();
     this.phaseOrdinals = new Map();
@@ -560,10 +572,12 @@ class WorkflowEngine {  /**
     const ref = { siteId, ordinal };
     const boundedPrompt = typeof prompt === 'string' && prompt.length > 0 ? preview(prompt, 4000) : undefined;
     const deferred = Promise.withResolvers();
+    const declaredType = this.holeTypes.get(siteId);
     const record = {
       siteId,
       ordinal,
       name: String(name),
+      ...(declaredType === undefined ? {} : { type: declaredType }),
       prompt: boundedPrompt,
       since: this.now(),
       deferred,
@@ -574,6 +588,7 @@ class WorkflowEngine {  /**
       type: 'hole-reached',
       instance: ref,
       name: record.name,
+      ...(declaredType === undefined ? {} : { holeType: declaredType }),
       ...(boundedPrompt === undefined ? {} : { prompt: boundedPrompt }),
     });
     return deferred.promise;
@@ -592,10 +607,12 @@ class WorkflowEngine {  /**
     const parked = this.holes.get(siteId);
     if (parked === undefined && !this.filledHoles.has(siteId)) return { ok: false, reason: 'not_waiting' };
     const filledAt = this.now();
+    const filledType = parked?.type ?? this.holeTypes.get(siteId) ?? this.filledHoles.get(siteId)?.type;
     this.filledHoles.set(siteId, {
       code,
       filledAt,
       name: name ?? parked?.name ?? this.filledHoles.get(siteId)?.name ?? siteId,
+      ...(filledType === undefined ? {} : { type: filledType }),
       ...(filledBy === undefined ? {} : { filledBy }),
     });
     this.record({
@@ -662,6 +679,7 @@ class WorkflowEngine {  /**
       siteId: hole.siteId,
       ordinal: hole.ordinal,
       name: hole.name,
+      ...(hole.type === undefined ? {} : { type: hole.type }),
       ...(hole.prompt === undefined ? {} : { prompt: hole.prompt }),
       state: 'waiting',
       since: hole.since,
@@ -954,7 +972,12 @@ class WorkflowEngine {  /**
       ...(supersededBy === undefined ? {} : { supersededBy }),
       ...(failure === undefined ? {} : { failure: failure.toJSON() }),
     });
-    this.settleDeferred.resolve({ status: 'stopped', reason: stopReason, ...(failure === undefined ? {} : { error: failure }) });
+    this.settleDeferred.resolve({
+      status: 'stopped',
+      reason: stopReason,
+      ...(supersededBy === undefined ? {} : { supersededBy }),
+      ...(failure === undefined ? {} : { error: failure }),
+    });
   }
 
   /**
@@ -1186,7 +1209,24 @@ function refToString(ref) {
 }
 
 /**
- * `max_concurrency` 规范化（`normalizeRunConcurrency = max(1, floor(x))`，契约 cli:960）。
+ * `Uoe.summary`：一行概览（契约 §1.5，截 400）。快照与 `GetWorkflowRun` 共用这一份实现。
+ * @param {object} run `getRun()` 的返回或同形快照
+ * @returns {string}
+ */
+export function summarizeRun(run) {
+  const usage = run?.usage ?? {};
+  const spent = Number(usage.spentTokens ?? run?.spentTokens ?? 0);
+  const waiting = (Array.isArray(run?.pendingQuestions) ? run.pendingQuestions.length : 0)
+    + (Array.isArray(run?.holes) ? run.holes.filter((hole) => hole.state === 'waiting').length : 0);
+  const text = `${run?.name ?? run?.label ?? run?.runId ?? run?.id ?? 'run'} — ${run?.status ?? 'unknown'}`
+    + `${spent === 0 ? '' : `, ${spent} tokens`}`
+    + `, ${Number(usage.nodesCompleted ?? 0)}/${Number(usage.nodesObserved ?? 0)} nodes completed`
+    + `${waiting === 0 ? '' : `, ${waiting} waiting on you`}`;
+  return preview(text, MAX_RUN_SUMMARY);
+}
+
+/**
+ * `max_concurrency` 规范化（`normalizeRunConcurrency = max(1, floor(x))`，契约 cli.md:960）。
  * @param {unknown} value
  * @param {number} fallback
  * @returns {number}
@@ -1965,7 +2005,8 @@ function createDriver({
               typed: node.spec.typed === true,
               schema: node.spec.schema,
               signal: controller.signal,
-              // escalate 通道：子代理在回合内调用它挂起提问，主代理用 ResolveWorkflowQuestion 回答。
+              // 编程式升级通道：DSH 子代理没有回合内工具入口，生产路径走的是下面解析的回复围栏；
+              // 这个回调留给宿主自驱的 runner（测试、以及将来支持工具注入的 provider）。
               escalate: (ask) => driverRef.raiseQuestion(actor, node.instance, ask ?? {}),
             });
             const rawText = answer?.text ?? '';
@@ -2412,6 +2453,9 @@ export function createRuntime({
       caps: { maxConcurrency: normalizeConcurrency(request.maxConcurrency, defaultConcurrency) },
       askSpecs: compileResult.askSpecs ?? new Map(),
       sitePhases: compileResult.sitePhases ?? new Map(),
+      holeTypes: new Map((compileResult.holes ?? [])
+        .filter((hole) => typeof hole.typeText === 'string' && hole.typeText.length > 0)
+        .map((hole) => [hole.siteId, hole.typeText])),
       launch: {
         runId,
         inputId: runId,
@@ -2496,7 +2540,8 @@ export function createRuntime({
       const idleMs = Date.now() - engine.lastProgressAt;
       if (idleMs < stallMs) return;
       if (engine.stalledSince === undefined) {
-        engine.stalledSince = new Date(engine.lastProgressAt).toISOString();
+        // 契约 §1.5 的 `health.stalledSince` 是 epoch 毫秒（与 `lastProgressAt` 同型）。
+        engine.stalledSince = engine.lastProgressAt;
         engine.stallReminders += 1;
         engine.record({ type: 'run-stalled', since: engine.lastProgressAt, idleMs, reminders: engine.stallReminders });
         try {
@@ -2507,7 +2552,7 @@ export function createRuntime({
       } else if (engine.stallReminders < 2) {
         engine.stallReminders += 1;
         try {
-          entry.notify?.(`Workflow run ${runName} (${runId}) is still stalled since ${engine.stalledSince}. Either way the run keeps waiting; nothing times out on its behalf.`);
+          entry.notify?.(`Workflow run ${runName} (${runId}) is still stalled since ${new Date(engine.stalledSince).toISOString()}. Either way the run keeps waiting; nothing times out on its behalf.`);
         } catch {
           // 同上
         }
@@ -2523,6 +2568,7 @@ export function createRuntime({
         ...entry.meta,
         status: outcome.status,
         ...(outcome.reason === undefined ? {} : { stopReason: outcome.reason }),
+        ...(outcome.supersededBy === undefined ? {} : { supersededBy: outcome.supersededBy }),
         ...(outcome.error === undefined ? {} : { error: outcome.error.message }),
         finishedAt: Date.now(),
         ...(outcome.status === 'completed' ? { result: outcome.value } : {}),
@@ -2603,6 +2649,14 @@ export function createRuntime({
    * @returns {object}
    */
   const configureRun = (runId, value) => {
+    // 参数非法与“值没变”是两回事：非有限数/非正整数要在改 caps 之前就被挡住（评审 R5）。
+    if (!Number.isInteger(value) || value < 1) {
+      return {
+        ok: false,
+        code: 'INVALID_CAP',
+        message: `workflow_run_invalid_cap: the concurrency limit must be a positive integer; got ${String(value)}.`,
+      };
+    }
     const entry = entryFor(runId);
     if (entry === undefined || entry.settled === true) {
       const stored = store.getRun(runId);
@@ -2763,7 +2817,7 @@ export function createRuntime({
       ? []
       : [...entry.driver.pendingQuestions.values()].map((parked) => parked.record);
     const snapshot = entry === undefined ? undefined : projection?.snapshot?.(runId);
-    return {
+    const result = {
       runId,
       id: runId,
       ...(stored?.name === undefined ? {} : { name: stored.name }),
@@ -2810,13 +2864,16 @@ export function createRuntime({
           itemCount: entry?.engine.artifacts.get(row.result.id)?.items ?? 0,
           ...(row.result.primary === true ? { primary: true } : {}),
         })),
-      holes: entry === undefined ? [] : entry.engine.openHoles(),
+      // 已填的留白也要在列表里（契约 `holes[].state` 有 waiting/filled 两种，cli.md:174）。
+      holes: entry === undefined ? [] : capHoleRows(entry.engine.holeRecords()),
       pendingQuestions,
       phases: stored?.phases ?? [],
       currentPhase: entry?.engine.currentPhase,
+      // `logTail` 每行 `{sequence, message, at}`，message 截 1024（契约 cli.md:165/540）。
       logTail: store.listEvents(runId, { types: ['log'] }).slice(-50).map((event, index) => ({
         sequence: event.sequence ?? index,
-        message: String(event.event.message ?? ''),
+        message: preview(String(event.event.message ?? ''), MAX_LOG_TAIL_MESSAGE),
+        ...(typeof event.timeCreated === 'number' ? { at: event.timeCreated } : {}),
       })),
       ...(stored?.failure === undefined ? {} : { error: stored.failure }),
       // 有的 journal 实现只把 result 留在内存里的 run 记录上（store 的 updateRunStatus 不写 result），
@@ -2829,10 +2886,16 @@ export function createRuntime({
         consecutiveFailures: usage.nodesFailed,
         cachedSteps: 0,
         pendingQuestionsKnown: true,
-        ...(entry === undefined ? {} : { concurrency: entry.engine.concurrency.snapshot() }),
+        ...(entry === undefined ? {} : {
+          // 契约 §1.5 的 `health.lastProgressAt`/`stalledSince`：模型面读得到才有用（评审 R6）。
+          lastProgressAt: entry.engine.lastProgressAt,
+          ...(entry.engine.stalledSince === undefined ? {} : { stalledSince: entry.engine.stalledSince }),
+          concurrency: entry.engine.concurrency.snapshot(),
+        }),
       },
       ...(snapshot === undefined ? {} : { projection: snapshot }),
     };
+    return { ...result, summary: summarizeRun(result) };
   };
 
   /**
@@ -3027,18 +3090,17 @@ export function createRuntime({
       }
     }
     const entry = entryFor(runId);
-    if (entry !== undefined && !entry.settled) entry.engine.stop('superseded', undefined);
+    const wasRunning = entry !== undefined && !entry.settled;
+    // 后继 runId 必须先知道：契约 §4.9「被取代」要求前驱落
+    // `stop_reason=superseded` + `superseded_by=<后继 runId>`（cli.md:1019），
+    // 而 `engine.stop` 只能在停止时就带上它。
+    const successorRunId = typeof request.runId === 'string' && request.runId.length > 0 ? request.runId : newRunId();
+    if (wasRunning) entry.engine.stop('superseded', undefined, successorRunId);
     const started = await startRun({
       ...request,
+      runId: successorRunId,
       resumedFrom: runId,
     });
-    if (started.ok === true) {
-      try {
-        store.getRun(runId);
-      } catch {
-        // 前驱的 supersededBy 由 journal 更新；缺方法时忽略
-      }
-    }
     return started.ok === true ? { ...started, supersededRunId: runId } : started;
   };
 
@@ -3163,7 +3225,8 @@ export function formatCompletionNotification(entry, outcome) {
     `<task-id>${entry.meta.id}</task-id>`,
     `<status>${outcome.status}</status>`,
     ...(entry.meta.stopReason === undefined ? [] : [`<stop-reason>${entry.meta.stopReason}</stop-reason>`]),
-    `<summary>Run ${entry.meta.name} (${entry.meta.id}) ${outcome.status}</summary>`,
+    ...(entry.meta.supersededBy === undefined ? [] : [`<superseded_by>${entry.meta.supersededBy}</superseded_by>`]),
+    `<summary>${preview(`Run ${entry.meta.name} (${entry.meta.id}) ${outcome.status}`, MAX_NOTIFICATION_SUMMARY)}</summary>`,
     ...(outcome.status === 'completed' ? [`<result>${preview(safeJson(outcome.value), RUNTIME_CAPS.maxResultPreviewLength)}</result>`] : []),
     ...(outcome.error === undefined ? [] : [`<error>${preview(outcome.error.message, RUNTIME_CAPS.maxErrorLength)}</error>`]),
     `<reports count="${reports.length}"${shownReports.length < reports.length ? ` shown="${shownReports.length}"` : ''}>${shownReports.map((event) => preview(safeJson(event.item), 2048)).join('\n')}</reports>`,
@@ -3212,3 +3275,18 @@ export {
 
 /** 引擎类也导出：单测可以直接构造它（不需要完整 runtime），dev-host 若要复用调度也可用。 */
 export { WorkflowEngine };
+
+/**
+ * 快照里 `holes` 的上限（契约 `cli.md:174`：max 32）。等待中的留白永远保留在前——那是要点
+ * `FillWorkflowHole` 的行；被截掉的是已填完的历史（留白按契约不能在扇出里并发，所以等待中的
+ * 行数本来就极少）。
+ * @param {object[]} rows
+ * @returns {object[]}
+ */
+function capHoleRows(rows) {
+  const limit = RUNTIME_CAPS.maxSnapshotHoles;
+  if (rows.length <= limit) return rows;
+  const waiting = rows.filter((row) => row.state === 'waiting');
+  const filled = rows.filter((row) => row.state !== 'waiting').slice(-(Math.max(0, limit - waiting.length)));
+  return [...waiting, ...filled];
+}

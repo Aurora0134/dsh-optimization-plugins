@@ -49,8 +49,6 @@ export const EVENT_TYPES = Object.freeze({
 /** 事件类型的有序表；用于校验、测试与文档生成。 */
 export const WORKFLOW_EVENT_TYPES = Object.freeze(Object.values(EVENT_TYPES));
 
-/** 事件类型集合，便于 O(1) 判断。 */
-export const WORKFLOW_EVENT_TYPE_SET = Object.freeze(new Set(WORKFLOW_EVENT_TYPES));
 
 /** `workflowRunEvents` 的默认与最大行数（§1.1(2)）。 */
 export const DEFAULT_EVENT_LIMIT = 500;
@@ -250,109 +248,4 @@ export function appendJournalRowSync(file, event) {
  */
 export function flattenJournalRow(row) {
   return flattenRow(row, row.sequence);
-}
-
-/**
- * 一个 run 的 JSONL 事件日志。
- *
- * 同一进程内的 append 通过 promise 链串行化，保证并发 `record()` 不会拿到重复 sequence；
- * 跨进程并发不在保证范围内（ZCode 用 SQLite 事务，这里用等价 JSON 文件实现）。
- */
-export class Journal {
-  /**
-   * @param {{ file: string }} options `file` 是 journal.jsonl 的绝对路径
-   */
-  constructor({ file }) {
-    this.file = file;
-    /** @type {Promise<unknown>} */
-    this.tail = Promise.resolve();
-    /** @type {number | undefined} */
-    this.cachedWatermark = undefined;
-  }
-
-  /**
-   * 读取原始行；损坏的行（崩溃时常见的半行）直接跳过，不能拖垮整个 run。
-   *
-   * @returns {Promise<{ sequence: number, type: string, payload: unknown, time_created: number }[]>}
-   */
-  async readRows() {
-    return readJournalRowsSync(this.file);
-  }
-
-  /**
-   * 读取全部事件，摊平成 `{...payload, sequence, type, at}`。
-   *
-   * @returns {Promise<Record<string, any>[]>}
-   */
-  async readAll() {
-    const rows = await this.readRows();
-    return rows.map((row) => flattenRow(row, row.sequence));
-  }
-
-  /**
-   * 追加一条事件，返回存储行。`sequence` 由日志分配，调用方传入的旧 sequence 会被忽略。
-   *
-   * @param {Record<string, any>} event 事件对象；payload 就是事件自身（`type` 保留在 payload 内）
-   * @returns {Promise<{ sequence: number, type: string, payload: Record<string, any>, time_created: number }>}
-   */
-  async append(event) {
-    const job = this.tail.then(() => this.appendNow(event));
-    // 即使本次 append 失败，也不能让后续 append 永久排队在 rejected promise 上。
-    this.tail = job.catch(() => undefined);
-    return job;
-  }
-
-  /**
-   * @param {Record<string, any>} event
-   */
-  async appendNow(event) {
-    const row = appendJournalRowSync(this.file, event);
-    this.cachedWatermark = Math.max(this.cachedWatermark ?? 0, row.sequence);
-    return row;
-  }
-
-  /**
-   * 水位：已存储事件的最大 sequence；空日志为 0（快照字段要求 >=0）。
-   *
-   * @returns {Promise<number>}
-   */
-  async watermark() {
-    if (this.cachedWatermark !== undefined) return this.cachedWatermark;
-    const rows = await this.readRows();
-    this.cachedWatermark = rows.length === 0 ? 0 : rows[rows.length - 1].sequence;
-    return this.cachedWatermark;
-  }
-
-  /**
-   * 分页读取，响应对象即 `workflowRunEvents` 的线上形态。
-   *
-   * @param {{ afterSequence?: unknown, limit?: unknown, maxBytes?: number }} [options]
-   * @returns {Promise<{ events: Record<string, any>[], hasMore: boolean, lastEventSequence: number }>}
-   */
-  async page(options = {}) {
-    const rows = await this.readRows();
-    const watermark = rows.length === 0 ? 0 : rows[rows.length - 1].sequence;
-    const qued = pageEvents(rows, options);
-    return {
-      events: qued.events.map((row) => ({
-        sequence: row.sequence,
-        type: row.type,
-        payload: row.payload,
-      })),
-      hasMore: qued.hasMore,
-      // 水位取整个日志的最大值：客户端用 lastEventSequence 作为下一次的 afterSequence，
-      // 若只给本页最后一条，空页会导致水位倒退。
-      lastEventSequence: Math.max(watermark, qued.lastEventSequence),
-    };
-  }
-}
-
-/**
- * 便捷构造器，避免调用方关心文件命名。
- *
- * @param {string} runDir
- * @returns {Journal}
- */
-export function createJournal(runDir) {
-  return new Journal({ file: path.join(runDir, 'journal.jsonl') });
 }

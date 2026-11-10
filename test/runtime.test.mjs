@@ -283,7 +283,9 @@ test('hole：到达即挂起，fillHole 用函数体在站点处求值', async (
   const settled = await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
   assert.equal(settled.status, 'completed');
   assert.equal(settled.result, 7);
-  assert.equal(settled.holes.length, 0);
+  // 契约 §1.5：已填的 hole 以 `state:"filled"` 留在列表里，不再消失（评审 m14/R4）。
+  assert.deepEqual(settled.holes.map((hole) => `${hole.siteId}:${hole.state}`), ['hole#abc:filled']);
+  assert.equal(typeof settled.holes[0].filledAt, 'number');
 });
 
 test('fillHole：未知 run 返回 RUN_NOT_FOUND，未等待的站点返回 NOT_WAITING', async () => {
@@ -410,6 +412,10 @@ test('configureRun：活跃 run 改并发上限并记 run-caps-changed，未知/
   assert.equal(caps[0].event.caps.maxConcurrency, 7);
   assert.equal(runtime.configureRun(started.runId, 7).code, 'CAPS_UNCHANGED');
   assert.equal(runtime.configureRun('nope', 3).code, 'RUN_NOT_FOUND');
+  // 非法入参是“参数错”，不是“值没变”：独立错误码（评审 R5）。
+  for (const bad of [0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY, '7', null, undefined]) {
+    assert.equal(runtime.configureRun(started.runId, bad).code, 'INVALID_CAP', String(bad));
+  }
   release('done');
   await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
   assert.equal(runtime.configureRun(started.runId, 5).code, 'RUN_NOT_ACTIVE');
@@ -451,6 +457,15 @@ test('run-stalled：超过 stallMs 无进展时记事件并只催两次', async 
   const reminders = await until(() => notifications.filter((text) => /stalled|no progress/u.test(text)).length >= 2, 3000);
   assert.equal(Boolean(reminders), true);
   assert.equal(notifications.filter((text) => /no progress|still stalled/u.test(text)).length <= 2, true);
+  // 契约 §1.5 的 `health.lastProgressAt`/`stalledSince` 必须能从快照读到（评审 M10/R6）。
+  const snapshot = await until(async () => {
+    const current = await runtime.getRun(started.runId);
+    return current?.health?.stalledSince === undefined ? undefined : current;
+  }, 3000);
+  assert.equal(Boolean(snapshot), true, 'health.stalledSince 应该出现');
+  assert.equal(typeof snapshot.health.lastProgressAt, 'number');
+  assert.equal(typeof snapshot.health.stalledSince, 'number', 'stalledSince 应为 epoch 毫秒（契约 §1.5）');
+  assert.equal(Number.isFinite(Date.parse(new Date(snapshot.health.stalledSince).toISOString())), true);
   release('done');
   await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
 });
@@ -592,4 +607,66 @@ test('完成通知：报错分支给出 AmendWorkflow 指引，摘要截断字�
   assert.match(errored, /<error>bad script<\/error>/);
   assert.match(errored, /AmendWorkflow/);
   assert.match(errored, /ResumeWorkflowRun will refuse this run/);
+});
+
+test('完成通知：<summary> 截 500，superseded 的 run 带 <superseded_by>', () => {
+  const entry = {
+    meta: { id: 'dwf-1', name: 'n'.repeat(600), stopReason: 'superseded', supersededBy: 'dwf-2' },
+    events: [],
+  };
+  const text = formatCompletionNotification(entry, { status: 'stopped', reason: 'superseded' });
+  const summary = text.match(/<summary>(.*)<\/summary>/u);
+  assert.equal(summary[1].length, 500);
+  assert.equal(text.includes('<superseded_by>dwf-2</superseded_by>'), true);
+});
+
+test('amend：前驱 meta 落 stop_reason=superseded 与 superseded_by=<后继 runId>（契约 §4.9）', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", void 0);',
+      'return await __host.ask("ask#1", reader, "hold");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+  });
+  /** @type {(value: string) => void} */
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const notifications = [];
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'pred',
+    cwd: '/tmp/ws',
+    runner: async () => ({ text: await gate }),
+    notify: (text) => notifications.push(text),
+  });
+  assert.equal(started.ok, true, String(started.error));
+  await until(() => runtime.eventsAfter(started.runId, -1, 200).some((row) => row.type === 'node-executing'));
+
+  const amended = await runtime.amend(started.runId, {
+    code: '// stub',
+    name: 'next',
+    cwd: '/tmp/ws',
+    runner: async () => ({ text: 'done' }),
+    notify: () => {},
+  });
+  assert.equal(amended.ok, true, JSON.stringify(amended));
+  const successor = amended.runId;
+  assert.notEqual(successor, started.runId);
+
+  const predecessor = await runtime.getRun(started.runId);
+  assert.equal(predecessor.status, 'stopped');
+  assert.equal(predecessor.stopReason, 'superseded');
+  assert.equal(predecessor.supersededBy, successor);
+
+  const rows = await runtime.listRuns({ limit: 10 });
+  assert.equal(rows.find((row) => row.runId === started.runId).supersededBy, successor);
+  assert.equal(
+    notifications.some((text) => text.includes(`<superseded_by>${successor}</superseded_by>`)),
+    true,
+    '前驱的通知应指名后继',
+  );
+
+  release('late');
+  await runtime.waitForRun(successor, { timeoutMs: 3000 });
 });

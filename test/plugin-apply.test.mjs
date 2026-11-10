@@ -136,7 +136,7 @@ test('alwaysOn registers the full tool surface, both commands, the prompt sectio
       '/zcode-workflow/workflows/forRun',
       '/zcode-workflow/run/configure',
       '/zcode-workflow/policy',
-      // 兼容旧前端的三条遗留路由（前端已不再调用，保留一版以容忍缓存中的旧 bundle）。
+      // 兼容旧前端的四条遗留路由（前端已不再调用，保留一版以容忍缓存中的旧 bundle）。
       '/zcode-workflow/mode',
       '/zcode-workflow/run/start',
       '/zcode-workflow/workflows',

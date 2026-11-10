@@ -385,7 +385,7 @@ test('CreateWorkflow: a clean compile starts the run and names the draft', async
   const h = harness();
   const result = await h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'demo' }, execFor());
   assert.equal(result.ok, true);
-  assert.equal(result.run_id, 'dwf-run-1');
+  assert.equal(result.runId, 'dwf-run-1');
   assert.equal(result.status, 'backgrounded');
   assert.ok(result.text.startsWith('The workflow script compiled cleanly and the run started in the background with ID: dwf-run-1.'));
   assert.ok(result.text.includes('It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.'));
@@ -556,8 +556,8 @@ test('AmendWorkflow: a settled predecessor and a revised script report both sent
   const h = harness({ runtime: { getRun: async () => runSnapshot({ status: 'completed' }) } });
   const result = await h.byName.AmendWorkflow.execute({ run_id: 'r1', script: 'return 4;' }, execFor());
   assert.equal(result.ok, true);
-  assert.equal(result.run_id, 'dwf-new');
-  assert.equal(result.superseded_run_id, 'r1');
+  assert.equal(result.runId, 'dwf-new');
+  assert.equal(result.supersededRunId, 'r1');
   assert.ok(result.text.startsWith('Run r1 had already settled; its finished work is imported as cache. The revised script started in the background as run dwf-new.'));
   assert.ok(result.text.includes('It is still running — you will be notified with the final output when it completes.'));
   const amended = h.calls.find(([name]) => name === 'amend')[1];
@@ -624,7 +624,7 @@ test('ResumeWorkflowRun: success uses the same run id and the contract text', as
   const h = harness();
   const result = await h.byName.ResumeWorkflowRun.execute({ run_id: 'r1' }, execFor());
   assert.equal(result.ok, true);
-  assert.equal(result.run_id, 'r1');
+  assert.equal(result.runId, 'r1');
   assert.equal(result.status, 'backgrounded');
   assert.equal(result.text, 'The workflow run r1 has been resumed and is running in the background. It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.');
   assert.deepEqual(h.calls[0], ['resume', 'r1']);
@@ -696,12 +696,13 @@ test('ListWorkflowRuns: clamp, filter, annotation and empty state', async () => 
   assert.ok(all.text.includes('possibly_interrupted="true"'));
   assert.ok(all.text.includes('another session'));
   const clamped = h.calls.find(([name]) => name === 'listRuns')[1];
-  assert.equal(clamped.limit, 50);
+  // 多要一行来判定 `truncated`：50 是契约上限，探测请求是 limit + 1。
+  assert.equal(clamped.limit, 51);
   assert.equal(clamped.sessionId, 'sess-1');
 
   const filtered = await h.byName.ListWorkflowRuns.execute({ statuses: ['running'] }, execFor());
   assert.equal(filtered.runs.length, 1);
-  assert.equal(filtered.runs[0].run_id, 'r1');
+  assert.equal(filtered.runs[0].runId, 'r1');
 
   const filteredNone = await h.byName.ListWorkflowRuns.execute({ statuses: ['stopped'] }, execFor());
   assert.equal(filteredNone.text, 'No workflow runs match that status filter (stopped).');
@@ -929,7 +930,7 @@ test('StopWorkflowRun: the port extension stops with reason model', async () => 
   const h = harness();
   const result = await h.byName.StopWorkflowRun.execute({ run_id: 'r1' }, execFor());
   assert.equal(result.ok, true);
-  assert.equal(result.stop_reason, 'model');
+  assert.equal(result.stopReason, 'model');
   assert.ok(result.text.startsWith('Stopped run r1 (stop_reason "model")'));
   assert.deepEqual(h.calls[0], ['stopRun', 'r1', 'model']);
 
@@ -940,6 +941,143 @@ test('StopWorkflowRun: the port extension stops with reason model', async () => 
 
   const unavailable = harness({ runtime: { stopRun: undefined } });
   assert.equal((await unavailable.byName.StopWorkflowRun.execute({ run_id: 'r1' }, execFor())).text, STOP_UNAVAILABLE);
+});
+
+/* ---------------------------------------------------------------------------------------- */
+/* 契约输出形状（cli.md §1.2–§1.6：k4 / X0e / Uoe / V0e）                                     */
+/* ---------------------------------------------------------------------------------------- */
+
+test('CreateWorkflow / ResumeWorkflowRun：信封用契约的 camelCase 字段', async () => {
+  const h = harness();
+  const created = await h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'demo' }, execFor());
+  assert.equal(created.ok, true);
+  assert.deepEqual(Object.keys(created).sort(), [
+    'backgroundTaskId', 'diagnostics', 'ok', 'response', 'runId', 'scriptPath', 'status', 'text',
+  ]);
+  assert.equal(created.status, 'backgrounded');
+  assert.equal(created.backgroundTaskId, 'dwf-run-1');
+
+  const resumed = await h.byName.ResumeWorkflowRun.execute({ run_id: 'r1' }, execFor());
+  assert.deepEqual(Object.keys(resumed).sort(), ['backgroundTaskId', 'ok', 'response', 'runId', 'status', 'text']);
+  assert.equal(resumed.runId, 'r1');
+  assert.equal(resumed.backgroundTaskId, 'r1');
+});
+
+test('GetWorkflowRun：response 是 Uoe 形状，health/holes/logTail/pendingQuestions 按契约', async () => {
+  const stalledSince = 1_700_000_100_000;
+  const snapshot = runSnapshot({
+    name: 'n'.repeat(600),
+    status: 'stopped',
+    stopReason: 'superseded',
+    supersededBy: 'dwf-next',
+    usage: { spentTokens: 42, nodesObserved: 3, nodesRunning: 0, nodesCompleted: 2, nodesFailed: 1 },
+    actors: [{ siteId: 'ask#1', ordinal: 1, name: 'judge', status: 'completed' }],
+    phases: ['Plan', 'Review'],
+    currentPhase: 'Review',
+    health: {
+      consecutiveFailures: 1, cachedSteps: 2, pendingQuestionsKnown: true,
+      lastProgressAt: 1_700_000_000_000, stalledSince,
+    },
+    holes: [
+      { siteId: 'hole#a', ordinal: 1, name: 'Decide', state: 'waiting', since: 5 },
+      { siteId: 'hole#b', ordinal: 1, name: 'Draft', state: 'filled', filledAt: 7, filledBy: 'sess-1' },
+    ],
+    pendingQuestions: [{ qid: 'dwfq-1', actorSiteId: 'ask#1', actorOrdinal: 1, actorName: 'judge', question: 'Which one?', askedAt: 9 }],
+    artifacts: [{ id: 'report', kind: 'markdown', version: 2, title: 'Report', itemCount: 3, primary: true }],
+    logTail: [{ sequence: 4, message: 'x'.repeat(3000), at: 1234 }],
+  });
+  const h = harness({ runtime: { getRun: async () => snapshot } });
+  const result = await h.byName.GetWorkflowRun.execute({ run_id: 'r1' }, execFor());
+  assert.equal(result.ok, true);
+  assert.equal(typeof result.spentTokens, 'number');
+  assert.equal(typeof result.generatedAt, 'number');
+  assert.equal(result.summary.length, 400, 'summary 截到契约的 400');
+  assert.deepEqual(result.usage, { spentTokens: 42, nodesObserved: 3, nodesRunning: 0, nodesCompleted: 2, nodesFailed: 1 });
+  assert.deepEqual(result.actors, [{ siteId: 'ask#1', ordinal: 1, name: 'judge' }]);
+  assert.deepEqual(result.phases.map((phase) => `${phase.name}:${phase.state}`), ['Plan:done', 'Review:current']);
+  assert.equal(result.health.lastProgressAt, 1_700_000_000_000);
+  assert.equal(result.health.stalledSince, stalledSince);
+  assert.deepEqual(result.logTail, [{ sequence: 4, message: `${'x'.repeat(1023)}…`, at: 1234 }]);
+  assert.deepEqual(result.holes.map((hole) => `${hole.siteId}:${hole.state}`), ['hole#a:waiting', 'hole#b:filled']);
+  assert.equal(result.holes[1].filledAt, 7);
+  assert.equal(result.holes[1].filledBy, 'sess-1');
+  assert.equal(result.pendingQuestions[0].actor, 'ask#1@1');
+  assert.deepEqual(result.artifacts[0], { id: 'report', kind: 'markdown', title: 'Report', version: 2, itemCount: 3, primary: true });
+  // 旧自由形状与契约外的名字不再出现。
+  for (const legacy of ['run_id', 'stop_reason', 'actorSiteId', 'actorOrdinal']) {
+    assert.equal(Object.hasOwn(result, legacy), false, legacy);
+  }
+
+  // 没有停滞时 `stalledSince` 不出现，`lastProgressAt` 仍在。
+  const healthy = harness({
+    runtime: {
+      getRun: async () => runSnapshot({ health: { consecutiveFailures: 0, cachedSteps: 0, pendingQuestionsKnown: true, lastProgressAt: 5 } }),
+    },
+  });
+  const healthyResult = await healthy.byName.GetWorkflowRun.execute({ run_id: 'r1' }, execFor());
+  assert.equal(Object.hasOwn(healthyResult.health, 'stalledSince'), false);
+  assert.equal(healthyResult.health.lastProgressAt, 5);
+});
+
+test('ListWorkflowRuns：行按 V0e，超过 limit 时带 truncated', async () => {
+  const rows = (count) => Array.from({ length: count }, (unused, index) => ({
+    runId: `r${index + 1}`, label: `run ${index + 1}`, status: 'completed',
+    ownedByThisSession: true, createdAt: index, updatedAt: index, spentTokens: 0,
+  }));
+  const overflow = harness({ runtime: { listRuns: async (options) => { overflow.calls.push(['listRuns', options]); return rows(3); } } });
+  const page = await overflow.byName.ListWorkflowRuns.execute({ limit: 2 }, execFor());
+  assert.equal(page.runs.length, 2);
+  assert.equal(page.truncated, true);
+  assert.deepEqual(page.runs.map((row) => row.runId), ['r1', 'r2']);
+  assert.deepEqual(Object.keys(page.runs[0]).sort(), [
+    'createdAt', 'label', 'labelSource', 'ownedByThisSession', 'runId', 'spentTokens', 'status', 'updatedAt',
+  ]);
+  assert.equal(page.runs[0].labelSource, 'script');
+  assert.equal(overflow.calls.find(([name]) => name === 'listRuns')[1].limit, 3);
+
+  const exact = harness({ runtime: { listRuns: async () => rows(2) } });
+  const noOverflow = await exact.byName.ListWorkflowRuns.execute({ limit: 2 }, execFor());
+  assert.equal(noOverflow.truncated, undefined);
+  assert.equal(noOverflow.runs.length, 2);
+});
+
+test('每个工具的输出字段都在自己声明的 output schema 里，required 一个不缺', async () => {
+  const h = harness({
+    runtime: {
+      getRun: async () => runSnapshot({ status: 'completed' }),
+      listRuns: async () => [{
+        runId: 'r1', label: 'demo', status: 'completed',
+        ownedByThisSession: true, createdAt: 1, updatedAt: 2, spentTokens: 0,
+      }],
+    },
+  });
+  const exec = execFor();
+  const calls = [
+    ['CreateWorkflow', { script: 'return 1;', name: 'demo' }],
+    ['AmendWorkflow', { run_id: 'r1', script: 'return 2;' }],
+    ['ResumeWorkflowRun', { run_id: 'r1' }],
+    ['GetWorkflowRun', { run_id: 'r1' }],
+    ['ListWorkflowRuns', {}],
+    ['FillWorkflowHole', { run_id: 'r1', hole_id: 'hole#a', script: 'return 1;' }],
+    ['EvalWorkflowSnippet', { code: 'return 1;' }],
+    ['SaveWorkflow', { name: 'x', description: 'd', scope: 'project', script: 'return 1;' }],
+    ['ListSavedWorkflows', {}],
+    ['ResolveWorkflowQuestion', { question_id: 'dwfq-1', answer: 'left' }],
+    ['TaskOutput', { run_id: 'r1', block: false }],
+    ['StopWorkflowRun', { run_id: 'r1' }],
+  ];
+  for (const [name, args] of calls) {
+    const tool = h.byName[name];
+    const result = await tool.execute(args, exec);
+    assert.equal(result.ok, true, name);
+    const declared = Object.keys(tool.output.schema.properties);
+    for (const key of Object.keys(result)) {
+      assert.equal(declared.includes(key), true, `${name} 返回了未声明的字段 ${key}`);
+    }
+    for (const key of tool.output.schema.required ?? []) {
+      assert.equal(Object.hasOwn(result, key), true, `${name} 缺必填输出字段 ${key}`);
+    }
+  }
 });
 
 /* ---------------------------------------------------------------------------------------- */

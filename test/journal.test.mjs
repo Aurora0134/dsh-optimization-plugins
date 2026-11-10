@@ -1,6 +1,6 @@
 /**
- * Unit tests for host/journal.js — sequence allocation, afterSequence paging, the line/byte
- * double budget (first row always survives), watermark and legacy/corrupt-line tolerance.
+ * host/journal.js 的单元测试：事件类型表、分页参数归一化、行读/追加（同步实现，store 复用）、
+ * 行数+字节双预算（首行永不被丢）、水位与旧格式/半行容忍。
  */
 
 import test from 'node:test';
@@ -12,25 +12,22 @@ import path from 'node:path';
 import {
   DEFAULT_EVENT_LIMIT,
   EVENT_TYPES,
-  Journal,
   MAX_EVENT_PAGE_BYTES,
   WORKFLOW_EVENT_TYPES,
-  createJournal,
+  appendJournalRowSync,
+  flattenJournalRow,
   normalizeAfterSequence,
   normalizeEventLimit,
   pageEvents,
+  readJournalRowsSync,
 } from '../host/journal.js';
 
-/** @returns {Promise<{ dir: string, file: string, journal: Journal, cleanup: () => Promise<void> }>} */
+/** 一个临时 run 目录，`journal.jsonl` 由各用例自己写入。 */
 async function fixture() {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'dwf-journal-'));
   return {
-    dir,
     file: path.join(dir, 'journal.jsonl'),
-    journal: createJournal(dir),
-    cleanup: async () => {
-      await fsp.rm(dir, { recursive: true, force: true });
-    },
+    cleanup: () => fsp.rm(dir, { recursive: true, force: true }),
   };
 }
 
@@ -38,7 +35,6 @@ test('event type table is the 26-entry contract from §2.1', () => {
   assert.equal(WORKFLOW_EVENT_TYPES.length, 26);
   assert.equal(new Set(WORKFLOW_EVENT_TYPES).size, 26);
   assert.equal(EVENT_TYPES.RUN_STARTED, 'run-started');
-  assert.equal(EVENT_TYPES.IMPORT_CACHE_CLOSED, 'import-cache-closed');
   assert.deepEqual(
     [...WORKFLOW_EVENT_TYPES].sort(),
     [
@@ -88,48 +84,40 @@ test('append allocates contiguous sequences starting at 0', async (t) => {
   t.after(f.cleanup);
 
   for (let index = 0; index < 5; index += 1) {
-    const row = await f.journal.append({ type: 'log', message: `line ${index}` });
+    const row = appendJournalRowSync(f.file, { type: 'log', message: `line ${index}` });
     assert.equal(row.sequence, index);
   }
-  const rows = await f.journal.readRows();
+  const rows = readJournalRowsSync(f.file);
   assert.deepEqual(rows.map((row) => row.sequence), [0, 1, 2, 3, 4]);
-  assert.equal(await f.journal.watermark(), 4);
+  assert.equal(rows[rows.length - 1].sequence, 4);
 
-  const events = await f.journal.readAll();
+  const events = rows.map(flattenJournalRow);
   assert.equal(events[0].message, 'line 0');
   assert.equal(events[0].type, 'log');
   assert.equal(events[0].sequence, 0);
   assert.equal(typeof events[0].at, 'number');
 });
 
-test('concurrent appends keep the sequence unique and contiguous', async (t) => {
-  const f = await fixture();
-  t.after(f.cleanup);
-
-  await Promise.all(Array.from({ length: 40 }, (_, index) => f.journal.append({ type: 'report', index })));
-  const rows = await f.journal.readRows();
-  assert.equal(rows.length, 40);
-  assert.deepEqual(rows.map((row) => row.sequence), Array.from({ length: 40 }, (_, index) => index));
-});
-
 test('afterSequence is an exclusive lower bound and limit reports hasMore', async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
 
-  for (let index = 0; index < 10; index += 1) await f.journal.append({ type: 'log', message: String(index) });
+  for (let index = 0; index < 10; index += 1) appendJournalRowSync(f.file, { type: 'log', message: String(index) });
+  const rows = readJournalRowsSync(f.file);
 
-  const first = await f.journal.page({ afterSequence: 2, limit: 3 });
+  const first = pageEvents(rows, { afterSequence: 2, limit: 3 });
   assert.deepEqual(first.events.map((event) => event.sequence), [3, 4, 5]);
   assert.equal(first.hasMore, true);
-  assert.equal(first.lastEventSequence, 9);
+  assert.equal(first.lastEventSequence, 5);
 
-  const tail = await f.journal.page({ afterSequence: 7, limit: 10 });
+  const tail = pageEvents(rows, { afterSequence: 7, limit: 10 });
   assert.deepEqual(tail.events.map((event) => event.sequence), [8, 9]);
   assert.equal(tail.hasMore, false);
 
-  const empty = await f.journal.page({ afterSequence: 9, limit: 10 });
+  const empty = pageEvents(rows, { afterSequence: 9, limit: 10 });
   assert.deepEqual(empty.events, []);
   assert.equal(empty.hasMore, false);
+  // 空页也要把水位停在 9：客户端据此推进 afterSequence，否则会一直重读。
   assert.equal(empty.lastEventSequence, 9);
 });
 
@@ -173,27 +161,27 @@ test('legacy flat rows and torn lines are tolerated', async (t) => {
     'utf8',
   );
 
-  const rows = await f.journal.readRows();
+  const rows = readJournalRowsSync(f.file);
   assert.deepEqual(rows.map((row) => row.sequence), [0, 1]);
   assert.equal(rows[0].payload.name, 'preflight');
 
-  const events = await f.journal.readAll();
+  const events = rows.map(flattenJournalRow);
   assert.equal(events[0].type, 'phase/started');
   assert.equal(events[0].name, 'preflight');
   assert.equal(events[0].at, 10);
   assert.equal(events[1].message, 'after tear');
 
   // 追加时不能与旧行号/sequence 冲突。
-  const appended = await f.journal.append({ type: 'log', message: 'new' });
+  const appended = appendJournalRowSync(f.file, { type: 'log', message: 'new' });
   assert.equal(appended.sequence, 2);
-  assert.equal((await f.journal.readRows()).length, 3);
+  assert.equal(readJournalRowsSync(f.file).length, 3);
 });
 
 test('payload is stored as the full event object and re-read flat', async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
 
-  const row = await f.journal.append({
+  const row = appendJournalRowSync(f.file, {
     type: 'artifact-published',
     instance: { siteId: 'site-a', ordinal: 2 },
     artifact: { id: 'report', kind: 'markdown', version: 1 },
@@ -201,7 +189,7 @@ test('payload is stored as the full event object and re-read flat', async (t) =>
   assert.equal(row.type, 'artifact-published');
   assert.deepEqual(row.payload.instance, { siteId: 'site-a', ordinal: 2 });
 
-  const [event] = await f.journal.readAll();
+  const [event] = readJournalRowsSync(f.file).map(flattenJournalRow);
   assert.equal(event.type, 'artifact-published');
   assert.equal(event.instance.siteId, 'site-a');
   assert.equal(event.artifact.id, 'report');
@@ -211,10 +199,9 @@ test('a missing journal reads as empty and starts at sequence 0', async (t) => {
   const f = await fixture();
   t.after(f.cleanup);
 
-  assert.deepEqual(await f.journal.readRows(), []);
-  assert.equal(await f.journal.watermark(), 0);
-  const page = await f.journal.page({});
+  assert.deepEqual(readJournalRowsSync(f.file), []);
+  const page = pageEvents(readJournalRowsSync(f.file), {});
   assert.deepEqual(page.events, []);
   assert.equal(page.lastEventSequence, 0);
-  assert.equal((await f.journal.append({ type: 'run-started' })).sequence, 0);
+  assert.equal(appendJournalRowSync(f.file, { type: 'run-started' }).sequence, 0);
 });

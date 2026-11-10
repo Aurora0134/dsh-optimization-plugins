@@ -2,12 +2,16 @@
  * Model-facing tool contract for the dynamic-workflow port.
  *
  * The descriptions and notes below are the ZCode 3.17.2 / CLI 0.21.1 strings, copied
- * verbatim from the reversed bundle (`cli.md` §1.2–§1.11). Two DSH-local edits are applied
+ * verbatim from the reversed bundle (`cli.md` §1.2–§1.11). Three DSH-local edits are applied
  * everywhere and only here:
  *  - `TaskStop` becomes `StopWorkflowRun`, the port's only tool-surface extension, because
  *    ZCode's generic background-task tools do not exist in the Harness;
  *  - ZCode's archive paths (`.zcode/workflows`, `~/.zcode/workflows`) become the port's
- *    (`.dsh/workflows`, `$DSH_HOME/workflows`), while `.zcode/workflows` stays readable.
+ *    (`.dsh/workflows`, `$DSH_HOME/workflows`), while `.zcode/workflows` stays readable;
+ *  - where the bundle says the script "is typechecked", this port says it is compiled and
+ *    checked for syntax and against the facade's rules: there is no TypeScript type checker
+ *    here, and a promise the compiler cannot keep is worse than a narrower one it can
+ *    (recorded in `docs/port-contract.md`'s deviation table).
  *
  * Nothing else is reworded: paragraph boundaries, sentence order and punctuation are the
  * bundle's, so a model that learned the upstream contract reads the same text here.
@@ -34,7 +38,7 @@ export const TOOL_NAMES = [
 
 export const DESCRIPTIONS = {
   createWorkflow: [
-    'Create and run a dynamic workflow: a TypeScript script that orchestrates multiple model-driven subagents with plain control flow (loops, conditionals, fan-out) and typed intermediate results. The script is typechecked, the user is asked to confirm it, and the run starts in the background; you are notified with its final result when it settles. Compilation errors come back as diagnostics.',
+    'Create and run a dynamic workflow: a TypeScript script that orchestrates multiple model-driven subagents with plain control flow (loops, conditionals, fan-out) and typed intermediate results. The script is compiled and checked — syntax plus the facade\'s rules — before it runs, the user is asked to confirm it, and the run starts in the background; you are notified with its final result when it settles. Compilation errors come back as diagnostics.',
     '',
     'When to use:',
     '- The user explicitly asks for a workflow — "use a workflow", "with a workflow", "使用 workflow", "用工作流", or any phrasing that names workflow/工作流 as the means: this tool is mandatory. Do not substitute the Agent/Task subagent tools, do not do the work inline yourself, and do not judge the task too small for a workflow — the user chose the tool, and that choice is theirs. Size only decides how many subagents the script gets, never whether it is written.',
@@ -171,7 +175,7 @@ export const ARGS_WITHOUT_PATH = '`args` belongs to the `path` source: it carrie
 export const COMPILE_FAILED_NOTE = 'NOTE: The workflow was NOT executed — fix the errors above and resubmit.';
 
 /** `W2n`: no execution capability in this session. */
-export const NO_EXECUTION_NOTE = 'NOTE: The workflow was NOT executed — workflow execution is not available in this session, so the script was only typechecked.';
+export const NO_EXECUTION_NOTE = 'NOTE: The workflow was NOT executed — workflow execution is not available in this session, so the script was only compiled and checked against the facade\'s rules.';
 
 /** `Wwt`: compile failure that does have a file to name. */
 export function scriptFileNote({ kind, described }) {

@@ -1002,8 +1002,15 @@ export function registerWorkflowUiApi({
         }
         const result = runtime.configureRun(runId, limit);
         if (result?.ok === false) {
-          const status = result.code === 'RUN_NOT_FOUND' ? 404 : (result.code === 'RUN_NOT_ACTIVE' ? 409 : 400);
-          throw new ApiError(status, 'run-settings-failed', result.message ?? `could not retune "${runId}"`);
+          // 上游三条拒绝各有自己的错误码，客户端据此给不同文案，不要压成一个。
+          const mapped = result.code === 'RUN_NOT_FOUND'
+            ? { status: 404, code: 'run_not_found' }
+            : result.code === 'CAPS_UNCHANGED'
+              ? { status: 409, code: 'retune_unchanged' }
+              : result.code === 'RUN_NOT_ACTIVE'
+                ? { status: 409, code: 'run_settled' }
+                : { status: 400, code: 'run_not_retunable' };
+          throw new ApiError(mapped.status, mapped.code, result.message ?? `could not retune "${runId}"`);
         }
         sendJson(res, 200, { ok: true, caps: result?.caps, run: await runtime.getRun(runId) });
       },

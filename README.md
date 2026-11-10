@@ -26,7 +26,7 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 
 设置页的开关与 `GET|POST /zcode-workflow/policy` 用的是 ZCode 的 `{ enabled, mode }` 模型：关掉即把 `mode` 落成 `disabled`并清空。
 
-其他可调项：`maxConcurrency`（同时在跑的子代理数，默认 `max(4, min(16, CPU核数-2))`，运行中按 AIMD 自适应）、`subagentProvider`（默认 `spawn`）、`subagentModel`（默认继承会话模型）、`stallMs`（无进展多久判定卡死，默认 30 分钟）。
+其他可调项：`maxConcurrency`（同时在跑的子代理数，默认 `max(4, min(16, CPU核数-2))`，运行中按 AIMD 自适应）、`subagentProvider`（默认 `spawn`）、`subagentModel`（默认继承会话模型）、`stallMs`（无进展多久判定卡死，默认 30 分钟）、`stallCheckMs`（多久检查一次，默认 60 秒）。
 
 ## 模型侧工具
 
@@ -71,7 +71,7 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 - facade：`agent(name?, persona?) → Agent{ask<T>(instructions)}`、`phase`、`log`、`report(item, artifactId?)`、`artifact.{file,markdown,chart,table,metrics,board}`、`files.{glob,read,grep}`、`git.{changedFiles,diff,status,log}`、`world.run`、`channel`、`future`、`hole`、`model`、`run`、`args`
 - 规则：函数体内普通 TypeScript；禁止 `import/export/declare`、`process/fetch`、`Date.now()/Math.random()`；`phase(...)` 必须是独立语句且名字是字面量；同名子代理在单次运行内唯一；`world.run` 命令、`phase` 名、产物 id、`report` tag 必须是字面量；`report` 的条目必须 JSON 可序列化
 - 运行结果就是脚本的 `return` 值；`report()` 是即发即忘的进度发射器，没有 `WorkflowReport` 类型
-- 诊断码与消息沿用 ZCode（9001–9012，另加 1184 承载模块语法），在插件内按文法规则静态检查；类型擦除用 Node 自带 `stripTypeScriptTypes`，因而只对 `ask<T>` 用到的 `interface` 做结构校验，不做完整 tsc 类型检查
+- 诊断码与消息沿用 ZCode（9001、9003–9010、9012，未知名字报 TS 的 2304，模块语法用 1184；9002 与 9011 在真实实现里也没有独立产生点，见 `docs/port-contract.md`），在插件内按文法规则静态检查；类型擦除用 Node 自带 `stripTypeScriptTypes`，因而只对 `ask<T>` 用到的 `interface` 做结构校验，不做完整 tsc 类型检查
 
 ## 存储
 
@@ -91,7 +91,7 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 完整清单见 `docs/port-contract.md` 的"已知偏差"表。要点：
 
 1. **执行环境**：脚本在本进程的 `node:vm` cell 里跑（同一套 JSON 协议与停滞检测），不是独立子进程，因此没有进程级崩溃与内存隔离。
-2. **类型检查**：用文法规则检查 + `stripTypeScriptTypes`，并从脚本里的 `interface` 生成 `ask<T>` 的校验 schema；类型错误（而非规则错误）不会在编译期报出。
+2. **编译检查**：用文法规则检查 + `stripTypeScriptTypes`，并从脚本里的 `interface` 生成 `ask<T>` 的校验 schema；类型错误（而非规则错误）不会在编译期报出。
 3. **子代理**：DSH 的子代理没有会话中途动态注册工具的通道，因此 `submit_result`/`escalate` 用"逐字提示 + 回合制"等价实现：typed ask 要求返回可解析 JSON，违规走 repair、空回合走 nudge，升级提问由 `escalate` 文本触发并通过 `ResolveWorkflowQuestion` 回灌。
 4. **运行记录**：真实实现写在会话 SQLite；本插件用项目目录下的 JSONL/JSON 等价映射，字段与保留策略（每会话 8 条运行、产物 32 个 id / 16 个版本）一致。
 5. **amend**：以新运行取代旧运行，不做 transcript 种子与记录级缓存导入；`ResumeWorkflowRun` 才按 journal 重放已完成的工作。
@@ -100,7 +100,7 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 
 ## 验证
 
-- 单元测试：`node --test test/*.test.mjs` → **217 个测试全部通过**，按文件：编译器 15、运行时 20、facade 6、数据面（journal 9 / projection 19 / phase-state 12 / store 17 / ui-api 38）、工具 50、消息 4、审批 12、工作区 11、插件加载 2、前端构建 2。
+- 单元测试：`node --test test/*.test.mjs` → **229 个测试全部通过**，按文件：编译器 21、运行时 22、facade 6、数据面（journal 8 / projection 19 / phase-state 12 / store 17 / ui-api 39）、工具 54、消息 4、审批 12、工作区 11、插件加载 2、前端构建 2。
 - 加载探针（`test/plugin-apply.test.mjs`）：用最小 ctx 驱动 `apply`，断言 12 个工具、2 个命令、1 个提示段、3 个技能与 27 条路由全部注册且不抛错（含 22 条数据面路由、运行设置 `POST /run/configure` 与 4 条兼容旧前端的遗留路由）；并覆盖 `onDemand` 下不注册模型面工具、只留数据通道。
 - 前端构建：`node scripts/build-client.mjs` → 25 个 part、`node --check client.js` 通过、`client.js` 与源码一致。
 - 前端渲染冒烟：用构建产物和 stub React 逐个渲染七个槽组件（工具卡、确认块、详情、脚本步骤、目录页、设置行、状态入口）无异常。

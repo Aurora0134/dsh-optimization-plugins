@@ -7,7 +7,8 @@
  *   而是调用宿主注入的 `__host.*`（`beauty/zcode-cli.js:648735-648860`）。
  * - 旧版把 `ask<T>` 改写成 `__zcodeSchema("T")` 标记；现行 lowering 是「站点 id + `__host.ask`」，
  *   journal/重放都按站点 id 做键，`<T>` 只用来生成 JSON Schema 供结果校验。
- * - 诊断码与文案按 ZCode 0.21.1 的 9001-9012 逐字复刻（契约见 docs/port-contract.md）。
+ * - 诊断码与文案按 ZCode 0.21.1 的码表逐字复刻（9001、9003–9010、9012；没有 9002，9011 无产生点，
+ *   未知名字用 TS 的 2304，模块语法用 1184——见 docs/port-contract.md）。
  *
  * 这里没有 TypeScript 编译器：结构分析用本模块自己的 tokenizer（所以检查永远不会命中注释、
  * 字符串或模板字面量内部的文字），类型擦除交给 Node 内建的 `stripTypeScriptTypes`
@@ -28,9 +29,12 @@
  * ## 已知偏差（不是遗漏，是无 TS 类型检查器的边界）
  * - 没有语义类型检查：`strict` 下的类型错误（未判空的 `.find()` 结果等）不在编译期报出。
  * - 「facade 值被重定型」那条 9001 无法检测（需要类型系统）；「取引用」那条能检测。
- * - `process`/`require`/`fetch`/`fs`/`eval`/`Function`/`Date.now()`/`Math.random()` 在真实实现里
- *   由 TS 语义诊断或运行期禁令（cell 里 `Date`/`Math.random` 被改写）兜底；这里用自有的
- *   **9002** 在编译期拦下（bundle 未占用 9002，故不复刻文案，见各条 message 注释）。
+ * - 未声明的名字只查**调用点**：`frobnicate(1)`、`process`/`require`/`fetch`、以及 G1 旧 facade
+ *   名字（`parallel`/`pipeline`/`budget`/`workflow`）报 TS 的 2304 `Cannot find name 'x'.`
+ *   （契约 §3.2 A 把语义诊断交给 TS；bundle 的文案表见 `cli.md:441455`）。读一个未声明变量
+ *   （`return nope;`）不报，真 TS 会报。
+ * - `Date.now()`/`new Date()`/`Math.random()` 是**运行期**禁令（§2.13，cell 抛错），不是编译期
+ *   诊断；`eval`/`Function` 在 bundle 的 cell 里同样可达（lowering 自己就发 `eval`）。
  * - 模板字面量被当作一个不透明 token，`${…}` 里的 facade 调用不做站点改写（与旧实现同一边界）。
  * - `import` 语句的文案由 TS 的语义诊断产生，这里没有原文，用 1184 + 自有措辞。
  */
@@ -38,7 +42,7 @@
 import { stripTypeScriptTypes } from 'node:module';
 
 /* ================================================================================================
- * 1. facade 声明（逐字，cli:427451-427790）
+ * 1. facade 声明（逐字，cli.md:427451-427790）
  * ============================================================================================== */
 
 const MODEL_DTS = `/** A model declared with model(). */
@@ -375,8 +379,13 @@ export const SNIPPET_FACADE_DTS = `${ARGS_DTS}${RUN_DTS}${LOG_DTS}${FILES_GIT_DT
 
 export const COMPILER_DIAGNOSTIC_CODES = Object.freeze({
   FACADE_MISUSE: 9001,
-  /** bundle 未占用 9002；这里用它承载「禁止的全局/API」，见文件头偏差说明。 */
-  FORBIDDEN_API: 9002,
+  /**
+   * TS 的语义诊断 `Cannot find name '{0}'.`。契约的自定义码是 9001 与 9003–9012，**没有 9002**
+   * （`cli.md` §3.2 的码表：9001、9003、9004、9005、9006、9007、9008、9009、9010、9011、9012），
+   * 所以「名字不存在」走 TS 自己的码：§3.2 A 说语义诊断由 TS 出，bundle 的文案表里 2304 正是
+   * 这个形状（`cli.md:441455`）。本实现只覆盖调用点与 Node/web 全局，不覆盖普通标识符读取。
+   */
+  UNKNOWN_NAME: 2304,
   WORLD_COMMAND: 9003,
   PHASE: 9004,
   DUPLICATE_ACTOR: 9005,
@@ -385,8 +394,14 @@ export const COMPILER_DIAGNOSTIC_CODES = Object.freeze({
   PRESET_PLACEMENT: 9008,
   PRIMARY_CONFLICT: 9009,
   MODEL: 9010,
-  MODEL_UNAVAILABLE: 9011,
   HOLE: 9012,
+  /**
+   * 契约里还有 9011（模型可用性），本移植不产生它：它的两个产生点都要「这个 run 能用的模型集」，
+   * 一是目录在校验之后才出现该模型（`The model "…" became available only after this call was
+   * checked; submit the script again.`），二是 fill 里点了一个 run 不可用的模型。Harness 不向
+   * 插件暴露模型清单，也没有 per-fill 的选择，两处都无从判定（见 `docs/port-contract.md`）。
+   * `model("…")` 因此只校验「非空字面量」这一条（9010）。
+   */
   /** TS 1184：`declare` / `export` / `import` 这类在函数体里非法的语法修饰。 */
   MODULE_SYNTAX: 1184,
 });
@@ -428,22 +443,20 @@ export const DIAGNOSTIC_MESSAGES = Object.freeze({
   presetInLoop: 'a preset artifact declared inside a loop: hoist it to the top level and declare it once. A preset is declared once and fed many times — the loop body is where report(item, "<id>") belongs, not the declaration. Re-declaring the same spec is a no-op, but re-declaring it with a different spec fails the whole run, so the loop is the wrong place for it either way.',
   primaryConflict: (id, otherId, otherKind, otherLine) => `artifact "${id}" is marked primary, but "${otherId}" already is (artifact.${otherKind} on line ${otherLine}). A run has one deliverable — the card and the run pane lead with it. Drop primary from one of them, or publish this content as a new version of the other id.`,
   modelLiteral: 'model() takes the model name as a non-empty string literal (a model id or "providerId/modelId", optionally with "$level"): every model a script can use is checked against the configured models before the run starts. Put runtime choices in which ModelRef you pass, not in the name.',
-  modelUnavailable: (name, configured) => `The model "${name}" is not one this run can use: ${configured === undefined || configured.length === 0 ? 'this session named no models to choose from' : `the models it may use are ${configured.map((entry) => JSON.stringify(entry)).join(', ')}`}. Name one of them, or drop \`model\` from the persona.`,
   /**
-   * 自制 9002 的一条（契约里由 TS 的语义诊断承担「Cannot find name」）：脚本调用了既未声明、
-   * 也不在 facade 里的函数。没有这条，把 G1 名字写进脚本会静默通过、运行期才 ReferenceError。
+   * `{type}` 是 TS 推断出的类型名。本移植没有类型检查器，一律填 `unknown`：这在 TS 里正是
+   * 「可能是任何模型名」的那个类型，与被拒的条件同义。
    */
-  unknownCall: (name) => `"${name}" is not a function this script can call: it is neither declared here nor part of the workflow facade (agent, hole, log, report, phase, channel, future, model, artifact, files, git, world). Declare it, or use the facade.`,
-  legacyFacade: (name) => `"${name}" is not part of this workflow\'s facade: the old Workflow-tool helpers (agent(prompt, opts), parallel, pipeline, budget, workflow) do not exist in a script for this tool. Write the control flow yourself — loops, conditionals, and Promise.all over asks.`,
+  /**
+   * TS 2304 的逐字文案（`Cannot find name '{0}'.`）。契约把「这个名字不存在」交给 TS 的语义
+   * 诊断，所以这里既不另起码也不改文案：未声明的调用、Node/web 全局（`process`/`require`/`fetch`）、
+   * G1 旧 facade 名字（`parallel`/`pipeline`/`budget`/`workflow`）都报它。
+   */
+  unknownName: (name) => `Cannot find name '${name}'.`,
   actorModelDynamic: (type) => `A subagent's \`model\` must be known before the run starts: a string literal, a union of string literals, or a ModelRef from model("…"). This value's type is ${type}, which could be any model name. Write the name inline, add \`as const\` where it is declared, or declare the candidates with model() and choose among those ModelRefs at run time.`,
   declareModifier: 'The `declare` modifier is not allowed in a workflow script: the script is compiled inside a function body, where ambient declarations are illegal. Remove `declare` and write a plain declaration (e.g. `interface Foo { ... }`).',
   exportStatement: '`export` is not allowed in a workflow script: the script is compiled inside a function body. Remove `export` — the workflow\'s output is its final `return` value.',
   importStatement: '`import` is not allowed in a workflow script: the script is compiled inside a function body, so it has no module graph. The facade (agent, world, files, git, artifact) is its whole outside world; remove the import.',
-  forbiddenGlobal: (name) => `${name} is not available in a workflow script: Node and web APIs are not reachable from a script. Use world.run for a command, files/git for the workspace, and a subagent for anything else.`,
-  forbiddenClock: 'Date.now() is not available in a workflow script: a replayable run cannot read the clock. The run records wall-clock times for you; if a step needs the time, pass it in through args.',
-  forbiddenRandom: 'Math.random() is not available in a workflow script: a replayable run cannot be random. Derive a stable value from the inputs, or let a subagent choose and record its choice.',
-  forbiddenEval: 'eval() is not available in a workflow script: it would run code the compiler never checked. Write the logic in the script.',
-  forbiddenFunctionConstructor: 'the Function constructor is not available in a workflow script: it would run code the compiler never checked. Write the function in the script.',
   snippetAbsent: (name) => `${name}() does not exist in a snippet: a snippet is the test bench for the fixed logic of a script, not for orchestration — agent(), phase(), report(), artifact.*, hole() and model() are absent. Run the orchestration through the workflow tool instead.`,
   askTypeUndeclared: (name) => `ask<${name}> needs an interface declared in this script: the runtime validates the subagent's answer against a schema built from that declaration, and "${name}" is not declared here. Define \`interface ${name} { … }\` (a plain interface, no declare) or drop the type argument to take the answer as text.`,
   askTypeUnsupported: (text) => `ask<${text}> needs an interface or type alias declared in this script: the runtime validates the subagent's answer against a schema built from that declaration, and this type argument is not one this compiler can build a schema from. Declare \`interface ${text.replace(/\[\]$/u, '')} { … }\` and pass its name (an array of it as \`Name[]\`).`,
@@ -892,7 +905,7 @@ function jsString(text) {
 }
 
 /**
- * FNV-1a 32 位，用于 hole 站点 id（`hole#%08x`，cli:425807-425812）。
+ * FNV-1a 32 位，用于 hole 站点 id（`hole#%08x`，cli.md:425807-425812）。
  * @param {string} text
  * @returns {string}
  */
@@ -1257,6 +1270,30 @@ function inRanges(ranges, index) {
  * @param {object[]} tokens
  * @returns {Set<string>}
  */
+/**
+ * 值是 `model("…")` 调用结果的变量名（`const ref = model("a/x")`，可带类型标注）。
+ * 这些变量在类型上是 ModelRef，契约 9010 明确允许把它交给 persona 的 `model`——
+ * 文案里那句 “or a ModelRef from model("…")” 指的就是它，只有字面量被拒是错的。
+ * @param {object[]} tokens
+ * @returns {Set<string>}
+ */
+function collectModelRefVariables(tokens) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  for (let index = 0; index < tokens.length - 3; index += 1) {
+    if (!(isKeyword(tokens[index], 'const') || isKeyword(tokens[index], 'let') || isKeyword(tokens[index], 'var'))) continue;
+    if (!isIdent(tokens[index + 1])) continue;
+    let cursor = index + 2;
+    if (isPunct(tokens[cursor], ':')) {
+      cursor += 1;
+      while (cursor < tokens.length && !isPunct(tokens[cursor], '=') && !isPunct(tokens[cursor], ';')) cursor += 1;
+    }
+    if (!isPunct(tokens[cursor], '=')) continue;
+    if (isIdent(tokens[cursor + 1], 'model') && isPunct(tokens[cursor + 2], '(')) names.add(String(tokens[index + 1].value));
+  }
+  return names;
+}
+
 function collectFunctionVariables(tokens) {
   /** @type {Set<string>} */
   const names = new Set();
@@ -1445,13 +1482,17 @@ const FACADE_CALLABLES = new Set(['agent', 'phase', 'report', 'hole', 'log', 'ch
 /** G1 旧 Workflow facade 的名字：现行脚本里不存在，必须显式诊断（见 M1）。 */
 const LEGACY_FACADE_NAMES = new Set(['parallel', 'pipeline', 'budget', 'workflow']);
 
-/** 语言内建可调用名：不算「未知调用」。（Node/web API 不在此列，见 forbiddenGlobal。） */
+/**
+ * 语言内建可调用名：不算「找不到这个名字」。（Node/web API 不在此列：`process`/`require`/`fetch`。）
+ * `eval`/`Function` 是 lib.es5 的全局，真 TS 不报，cell 里也调得到（hole 的 fill 就靠 eval）。
+ */
 const BUILTIN_CALLABLES = new Set([
   'String', 'Number', 'Boolean', 'Array', 'Object', 'Promise', 'Set', 'Map', 'WeakMap', 'WeakSet',
   'Symbol', 'BigInt', 'Error', 'TypeError', 'RangeError', 'SyntaxError', 'JSON', 'Math', 'Date',
   'Intl', 'RegExp', 'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent',
   'decodeURIComponent', 'encodeURI', 'decodeURI', 'structuredClone', 'console', 'queueMicrotask',
   'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'TextEncoder', 'TextDecoder',
+  'eval', 'Function',
 ]);
 
 /** 片段（snippet）里不存在的 facade 名。 */
@@ -1466,10 +1507,9 @@ const SNIPPET_ABSENT = new Set(['agent', 'phase', 'report', 'artifact', 'hole', 
  * @param {object[]} tokens
  * @param {Map<number, number>} pairs
  * @param {'workflow'|'snippet'} mode
- * @param {{availableModels?: string[]}} [options]
  * @returns {{diagnostics: object[], sites: object[], types: Map<string, object>}}
  */
-function analyze(code, tokens, pairs, mode, options = {}) {
+function analyze(code, tokens, pairs, mode) {
   /** @type {object[]} */
   const diagnostics = [];
   const report = (code_, token, message) => {
@@ -1482,7 +1522,7 @@ function analyze(code, tokens, pairs, mode, options = {}) {
   const functionArgs = functionArgumentRanges(tokens, pairs);
   const fanOutArgs = fanOutRanges(tokens, pairs);
   const functionVariables = collectFunctionVariables(tokens);
-  const availableModels = Array.isArray(options.availableModels) ? options.availableModels : undefined;
+  const modelRefVariables = collectModelRefVariables(tokens);
   /** @type {Map<string, object>} */
   const interfaces = new Map();
   const isFacadeFree = (name) => !declared.has(name);
@@ -1520,26 +1560,11 @@ function analyze(code, tokens, pairs, mode, options = {}) {
     }
     if (token.kind !== 'ident') continue;
     const name = String(token.value);
-    // 禁止的全局（`fs` 不在其中：它常是脚本自己的变量名，Node 内置本就不可达）
-    if (isFacadeFree(name) && (name === 'process' || name === 'require' || name === 'fetch')) {
-      if (isValueRead(tokens, index)) report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenGlobal(name));
-      continue;
-    }
-    if (isFacadeFree(name) && name === 'eval' && !isPunct(tokens[index - 1], '=>')) {
-      report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenEval);
-      continue;
-    }
-    if (isFacadeFree(name) && name === 'Function' && isKeyword(tokens[index - 1], 'new')) {
-      report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.forbiddenGlobal('the Function constructor'));
-      continue;
-    }
-    // Date.now() / Math.random()
-    if (isFacadeFree(name) && name === 'Date' && isPunct(tokens[index + 1], '.') && isIdent(tokens[index + 2], 'now')) {
-      report(CODE.FORBIDDEN_API, tokens[index + 2], DIAGNOSTIC_MESSAGES.forbiddenClock);
-      continue;
-    }
-    if (isFacadeFree(name) && name === 'Math' && isPunct(tokens[index + 1], '.') && isIdent(tokens[index + 2], 'random')) {
-      report(CODE.FORBIDDEN_API, tokens[index + 2], DIAGNOSTIC_MESSAGES.forbiddenRandom);
+    // 名字不存在（TS 2304）：Node/web 全局在这里没有声明，与真 TS 的语义诊断同一条。
+    // `fs` 不在其中：它常是脚本自己的变量名，Node 内置本就不可达。
+    if (isFacadeFree(name) && (name === 'process' || name === 'require' || name === 'fetch')
+      && isValueRead(tokens, index)) {
+      report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
       continue;
     }
     // facade 取引用（9001）
@@ -1555,9 +1580,9 @@ function analyze(code, tokens, pairs, mode, options = {}) {
       report(CODE.FACADE_MISUSE, token, DIAGNOSTIC_MESSAGES.snippetAbsent(name));
       continue;
     }
-    // 旧 G1 facade / 未知函数调用（9002，自制；契约里由 TS 语义诊断承担，见 messages 注释）
-    if (!declared.has(name) && LEGACY_FACADE_NAMES.has(name)) {
-      report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.legacyFacade(name));
+    // G1 旧 facade 名字 / 未知函数调用：脚本里根本没有这个名字（TS 2304，文案逐字）
+    if (!declared.has(name) && LEGACY_FACADE_NAMES.has(name) && isValueRead(tokens, index)) {
+      report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
       continue;
     }
     if (!declared.has(name) && !FACADE_CALLABLES.has(name) && !BUILTIN_CALLABLES.has(name)
@@ -1571,7 +1596,7 @@ function analyze(code, tokens, pairs, mode, options = {}) {
       const methodDefinition = callClose !== undefined && isPunct(tokens[callClose + 1], '{')
         && (isPunct(tokens[index - 1], '{') || isPunct(tokens[index - 1], ';')
           || isPunct(tokens[index - 1], '}') || isPunct(tokens[index - 1], ','));
-      if (!methodDefinition) report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.unknownCall(name));
+      if (!methodDefinition) report(CODE.UNKNOWN_NAME, token, DIAGNOSTIC_MESSAGES.unknownName(name));
     }
   }
 
@@ -1627,7 +1652,11 @@ function analyze(code, tokens, pairs, mode, options = {}) {
     if (name === 'agent' && !shadowed) {
       const siteId = counters.next('actor');
       const nameArg = args[0];
-      const literalName = nameArg === undefined ? undefined : literalText(tokens[nameArg.from]);
+      // 名字是「站点身份」的一部分：只有整个实参就是一个字符串字面量时才算定名，
+      // 否则 `agent("reviewer-" + item)` 这种逐元素名字会被当成固定名而误报 9006——
+      // 而那正是 9006 文案推荐的写法。
+      const literalName = nameArg === undefined ? undefined
+        : (nameArg.to - nameArg.from === 1 ? literalText(tokens[nameArg.from]) : undefined);
       const site = {
         kind: 'actor',
         id: siteId,
@@ -1749,9 +1778,6 @@ function analyze(code, tokens, pairs, mode, options = {}) {
     if (name === 'model' && !shadowed) {
       const literal = args[0] === undefined ? undefined : literalText(tokens[args[0].from]);
       if (literal === undefined || literal.length === 0) report(CODE.MODEL, token, DIAGNOSTIC_MESSAGES.modelLiteral);
-      else if (availableModels !== undefined && !availableModels.includes(literal)) {
-        report(CODE.MODEL_UNAVAILABLE, token, DIAGNOSTIC_MESSAGES.modelUnavailable(literal, availableModels));
-      }
       sites.push({ kind: 'model', id: counters.next('model'), callee: index, open, close, line: token.line, args, model: literal });
       continue;
     }
@@ -1948,20 +1974,19 @@ function analyze(code, tokens, pairs, mode, options = {}) {
       if (isIdent(tokens[cursor], 'model') && isPunct(tokens[cursor + 1], ':')) {
         const valueToken = tokens[cursor + 2];
         const literal = literalText(valueToken);
-        const isModelRefCall = isIdent(valueToken, 'model') && isPunct(tokens[cursor + 3], '(');
+        const isModelRef = (isIdent(valueToken, 'model') && isPunct(tokens[cursor + 3], '('))
+          || (isIdent(valueToken) && modelRefVariables.has(String(valueToken.value)));
         const isMember = isPunct(valueToken, '.') || isIdent(valueToken);
-        if (literal === undefined && !isModelRefCall && isMember) {
-          // 允许 `model()` 调用与字面量；其他表达式报 9010
-          if (!(isIdent(valueToken, 'model'))) {
-            report(CODE.MODEL, valueToken ?? token, DIAGNOSTIC_MESSAGES.actorModelDynamic('unknown'));
-          }
+        if (literal === undefined && !isModelRef && isMember && !(isIdent(valueToken, 'model'))) {
+          report(CODE.MODEL, valueToken ?? token, DIAGNOSTIC_MESSAGES.actorModelDynamic('unknown'));
         }
       }
     }
   }
 
   function hasPrimary(op, opArgs) {
-    // markdown 的 opts 也是第 3 个实参（id, content, opts）；preset 是第 2 个（id, spec）。
+    // primary 在 ArtifactOptions 里，六种 kind 都收：content（file/markdown）的 opts 是第 3 个
+    // 实参（id, path|content, opts），preset 的 spec 是第 2 个（id, spec）。
     const optionsArg = op === 'file' || op === 'markdown' ? opArgs[2] : opArgs[1];
     if (optionsArg === undefined) return false;
     for (let cursor = optionsArg.from; cursor < optionsArg.to - 1; cursor += 1) {
@@ -1972,7 +1997,8 @@ function analyze(code, tokens, pairs, mode, options = {}) {
     return false;
   }
 
-  // primary 冲突（9009）
+  // 一个 run 只能有一个交付物：第二条 primary 是契约的 9009（`cli.md:643252`），不是 9011
+  // （9011 是模型可用性）。逐个对照第一条报，文案带首条所在的 kind 与行号。
   const primaries = sites.filter((site) => site.kind === 'artifact' && site.primary === true && site.artifactId);
   if (primaries.length > 1) {
     const [first, ...rest] = primaries;
@@ -2474,7 +2500,7 @@ function scalarText(value) {
  * @param {boolean} [options.snippet] 旧名兼容：等价于 mode:'snippet'
  * @returns {object}
  */
-export function compileWorkflowScript({ code, filename = 'workflow-script.ts', mode, snippet = false, availableModels } = {}) {
+export function compileWorkflowScript({ code, filename = 'workflow-script.ts', mode, snippet = false } = {}) {
   const resolvedMode = mode ?? (snippet === true ? 'snippet' : 'workflow');
   const source = normalizeSource(String(code ?? ''));
   const tokens = tokenize(source);
@@ -2483,7 +2509,7 @@ export function compileWorkflowScript({ code, filename = 'workflow-script.ts', m
 
   let analysis;
   try {
-    analysis = analyze(source, tokens, pairs, resolvedMode, { availableModels });
+    analysis = analyze(source, tokens, pairs, resolvedMode);
   } catch (error) {
     return {
       ok: false,

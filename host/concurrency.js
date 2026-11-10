@@ -20,6 +20,9 @@ export const RUNTIME_CAPS = Object.freeze({
   maxResultPreviewLength: 2048,
   maxErrorLength: 2048,
   maxPendingQuestions: 32,
+  /** 快照列表上限（契约 `cli.md:169/174`：subagents ≤ 64、holes ≤ 32）。 */
+  maxSnapshotSubagents: 64,
+  maxSnapshotHoles: 32,
   maxQuestionLength: 2048,
   maxConcurrencyKeyLength: 256,
   maxSubagentModelLength: 256,
@@ -37,14 +40,14 @@ export const RUNTIME_CAPS = Object.freeze({
   maxLastToolTargetLength: 120,
 });
 
-/** `report()` 的三条上限（cli:427810-427814 `VZ`）。 */
+/** `report()` 的三条上限（cli.md:427810-427814 `VZ`）。 */
 export const REPORT_CAPS = Object.freeze({
   maxItemsPerRun: 65536,
   maxItemSerializedBytes: 1048576,
   maxBytesPerRun: 1073741824,
 });
 
-/** 产物上限（cli:427820-427830 `J_`）。 */
+/** 产物上限（cli.md:427820-427830 `J_`）。 */
 export const ARTIFACT_CAPS = Object.freeze({
   maxArtifactsPerRun: 32,
   maxVersionsPerArtifact: 16,
@@ -56,10 +59,10 @@ export const ARTIFACT_CAPS = Object.freeze({
   maxIdLength: 64,
 });
 
-/** facade 的 id 字符集（cli:427830 `r8e`）。 */
+/** facade 的 id 字符集（cli.md:427830 `r8e`）。 */
 export const ARTIFACT_ID_PATTERN = /^[A-Za-z0-9_.-]+$/u;
 
-/** files/git/world 的读取上限（cli:427795-427805 `qP`）。 */
+/** files/git/world 的读取上限（cli.md:427795-427805 `qP`）。 */
 export const WORKSPACE_CAPS = Object.freeze({
   globMaxFiles: 2000,
   grepMaxMatches: 2000,
@@ -72,14 +75,14 @@ export const WORKSPACE_CAPS = Object.freeze({
   runDefaultTimeoutMs: 300000,
 });
 
-/** 单个 ask 的预算（cli:649161 `Nkt/Kwe/Lkt`）。 */
+/** 单个 ask 的预算（cli.md:649161 `Nkt/Kwe/Lkt`）。 */
 export const ASK_BUDGET = Object.freeze({
   instructionsHead: 4096,
   repairs: 3,
   nudges: 1,
 });
 
-/** 模型请求瞬断退避（cli:739867-739871 `mmi/k_c/x_c`）。 */
+/** 模型请求瞬断退避（cli.md:739867-739871 `mmi/k_c/x_c`）。 */
 export const TRANSIENT_BACKOFF = Object.freeze({
   baseMs: 2000,
   maxMs: 60000,

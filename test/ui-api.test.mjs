@@ -1264,3 +1264,26 @@ test('POST /mode falls back to the settings file when configEditor rejects the e
     });
   });
 });
+
+test('POST /run/configure：三种 retune 拒绝各有自己的码，客户端才能给不同文案', async () => {
+  const fixture = createFixture();
+  const { runtime } = fixture;
+  const real = runtime.configureRun;
+  const cases = [
+    ['CAPS_UNCHANGED', 409, 'retune_unchanged'],
+    ['RUN_NOT_ACTIVE', 409, 'run_settled'],
+    ['RUN_NOT_FOUND', 404, 'run_not_found'],
+  ];
+  try {
+    for (const [code, status, expected] of cases) {
+      runtime.configureRun = () => ({ ok: false, code, message: `${code}: simulated` });
+      const answer = await call(fixture, 'POST', `${BASE}/run/configure`, {
+        body: { sessionId: 'session-1', runId: 'run-1', maxConcurrency: 5 },
+      });
+      assert.equal(answer.status, status, code);
+      assert.equal(answer.json.code, expected, code);
+    }
+  } finally {
+    runtime.configureRun = real;
+  }
+});

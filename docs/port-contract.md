@@ -83,6 +83,13 @@
 | `/run/fill`、`/run/answer` 错误码 | §1 未定义 | `fault.workflowRunFill.*`、`fault.workflowRunAnswer.notPending` | 语义自洽的补充命名 |
 | run 列表的会话过滤 | 按所属会话取行 | 行里没有会话字段时退回整项目列表 | 早期 run 行没记会话，退回比整行消失更可解释 |
 | 运行中改并发 | 运行设置弹层可调并发上限 | `POST /run/configure` → 引擎 `setMaxConcurrency`，记 `run-caps-changed` 并对齐 AIMD 上界 | 语义等价，走插件自己的数据面路由 |
+| 工具并发安全 | 只读类工具声明 `concurrentSafe`，可并发调用 | 12 个工具一律 `isConcurrencySafe: () => false`（串行） | 保守取值；并发安全声明需要逐工具确认副作用面，未在本轮纳入 |
+| 技能加载门禁 | 未在本会话加载过技能前拒绝提交脚本 | 不设门禁：技能随插件注册即可读，提交直接编译 | Harness 没有"本会话已加载技能"的可读状态 |
+| 脚本类型检查 | TypeScript 严格类型检查，类型错误以诊断返回 | 只做语法 + 规则检查（9001、9003–9010、9012，加 TS 的 1184/2304 两条语法与未知名字文案），不做类型推导 | 无 TS 编译器通道；工具描述与技能已改成"语法与规则检查"口径 |
+| 模型可用性校验 | 9011 两条：目录在校验之后才出现该模型、fill 点了一个 run 不可用的模型 | 不产生 9011：`model("…")` 只校验"非空字面量"（9010） | 两条都要"这个 run 能用的模型集"，而 Harness 不向插件暴露模型清单，也没有 per-fill 的模型选择 |
+| actor 工具面 | 子代理看不到 `AskUserQuestion`/`EnterPlanMode`/`ExitPlanMode`/`CreateWorkflow`/`AmendWorkflow`/`ReadSessionContext`/`ResolveWorkflowQuestion` | 子代理工具集由 Harness 固定，插件无法下发 deny 列表；靠技能与提示词约束 | `subagents.startActivation` 没有工具策略参数 |
+| 总条目预算 | 单 run 条目总量 6144 | 只实现 `reports ≤ 64`、`pendingQuestions ≤ 32` | 6144 总预算需要跨表计数，本轮未做 |
+| 运行中 retune | 只改设置时原地 retune（`retuned` 输出） | 模型面 `AmendWorkflow` 仍整跑新 run；数据面 `POST /run/configure` 负责运行中改并发 | 原地 retune 的模型面路径未接线，UI 侧已可用 |
 
 ## 验收
 

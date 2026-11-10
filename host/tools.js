@@ -13,7 +13,10 @@
  */
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { preview } from './canonical.js';
 import { userMessage } from './messages.js';
+import { MAX_LOG_TAIL_MESSAGE, summarizeRun } from './runtime.js';
+import { RUNTIME_CAPS } from './concurrency.js';
 import { TOOL_DESCRIPTIONS } from './prompt.js';
 import { createSubagentRunner } from './subagent.js';
 import {
@@ -173,11 +176,10 @@ const HOLE_OUTPUT_SCHEMA = {
 const QUESTION_OUTPUT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['qid', 'question'],
+  required: ['qid', 'actor', 'question'],
   properties: {
     qid: { type: 'string' },
-    actorSiteId: { type: 'string' },
-    actorOrdinal: { type: 'number' },
+    actor: { type: 'string' },
     actorName: { type: 'string' },
     question: { type: 'string' },
     context: { type: 'string' },
@@ -261,6 +263,7 @@ const RUN_OUTPUT_SCHEMA = {
       required: ['consecutiveFailures', 'cachedSteps', 'pendingQuestionsKnown'],
       properties: {
         lastProgressAt: { type: 'number' },
+        // 契约 §1.5：epoch 毫秒，与 `lastProgressAt` 同型。
         stalledSince: { type: 'number' },
         concurrency: { type: 'object', additionalProperties: true },
         consecutiveFailures: { type: 'number' },
@@ -445,6 +448,8 @@ function renderRun(run, cwd) {
   const stopReason = run.stopReason ?? run.stop_reason;
   const lines = [];
   lines.push(`Run ${id}${typeof name === 'string' && name.length > 0 ? ` "${name}"` : ''} — ${status}${stopReason === undefined ? '' : ` (stop reason: ${stopReason})`}`);
+  // 契约 §1.5 的描述里 `superseded` 的后继由 `<superseded_by>` 指名（cli.md:190）。
+  if (typeof run.supersededBy === 'string') lines.push(`<superseded_by>${run.supersededBy}</superseded_by>`);
   const usage = run.usage ?? {};
   const spent = usage.spentTokens ?? run.spentTokens;
   const usageBits = [];
@@ -502,6 +507,7 @@ function renderRun(run, cwd) {
       const concurrency = run.health.concurrency;
       health.push(`concurrency ${concurrency.effective ?? concurrency.cap ?? '?'}${concurrency.reason === undefined ? '' : ` (${concurrency.reason})`}`);
     }
+    if (typeof run.health.lastProgressAt === 'number') health.push(`last progress ${new Date(run.health.lastProgressAt).toISOString()}`);
     if (run.health.stalledSince !== undefined) health.push(`stalled since ${new Date(run.health.stalledSince).toISOString()}`);
     if (typeof run.health.consecutiveFailures === 'number' && run.health.consecutiveFailures > 0) health.push(`${run.health.consecutiveFailures} consecutive failures`);
     if (typeof run.health.cachedSteps === 'number' && run.health.cachedSteps > 0) health.push(`${run.health.cachedSteps} cached steps`);
@@ -673,7 +679,7 @@ function toRunOutput(run) {
     ordinal: Number(actor.ordinal ?? 0),
     ...(typeof actor.name === 'string' ? { name: actor.name } : {}),
   }));
-  const subagents = (Array.isArray(run.actors) ? run.actors : []).map((actor) => ({
+  const allSubagents = (Array.isArray(run.actors) ? run.actors : []).map((actor) => ({
     siteId: String(actor.siteId ?? ''),
     ordinal: Number(actor.ordinal ?? 0),
     ...(typeof actor.name === 'string' ? { name: actor.name } : {}),
@@ -682,25 +688,32 @@ function toRunOutput(run) {
     stepsFailed: 0,
     tokens: 0,
   }));
+  // 契约 §1.5：subagents ≤ 64，超出时带 `subagentsTruncated`（cli.md:169-170）。
+  const subagents = allSubagents.slice(0, RUNTIME_CAPS.maxSnapshotSubagents);
+  const subagentsTruncated = allSubagents.length > subagents.length;
   const health = {
     consecutiveFailures: Number(run.health?.consecutiveFailures ?? usage.nodesFailed),
     cachedSteps: Number(run.health?.cachedSteps ?? 0),
     pendingQuestionsKnown: run.health?.pendingQuestionsKnown !== false,
     ...(typeof run.health?.lastProgressAt === 'number' ? { lastProgressAt: run.health.lastProgressAt } : {}),
+    // 契约 §1.5：`stalledSince` 与 `lastProgressAt` 同为 epoch 毫秒。
     ...(typeof run.health?.stalledSince === 'number' ? { stalledSince: run.health.stalledSince } : {}),
     ...(run.health?.concurrency === undefined ? {} : { concurrency: run.health.concurrency }),
     ...(run.health?.leftoverRunning === true ? { leftoverRunning: true } : {}),
   };
   const logTail = (Array.isArray(run.logTail) ? run.logTail : []).map((entry, index) => ({
     sequence: Number(entry.sequence ?? index),
-    message: String(entry.message ?? ''),
+    // 契约 `qIs`：每行最长 1024（cli.md:165/540）。
+    message: preview(String(entry.message ?? ''), MAX_LOG_TAIL_MESSAGE),
+    ...(typeof entry.at === 'number' ? { at: entry.at } : {}),
   }));
   const pendingQuestions = (Array.isArray(run.pendingQuestions) ? run.pendingQuestions : []).map((question) => ({
     qid: String(question.qid ?? ''),
-    ...(typeof question.actorSiteId === 'string' ? { actorSiteId: question.actorSiteId } : {}),
-    ...(typeof question.actor?.siteId === 'string' ? { actorSiteId: question.actor.siteId } : {}),
-    ...(typeof question.actorOrdinal === 'number' ? { actorOrdinal: question.actorOrdinal } : {}),
-    ...(typeof question.actor?.ordinal === 'number' ? { actorOrdinal: question.actor.ordinal } : {}),
+    // 契约 `WIs.actor` 是字符串（问题由哪个子代理提出，`siteId@ordinal`）。
+    actor: String(
+      question.actor
+      ?? (question.actorSiteId === undefined ? '' : `${question.actorSiteId}@${question.actorOrdinal ?? 0}`),
+    ),
     ...(typeof question.actorName === 'string' ? { actorName: question.actorName } : {}),
     question: String(question.question ?? ''),
     ...(typeof question.context === 'string' ? { context: question.context } : {}),
@@ -737,14 +750,10 @@ function toRunOutput(run) {
       message: String(run.error.message ?? ''),
       ...(run.error.providerStop === undefined ? {} : { providerStop: run.error.providerStop }),
     });
-  const waiting = pendingQuestions.length + holes.filter((hole) => hole.state === 'waiting').length;
-  const summary = `${run.name ?? run.runId ?? run.id ?? 'run'} — ${run.status ?? 'unknown'}`
-    + `${usage.spentTokens === 0 ? '' : `, ${usage.spentTokens} tokens`}`
-    + `, ${usage.nodesCompleted}/${usage.nodesObserved} nodes completed`
-    + `${waiting === 0 ? '' : `, ${waiting} waiting on you`}`;
   return {
     spentTokens: usage.spentTokens,
-    summary: summary.length > 400 ? `${summary.slice(0, 397)}…` : summary,
+    // 快照自己带 `summary` 时直接用它；假 runtime（测试）只给字段时在这里补一份。
+    summary: typeof run.summary === 'string' && run.summary.length > 0 ? run.summary : summarizeRun(run),
     generatedAt: Date.now(),
     usage,
     ...(typeof run.maxConcurrency === 'number' ? { maxConcurrency: run.maxConcurrency } : {}),
@@ -755,6 +764,7 @@ function toRunOutput(run) {
     logTail,
     phases,
     subagents,
+    ...(subagentsTruncated ? { subagentsTruncated: true } : {}),
     health,
     ...(result === undefined ? {} : { result }),
     ...(error === undefined ? {} : { error }),
@@ -1196,12 +1206,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       const sentence = locationSentence(cwd, runDraft, args?.path !== undefined ? PATH_KIND : DRAFT_KIND);
       const text = backgroundedNotice(runId) + settingsSentence({ maxConcurrency, subagentModel }) + sentence;
       return succeed(text, {
-        run_id: runId,
-        script_path: runDraft,
-        name: label,
-        phases: started.phases ?? prepared?.phases,
+        diagnostics: [],
+        runId,
+        scriptPath: runDraft,
         status: 'backgrounded',
-        background_task_id: runId,
+        backgroundTaskId: runId,
       });
     },
   });
@@ -1429,10 +1438,12 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         : '';
       const text = `${settledText} ${scriptText} It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${settingsSentence({ maxConcurrency: adjusted.maxConcurrency, subagentModel: adjusted.subagentModel })}${revision}`;
       return succeed(text, {
-        run_id: successor,
-        superseded_run_id: runId,
+        diagnostics: [],
+        runId: successor,
+        supersededRunId: runId,
         status: 'backgrounded',
-        background_task_id: successor,
+        backgroundTaskId: successor,
+        ...(typeof amended.scriptPath === 'string' ? { scriptPath: amended.scriptPath } : {}),
       });
     },
   });
@@ -1466,10 +1477,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       if (result?.ok) {
         const resumed = result.runId ?? runId;
         return succeed(`The workflow run ${resumed} has been resumed and is running in the background. It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.`, {
-          ok: true,
-          run_id: resumed,
+          runId: resumed,
           status: 'backgrounded',
-          background_task_id: resumed,
+          backgroundTaskId: resumed,
         });
       }
       const reason = result?.code ?? result?.reason;
@@ -1522,7 +1532,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       if (!has('getRun')) return fail(INTROSPECTION_UNAVAILABLE);
       const run = await runtime.getRun(String(args?.run_id));
       if (run === undefined || run === null) return fail(runNotFound(String(args?.run_id)));
-      return succeed(renderRun(run, undefined), { run_id: run.id ?? run.runId, status: run.status });
+      return succeed(renderRun(run, undefined), toRunOutput(run));
     },
   });
 
@@ -1557,36 +1567,30 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         ? Math.min(50, Math.max(1, Math.trunc(raw)))
         : 20;
       const listed = await runtime.listRuns({
-        limit,
+        // 多要一行：契约的 `truncated` 只表示“还有更多 run 没进这一页”。
+        limit: limit + 1,
         cwd: sessionCwd(ctx, exec),
         sessionId: sessionIdOf(exec),
       });
       const rows = Array.isArray(listed) ? listed : (Array.isArray(listed?.runs) ? listed.runs : []);
+      const overflow = rows.length > limit;
+      const page = overflow ? rows.slice(0, limit) : rows;
       const statuses = Array.isArray(args?.statuses) ? args.statuses : undefined;
-      const filtered = statuses === undefined ? rows : rows.filter((row) => statuses.includes(row.status));
-      if (rows.length === 0) {
+      const filtered = statuses === undefined ? page : page.filter((row) => statuses.includes(row.status));
+      if (page.length === 0) {
         return succeed('No workflow runs exist in this project yet.', { runs: [] });
       }
       if (filtered.length === 0) {
         return succeed(`No workflow runs match that status filter (${statuses.join(', ')}).`, { runs: [] });
       }
-      const truncated = Array.isArray(listed) ? undefined : listed?.truncated;
+      const truncated = overflow || (!Array.isArray(listed) && listed?.truncated === true);
       return succeed(budget([
         `${filtered.length} workflow run(s), most recent first:`,
         ...filtered.map((row) => renderRunRow(row)),
         ...(truncated === true ? ['(more runs exist than this limit; raise `limit` to 50)'] : []),
       ].join('\n')), {
-        runs: filtered.map((row) => ({
-          run_id: row.id ?? row.runId,
-          name: row.name ?? row.label,
-          status: row.status,
-          stop_reason: row.stopReason ?? row.stop_reason,
-          created_at: row.createdAt,
-          updated_at: row.updatedAt,
-          owned_by_this_session: row.ownedByThisSession,
-          possibly_interrupted: row.possiblyInterrupted,
-        })),
-        truncated,
+        runs: filtered.map((row) => toRunRow(row)),
+        ...(truncated === true ? { truncated: true } : {}),
       });
     },
   });
@@ -1767,7 +1771,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         rendered,
         ...(Array.isArray(result.logs) && result.logs.length > 0 ? ['', 'Logs:', ...result.logs.map((line) => `- ${line}`)] : []),
       ].join('\n'));
-      return succeed(text, { value, duration_ms: result.durationMs ?? 0, logs: result.logs ?? [], diagnostics: [] });
+      return succeed(text, { diagnostics: [], logs: result.logs ?? [], durationMs: result.durationMs ?? 0 });
     },
   });
 
@@ -1971,9 +1975,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       if (result?.ok) {
         const qid = result.qid ?? questionId;
         return succeed(`Answer delivered for question ${qid}. The subagent that asked has resumed its turn with your answer; the run keeps going as before.`, {
-          ok: true,
           qid,
-          response: result.response,
         });
       }
       const reason = result?.code ?? result?.reason;
@@ -2098,9 +2100,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       }
       const status = stopped.status ?? 'stopped';
       return succeed(`Stopped run ${runId} (stop_reason "model"); the run is now ${status} and resumable with ResumeWorkflowRun.`, {
-        run_id: runId,
+        runId,
         status,
-        stop_reason: 'model',
+        stopReason: 'model',
       });
     },
   });
@@ -2189,13 +2191,15 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
     }),
     TaskOutput: outputSchema({
       retrieval_status: { type: 'string', enum: ['success', 'not_ready', 'timeout'] },
+      run_id: { type: 'string' },
+      status: { type: 'string' },
       task: {
         type: ['object', 'null'],
         additionalProperties: false,
         required: TASK_OUTPUT_SCHEMA.required,
         properties: TASK_OUTPUT_SCHEMA.properties,
       },
-    }, ['retrieval_status', 'task']),
+    }, ['retrieval_status']),
     StopWorkflowRun: outputSchema({
       runId: { type: 'string' },
       status: { type: 'string' },

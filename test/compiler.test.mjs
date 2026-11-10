@@ -166,16 +166,25 @@ test('artifact id 校验（9007）与 report tag 指向未声明 preset（9007�
   assert.match(valid.lowered, /"tiles"\)/);
 });
 
-test('禁止的 API：Date.now / Math.random / process（9002）', () => {
-  const clock = compileWorkflowScript({ code: 'const t = Date.now();\nreturn t;' });
-  assert.deepEqual(codes(clock), [COMPILER_DIAGNOSTIC_CODES.FORBIDDEN_API]);
-  assert.match(text(clock), /Date\.now\(\) is not available in a workflow script/);
+test('契约里没有 9002：未声明的名字报 TS 2304 "Cannot find name"', () => {
+  // 9002 不在这份契约的码表里（9001、9003–9012），「名字不存在」由 TS 的语义诊断承担。
+  assert.equal(Object.values(COMPILER_DIAGNOSTIC_CODES).includes(9002), false);
 
-  const random = compileWorkflowScript({ code: 'const r = Math.random();\nreturn r;' });
-  assert.match(text(random), /Math\.random\(\) is not available in a workflow script/);
+  const nodeGlobal = compileWorkflowScript({ code: 'const p = process.env.HOME;\nreturn p;' });
+  assert.deepEqual(codes(nodeGlobal), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+  assert.equal(text(nodeGlobal), "Cannot find name 'process'.");
 
-  const nodeApi = compileWorkflowScript({ code: 'const p = process.env.HOME;\nreturn p;' });
-  assert.match(text(nodeApi), /process is not available in a workflow script/);
+  const legacy = compileWorkflowScript({ code: 'const a = parallel([1, 2]);\nreturn a;' });
+  assert.deepEqual(codes(legacy), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+  assert.equal(text(legacy), "Cannot find name 'parallel'.");
+
+  const typo = compileWorkflowScript({ code: 'const z = frobnicate(1);\nreturn z;' });
+  assert.deepEqual(codes(typo), [COMPILER_DIAGNOSTIC_CODES.UNKNOWN_NAME]);
+  assert.equal(text(typo), "Cannot find name 'frobnicate'.");
+
+  // Date.now() / Math.random() 是运行期禁令（契约 §2.13，cell 抛错），不是编译期诊断。
+  assert.equal(compileWorkflowScript({ code: 'const t = Date.now();\nreturn t;' }).ok, true);
+  assert.equal(compileWorkflowScript({ code: 'const r = Math.random();\nreturn r;' }).ok, true);
 });
 
 test('snippet 是被裁剪的 facade（9001）', () => {
@@ -230,4 +239,103 @@ test('保存工作流元数据块可往返，且缺块/未闭合有可判别原�
   const unterminated = extractMetadataHeader('/* zcode-workflow\ndescription: x\n');
   assert.equal(unterminated.ok, false);
   assert.equal(unterminated.reason, 'unterminated_frontmatter');
+});
+
+test('9006：扇出里用固定名字建 actor 非法，匿名与拼接名字合法', () => {
+  const fixed = compileWorkflowScript({
+    code: [
+      'const items = [1, 2];',
+      'const all = await Promise.all(items.map(async (item) => {',
+      '  const reviewer = agent("reviewer");',
+      '  return reviewer.ask("look at " + item);',
+      '}));',
+      'return all;',
+    ].join('\n'),
+  });
+  assert.deepEqual(codes(fixed), [COMPILER_DIAGNOSTIC_CODES.FIXED_ACTOR_NAME]);
+  assert.match(text(fixed), /"reviewer" is a fixed string/);
+  // 契约允许的两条出路：不命名，或每元素一个名字。
+  for (const legal of [
+    'const items = [1, 2];\nconst all = await Promise.all(items.map(async (item) => {\n  const reviewer = agent();\n  return reviewer.ask("look at " + item);\n}));\nreturn all;',
+    'const items = [1, 2];\nconst all = await Promise.all(items.map(async (item) => {\n  const reviewer = agent("reviewer-" + item);\n  return reviewer.ask("look at " + item);\n}));\nreturn all;',
+  ]) {
+    assert.equal(compileWorkflowScript({ code: legal }).ok, true, legal);
+  }
+});
+
+test('9008：preset 只能在顶层声明；content 产物不受位置限制', () => {
+  const cases = [
+    ['for (const item of [1, 2]) {\n  artifact.table("tiles", { columns: [] });\n}\nreturn 1;', /declared inside a loop/],
+    ['const rows = [1].map((item) => artifact.chart("bars", { x: { field: "a" }, y: { field: "b" } }));\nreturn rows;', /declared inside a callback/],
+    ['if (args.deep) {\n  artifact.metrics("stats", { metrics: [] });\n}\nreturn 1;', /declared inside a conditional branch/],
+  ];
+  for (const [code, expected] of cases) {
+    const result = compileWorkflowScript({ code });
+    assert.deepEqual(codes(result), [COMPILER_DIAGNOSTIC_CODES.PRESET_PLACEMENT], code);
+    assert.match(text(result), expected);
+  }
+  const fileInLoop = compileWorkflowScript({
+    code: 'for (const item of [1, 2]) {\n  artifact.file("out", "a.txt");\n}\nreturn 1;',
+  });
+  assert.equal(fileInLoop.ok, true, text(fileInLoop));
+});
+
+test('9009：一个 run 只有一个 primary，跨 kind 也按首条报', () => {
+  const sameKind = compileWorkflowScript({
+    code: 'artifact.markdown("a", "one", { primary: true });\nartifact.markdown("b", "two", { primary: true });\nreturn 1;',
+  });
+  assert.deepEqual(codes(sameKind), [COMPILER_DIAGNOSTIC_CODES.PRIMARY_CONFLICT]);
+  assert.match(text(sameKind), /artifact "b" is marked primary, but "a" already is \(artifact\.markdown on line 1\)/);
+
+  // preset 的 spec 自带 ArtifactOptions（primary 在 spec 里），与 content 产物的 opts 等价。
+  const crossKind = compileWorkflowScript({
+    code: 'artifact.markdown("summary", "text", { primary: true });\nartifact.table("tiles", { columns: [], primary: true });\nreturn 1;',
+  });
+  assert.deepEqual(codes(crossKind), [COMPILER_DIAGNOSTIC_CODES.PRIMARY_CONFLICT]);
+  assert.match(text(crossKind), /artifact "tiles" is marked primary, but "summary" already is \(artifact\.markdown on line 1\)/);
+
+  const single = compileWorkflowScript({
+    code: 'artifact.markdown("summary", "text", { primary: true });\nartifact.table("tiles", { columns: [] });\nreturn 1;',
+  });
+  assert.equal(single.ok, true, text(single));
+});
+
+test('9010：model() 要字面量，persona 的 model 接受 ModelRef 与字面量', () => {
+  const notLiteral = compileWorkflowScript({ code: 'const chosen = String(args.model);\nconst ref = model(chosen);\nreturn ref.name;' });
+  assert.match(text(notLiteral), /model\(\) takes the model name as a non-empty string literal/);
+  const empty = compileWorkflowScript({ code: 'const ref = model("");\nreturn 1;' });
+  assert.match(text(empty), /model\(\) takes the model name as a non-empty string literal/);
+
+  const dynamic = compileWorkflowScript({
+    code: 'const dynamicName = String(args.m);\nconst helper = agent("helper", { model: dynamicName });\nreturn helper.ask("hi");',
+  });
+  assert.deepEqual(codes(dynamic), [COMPILER_DIAGNOSTIC_CODES.MODEL]);
+  assert.match(text(dynamic), /must be known before the run starts/);
+
+  // 契约允许「字面量」与「model() 出来的 ModelRef」，变量持有 ModelRef 也算。
+  for (const legal of [
+    'const helper = agent("helper", { model: "a/x" });\nreturn helper.ask("hi");',
+    'const ref = model("a/x");\nconst helper = agent("helper", { model: ref });\nreturn helper.ask("hi");',
+    'const ref: ModelRef = model("a/x");\nconst helper = agent("helper", { model: ref });\nreturn helper.ask("hi");',
+  ]) {
+    const result = compileWorkflowScript({ code: legal });
+    assert.equal(result.ok, true, text(result));
+  }
+});
+
+test('9011 不在码表里：没有模型目录就不做可用性判定', () => {
+  // 契约的 9011 要「这个 run 能用的模型集」，Harness 不向插件暴露，所以 model("…") 只校验字面量。
+  assert.equal(Object.values(COMPILER_DIAGNOSTIC_CODES).includes(9011), false);
+  assert.equal(compileWorkflowScript({ code: 'const ref = model("any/model");\nreturn 1;' }).ok, true);
+});
+
+test('内联链 agent("…").ask(…) 同样建站点：一个 actor 配一个 ask', () => {
+  const result = compileWorkflowScript({
+    code: 'const out = await agent("scout").ask("find the tests");\nreturn out;',
+  });
+  assert.equal(result.ok, true, text(result));
+  assert.equal(result.actors.length, 1);
+  assert.equal(result.actors[0].name, 'scout');
+  assert.match(result.lowered, /__host\.ask\("ask#1", __host\.createActor\("actor#1", "scout"\), "find the tests"\)/);
+  assert.equal(result.askSpecs.get('ask#1').typed, false);
 });
