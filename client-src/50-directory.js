@@ -546,6 +546,7 @@ function WfHubBody(props) {
       nodes.push(WF_H(WfHubGroup, {
         key: 'project',
         t,
+        testId: 'workflow-list',
         title: say('workflows.hub.group.current'),
         caption: projectLabel,
         emptyText: say('workflows.hub.empty.title'),
@@ -564,6 +565,7 @@ function WfHubBody(props) {
       nodes.push(WF_H(WfHubGroup, {
         key: 'global',
         t,
+        testId: 'workflow-list-global',
         title: say('workflows.hub.global.title'),
         caption: globalGroup?.unsupported === true ? say('workflows.hub.global.unsupported') : say('workflows.hub.global.hint'),
         emptyText: say('workflows.hub.global.empty'),
@@ -662,7 +664,7 @@ function wfHubFailure(error) {
 /* --------------------------------- groups ---------------------------------- */
 
 function WfHubGroup(props) {
-  const { t, title, caption, emptyText, entries } = props;
+  const { t, title, caption, emptyText, entries, testId } = props;
   return WF_H(WF_FRAGMENT, null,
     WF_H(WF_UI.SectionHeader, {
       title,
@@ -671,7 +673,7 @@ function WfHubGroup(props) {
     }),
     entries.length === 0
       ? WF_H('p', { className: 'zwf-empty-inline' }, emptyText)
-      : WF_H('div', { className: 'zwf-hub-grid', 'data-testid': 'workflow-list' }, entries.map((entry) => WF_H(WfHubCard, {
+      : WF_H('div', { className: 'zwf-hub-grid', 'data-testid': testId }, entries.map((entry) => WF_H(WfHubCard, {
         key: `${entry.scope}:${entry.name}`,
         t,
         entry,
