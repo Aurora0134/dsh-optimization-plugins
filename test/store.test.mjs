@@ -89,7 +89,11 @@ test('parse reports the four failure reasons', () => {
   const badYaml = parseSavedWorkflowFile('/* zcode-workflow\ndescription: [unclosed\n*/\nreturn 1;\n');
   assert.equal(badYaml.reason, 'invalid_yaml');
 
-  const badMeta = parseSavedWorkflowFile('/* zcode-workflow\ndescription: ""\n*/\nreturn 1;\n');
+  // `description` may be the empty string (upstream's `Ow` allows it); a non-string is not.
+  const emptyDescription = parseSavedWorkflowFile('/* zcode-workflow\ndescription: ""\n*/\nreturn 1;\n');
+  assert.equal(emptyDescription.ok, true);
+
+  const badMeta = parseSavedWorkflowFile('/* zcode-workflow\ndescription: 5\n*/\nreturn 1;\n');
   assert.equal(badMeta.reason, 'invalid_metadata');
   assert.match(badMeta.detail, /description/u);
 
@@ -336,7 +340,9 @@ test('saved workflows: round-trip, scopes, shadowing, ZCode compatibility', asyn
 
   const resolved = await f.store.getSavedWorkflow('deploy', { cwd: f.project });
   assert.equal(resolved.scope, 'project');
-  assert.equal(resolved.code, '\nreturn "project";\n');
+  // The metadata block ends with a single newline before the body: `workflows/get.script` returns
+  // the script text itself, not one with a leading blank line.
+  assert.equal(resolved.code, 'return "project";\n');
   assert.equal(resolved.meta.args.target.type, 'string');
   assert.equal(resolved.meta.args.target.required, true);
 
@@ -404,8 +410,18 @@ test('saved workflows: invalid name, overwrite, delete, move', async (t) => {
 
   const first = await f.store.saveSavedWorkflow({ cwd: f.project, name: 'same', code: 'return 1;', meta: { description: 'One.' } });
   assert.equal(first.overwritten, false);
+  // `overwrite` defaults to false: a second save of an existing name is refused, not silent.
   const second = await f.store.saveSavedWorkflow({ cwd: f.project, name: 'same', code: 'return 2;', meta: { description: 'Two.' } });
-  assert.equal(second.overwritten, true);
+  assert.equal(second.ok, false);
+  assert.equal(second.reason, 'target_exists');
+  const overwritten = await f.store.saveSavedWorkflow({
+    cwd: f.project,
+    name: 'same',
+    code: 'return 2;',
+    meta: { description: 'Two.' },
+    overwrite: true,
+  });
+  assert.equal(overwritten.overwritten, true);
   assert.equal((await f.store.getSavedWorkflow('same', { cwd: f.project })).meta.description, 'Two.');
 
   const refused = await f.store.saveSavedWorkflow({ cwd: f.project, name: 'same', code: 'return 3;', meta: { description: 'Three.' }, overwrite: false });
@@ -586,7 +602,9 @@ test('actor/node persistence backs workspace and node-result reads', async (t) =
   assert.equal(actors[0].site_id, 'actor-a');
   assert.equal(actors[0].resolved_model, 'model-a');
 
-  const args = Array.from({ length: 20 }, (_, index) => (index === 0 ? 'x'.repeat(500) : index));
+  // Over the 4 KiB whole-input budget the recorded call keeps eight args, each clipped at 400
+  // characters with an ellipsis — the contract's `boundWorldReadInput` behaviour.
+  const args = Array.from({ length: 20 }, (_, index) => (index === 0 ? 'x'.repeat(900) : 'y'.repeat(900)));
   await f.store.recordNode('run-world', {
     siteId: 'site-a',
     ordinal: 0,
@@ -597,14 +615,14 @@ test('actor/node persistence backs workspace and node-result reads', async (t) =
   });
   const node = await f.store.getNode('run-world', 'site-a', 0);
   assert.equal(node.kind, 'world-run');
-  assert.equal(node.input.args.length, 16);
+  assert.equal(node.input.args.length, 8);
   assert.equal(node.input.truncated, true);
   assert.equal(node.input.args[0].at(-1), '…');
 
   const workspace = await f.store.listWorldNodes('run-world');
   assert.equal(workspace.truncated, false);
   assert.equal(workspace.nodes[0].op, 'git');
-  assert.equal(workspace.nodes[0].args.length, 16);
+  assert.equal(workspace.nodes[0].args.length, 8);
   assert.equal(workspace.nodes[0].inputTruncated, true);
   assert.equal(workspace.nodes[0].summary.exitCode, 0);
   assert.equal(workspace.nodes[0].summary.stdoutBytes, 2);

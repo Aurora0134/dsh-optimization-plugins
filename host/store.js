@@ -73,6 +73,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { pageEvents } from './journal.js';
 import { projectRunEvents } from './projection.js';
+import { isResumable } from './resumability.js';
 
 /** Maximum length of a saved workflow name. */
 export const MAX_SAVED_NAME_LENGTH = 64;
@@ -109,8 +110,12 @@ export const MAX_ARTIFACTS_PER_RUN = 32;
 export const MAX_ARTIFACT_VERSIONS = 16;
 /** report 快照上限（§4.4）。 */
 export const MAX_REPORTS_PER_RUN = 64;
-/** 一条 world 调用最多保留 16 个参数（§1.1(6) `M3.maxArgs`）。 */
+/** 一条 world 调用在**响应 schema** 里最多 16 个参数（§1.1(6) `M3.maxArgs`）。 */
 export const MAX_WORLD_ARGS = 16;
+/** 落库台账的入参上限（§9 `boundWorldReadInput`）：超过时只留前 8 个、每个 400 字符。 */
+const WORLD_INPUT_MAX_ARGS = 8;
+const WORLD_INPUT_ARG_CHARS = 400;
+const WORLD_INPUT_MAX_BYTES = 4096;
 /** world 节点结果读取上限（§8 `M3.resultMaxBytes`）。 */
 export const MAX_NODE_RESULT_BYTES = 32 * 1024;
 
@@ -313,6 +318,36 @@ function flattenJournalRow(row) {
     time_created: timeCreated,
   };
 }
+
+/** 代理对安全的 80 字符截断（`mRt` 的展示回退）。 */
+function boundedLabelText(text) {
+  const characters = [...String(text ?? '').trim()];
+  return characters.slice(0, 80).join('');
+}
+
+/**
+ * run 的展示标签（`resolveDynamicWorkflowRunLabel`，zcode-cli.js:73804-73830）：
+ * 显式 name → 脚本第一段非空行（≤80 字符，代理对安全）→ runId。
+ *
+ * @param {Record<string, any>} meta
+ * @param {string} dir
+ * @returns {string}
+ */
+function resolveRunLabel(meta, dir) {
+  const explicit = typeof meta.name === 'string' ? meta.name.trim() : '';
+  if (explicit !== '') return explicit;
+  try {
+    const text = readFileSync(path.join(dir, 'script.ts'), 'utf8');
+    for (const line of text.split(/\r?\n/u)) {
+      const trimmed = line.trim();
+      if (trimmed !== '') return boundedLabelText(trimmed);
+    }
+  } catch {
+    // 没有脚本（或暂时读不到）时退回 runId。
+  }
+  return meta.id;
+}
+
 
 /** @param {string} value @param {string} [fallback] */
 function safeSegment(value, fallback = 'item') {
@@ -549,9 +584,8 @@ function validateMetadata(raw) {
   const meta = { description: '' };
   if (typeof record.description !== 'string') {
     issues.push('description: expected a string');
-  } else if (record.description.trim() === '') {
-    issues.push('description: must not be empty');
   } else {
+    // §1.2 `Ow.description: J`：必填但允许空串（契约只要求存在且为字符串）。
     meta.description = record.description;
   }
 
@@ -673,7 +707,7 @@ export function parseSavedWorkflowFile(text) {
  * @returns {string}
  */
 export function serializeSavedWorkflowFile(meta, script) {
-  const description = typeof meta?.description === 'string' && meta.description.trim() !== ''
+  const description = typeof meta?.description === 'string'
     ? meta.description
     : 'Saved workflow.';
   const whenToUse = typeof meta?.whenToUse === 'string' && meta.whenToUse.trim() !== '' ? meta.whenToUse : undefined;
@@ -683,7 +717,8 @@ export function serializeSavedWorkflowFile(meta, script) {
     whenToUse,
     ...(args === undefined || Object.keys(args).length === 0 ? {} : { args }),
   });
-  return `${FRONTMATTER_OPEN}\n${yaml}${FRONTMATTER_CLOSE}\n\n${String(script ?? '')}`;
+  // pwe 的落盘形态：`*/` 后只跟一个换行，`workflows/get.script` 返回脚本原文而不带前导空行。
+  return `${FRONTMATTER_OPEN}\n${yaml}${FRONTMATTER_CLOSE}\n${String(script ?? '')}`;
 }
 
 /**
@@ -781,6 +816,9 @@ function publicRunMeta(meta) {
   const error = typeof failure?.message === 'string'
     ? failure.message
     : (typeof meta.error === 'string' ? meta.error : undefined);
+  const failureCode = typeof failure?.code === 'string' && failure.code !== ''
+    ? failure.code.slice(0, 64)
+    : undefined;
   return {
     ...meta,
     id: meta.id,
@@ -800,6 +838,7 @@ function publicRunMeta(meta) {
     finishedAt: terminal ? meta.time_updated : meta.finishedAt,
     stopReason: meta.stopReason ?? meta.stop_reason,
     error,
+    ...(failureCode === undefined ? {} : { failureCode }),
     result: resultJson !== undefined ? resultJson : meta.result,
     resumedFrom: meta.resumed_from ?? meta.resumedFrom,
     supersededBy: meta.superseded_by ?? meta.supersededBy,
@@ -877,8 +916,8 @@ function applyRunPatch(patch, current, now) {
 }
 
 /**
- * world 调用入参的等价截断（§9 `boundWorldReadInput`）：超过 16 个参数只留前 16 个，
- * 每个参数序列化超过 400 字符时截断并标记 `truncated`。
+ * world 调用入参的等价截断（§9 `boundWorldReadInput`，zcode-cli.js:650436-650443）：
+ * 整体 JSON ≤4096 字节时原样保留；超限才只留前 8 个参数，每个序列化截到 400 字符 + `…`。
  *
  * @param {unknown} input
  * @returns {Record<string, any> | undefined}
@@ -887,21 +926,34 @@ function boundWorldInput(input) {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) return undefined;
   const record = /** @type {Record<string, any>} */ ({ ...input });
   const args = Array.isArray(record.args) ? record.args : undefined;
-  let truncated = record.truncated === true;
-  let boundedArgs = args;
-  if (args !== undefined) {
-    boundedArgs = args.slice(0, MAX_WORLD_ARGS).map((arg) => {
-      const text = safeJson(arg) ?? String(arg);
-      if (text.length <= 400) return arg;
-      truncated = true;
-      return `${text.slice(0, 399)}\u2026`;
-    });
-    if (args.length > MAX_WORLD_ARGS) truncated = true;
+  if (args === undefined) {
+    return { ...(typeof record.op === 'string' ? { op: record.op.slice(0, 32) } : {}) };
   }
+  const op = typeof record.op === 'string' ? record.op : '';
+  try {
+    const whole = JSON.stringify({ op, args });
+    if (whole !== undefined && Buffer.byteLength(whole, 'utf8') <= WORLD_INPUT_MAX_BYTES) {
+      return { ...(op === '' ? {} : { op }), args };
+    }
+  } catch {
+    // 序列化失败（循环/大数）时走截断路径。
+  }
+  const boundedArgs = args.slice(0, WORLD_INPUT_MAX_ARGS).map((arg) => {
+    let text;
+    if (typeof arg === 'string') text = arg;
+    else {
+      try {
+        text = JSON.stringify(arg) ?? String(arg);
+      } catch {
+        text = String(arg);
+      }
+    }
+    return text.length > WORLD_INPUT_ARG_CHARS ? `${text.slice(0, WORLD_INPUT_ARG_CHARS)}\u2026` : text;
+  });
   return {
-    ...(typeof record.op === 'string' ? { op: record.op.slice(0, 32) } : {}),
-    ...(boundedArgs === undefined ? {} : { args: boundedArgs }),
-    ...(truncated ? { truncated: true } : {}),
+    ...(op === '' ? {} : { op }),
+    args: boundedArgs,
+    truncated: true,
   };
 }
 
@@ -1069,7 +1121,7 @@ export function createStore(options = {}) {
       id,
       parent_session_id: input.parentSessionId ?? input.parent_session_id ?? input.sessionId ?? null,
       cwd: root,
-      name: typeof input.name === 'string' && input.name !== '' ? input.name : id,
+      ...(typeof input.name === 'string' && input.name !== '' ? { name: input.name } : {}),
       script_path: input.scriptPath ?? input.script_path ?? null,
       script_hash: scriptHash ?? null,
       args_json: safeJson(input.args ?? {}) ?? '{}',
@@ -1160,14 +1212,15 @@ export function createStore(options = {}) {
           // §1.1(1) 摘要字段
           runId: run.id,
           toolCallId: run.toolCallId,
-          label: run.name,
+          label: resolveRunLabel(meta, runDir),
           updatedAt: run.updatedAt,
           status: run.status,
           stopReason: run.stopReason,
           resumedFrom: run.resumedFrom,
           supersededBy: run.supersededBy,
+          ...(run.failureCode === undefined ? {} : { failureCode: run.failureCode }),
           ...(run.error === undefined ? {} : { failureMessage: run.error }),
-          resumable: run.status === 'stopped',
+          resumable: isResumable(run.status, run.stopReason),
           // 旧调用方（runtime / UI 目录）继续读这些别名
           id: run.id,
           name: run.name,
@@ -2261,11 +2314,15 @@ export function createStore(options = {}) {
     const dir = savedTargetDir(root, scope);
     const file = path.join(dir, `${input.name}${SAVED_EXTENSION}`);
     const alreadyThere = await exists(file);
-    if (alreadyThere && input.overwrite === false) {
-      return { ok: false, message: `a ${scope} workflow named "${input.name}" already exists at ${file}` };
+    if (alreadyThere && input.overwrite !== true) {
+      return {
+        ok: false,
+        reason: 'target_exists',
+        message: `a ${scope} workflow named "${input.name}" already exists at ${file}`,
+      };
     }
 
-    const description = typeof input.meta?.description === 'string' && input.meta.description.trim() !== ''
+    const description = typeof input.meta?.description === 'string'
       ? input.meta.description
       : `Saved workflow "${input.name}".`;
     const text = serializeSavedWorkflowFile(
@@ -2381,6 +2438,10 @@ export function createStore(options = {}) {
   const updateSavedWorkflowMeta = async (name, meta = {}, options = {}) => {
     const nameCheck = validateSavedWorkflowName(name);
     if (!nameCheck.ok) return { ok: false, reason: 'invalid_name', detail: INVALID_SAVED_NAME_MESSAGE };
+    // §1.2 `Ow.description: J` 必填但允许空串；缺字段必须失败，不能沿用旧值。
+    if (typeof meta.description !== 'string') {
+      return { ok: false, reason: 'parse_error', detail: 'meta.description is required' };
+    }
     const found = await findSavedFile(name, options);
     if (found === undefined) return { ok: false, reason: 'not_found' };
     const text = await readTextSafe(found.file);
@@ -2388,9 +2449,7 @@ export function createStore(options = {}) {
     const parsed = parseSavedWorkflowFile(text);
     if (!parsed.ok) return { ok: false, reason: 'parse_error', detail: parsed.detail };
     const nextMeta = {
-      description: typeof meta.description === 'string' && meta.description.trim() !== ''
-        ? meta.description
-        : parsed.meta.description,
+      description: meta.description,
       whenToUse: meta.whenToUse !== undefined ? meta.whenToUse : parsed.meta.whenToUse,
       args: meta.args !== undefined ? meta.args : parsed.meta.args,
     };
@@ -2467,6 +2526,22 @@ export function createStore(options = {}) {
   };
 
   /**
+   * 目标文件是否存在（供 `workflows/save` 在编译前判 target_exists，§1.2 #7 / N19）。
+   *
+   * @param {string} name
+   * @param {{ scope?: 'project'|'global', cwd?: string }} [options]
+   * @returns {{ scope: 'project'|'global', path: string, exists: boolean } | undefined}
+   */
+  const savedWorkflowTarget = (name, options = {}) => {
+    const nameCheck = validateSavedWorkflowName(name);
+    if (!nameCheck.ok) return undefined;
+    const scope = options.scope === 'global' ? 'global' : 'project';
+    const root = resolveRoot(options.cwd);
+    const file = path.join(savedTargetDir(root, scope), `${name}${SAVED_EXTENSION}`);
+    return { scope, path: file, exists: existsSync(file) };
+  };
+
+  /**
    * `workflows/save`（§1.2 #7）的契约形态：从 run 的脚本落盘并返回 `reason` 词表。
    * 编译校验由调用方完成（store 不依赖 compiler），脚本缺失在这里判定。
    *
@@ -2482,17 +2557,11 @@ export function createStore(options = {}) {
     if (scope !== 'project' && scope !== 'global') {
       return { ok: false, reason: 'invalid_name', detail: `unknown workflow scope "${String(scope)}"` };
     }
-    let code = typeof input.code === 'string' ? input.code : undefined;
-    if (code === undefined && typeof input.runId === 'string') {
-      const run = await getRun(input.runId, { cwd: input.cwd });
-      if (run === undefined) return { ok: false, reason: 'run_not_found' };
-      code = await readRunScript(run.id, { cwd: input.cwd });
-    }
-    if (typeof code !== 'string' || code.trim() === '') return { ok: false, reason: 'script_missing' };
     const root = resolveRoot(input.cwd);
     const file = path.join(savedTargetDir(root, scope), `${input.name}${SAVED_EXTENSION}`);
     const alreadyThere = await exists(file);
-    if (alreadyThere && input.overwrite === false) {
+    // §1.2 #7：overwrite 缺省等价 false；只有显式 true 才允许覆盖。
+    if (alreadyThere && input.overwrite !== true) {
       return {
         ok: false,
         reason: 'target_exists',
@@ -2500,7 +2569,14 @@ export function createStore(options = {}) {
         detail: `a ${scope} workflow named "${input.name}" already exists`,
       };
     }
-    const description = typeof input.meta?.description === 'string' && input.meta.description.trim() !== ''
+    let code = typeof input.code === 'string' ? input.code : undefined;
+    if (code === undefined && typeof input.runId === 'string') {
+      const run = getRun(input.runId, { cwd: input.cwd });
+      if (run === undefined) return { ok: false, reason: 'run_not_found' };
+      code = readRunScript(run.id, { cwd: input.cwd });
+    }
+    if (typeof code !== 'string' || code.trim() === '') return { ok: false, reason: 'script_missing' };
+    const description = typeof input.meta?.description === 'string'
       ? input.meta.description
       : `Saved workflow "${input.name}".`;
     try {
@@ -2532,25 +2608,20 @@ export function createStore(options = {}) {
    * @returns {Promise<{ entry?: Record<string, any>, match?: 'candidate'|'script'|'name', runArgs?: Record<string, any> }>}
    */
   const resolveSavedWorkflowForRun = async (input = /** @type {any} */ ({})) => {
-    const run = await getRun(input.runId, { cwd: input.cwd });
+    const run = getRun(input.runId, { cwd: input.cwd });
     if (run === undefined) return {};
     const runArgs = run.args ?? {};
     const candidates = Array.isArray(input.candidates) ? input.candidates.slice(0, 8) : [];
-    /** @type {Record<string, any> | undefined} */
-    let firstCandidate;
+    // §1.2 #8：显式候选优先，任一候选存在即短路返回，不再比较名字。
     for (const candidate of candidates) {
       if (candidate === null || typeof candidate !== 'object' || typeof candidate.name !== 'string') continue;
       const entry = await getSavedWorkflow(candidate.name, {
         cwd: input.cwd,
         ...(candidate.scope === undefined ? {} : { scope: candidate.scope }),
       });
-      if (entry === undefined) continue;
-      firstCandidate = entry;
-      if (candidate.name === run.name) {
-        return { entry: savedWorkflowSummary(entry), match: 'candidate', runArgs };
-      }
+      if (entry !== undefined) return { entry: savedWorkflowSummary(entry), match: 'candidate', runArgs };
     }
-    const script = await readRunScript(run.id, { cwd: input.cwd });
+    const script = readRunScript(run.id, { cwd: input.cwd });
     const listed = await listSavedWorkflows({ cwd: input.cwd });
     const entries = Array.isArray(listed) ? listed : [];
     if (script !== undefined && script.trim() !== '') {
@@ -2559,7 +2630,6 @@ export function createStore(options = {}) {
     }
     const byName = entries.find((entry) => entry.name === run.name);
     if (byName !== undefined) return { entry: savedWorkflowSummary(byName), match: 'name', runArgs };
-    if (firstCandidate !== undefined) return { entry: savedWorkflowSummary(firstCandidate), match: 'candidate', runArgs };
     return {};
   };
 
@@ -2612,6 +2682,7 @@ export function createStore(options = {}) {
     getSavedWorkflow,
     saveSavedWorkflow,
     saveWorkflow,
+    savedWorkflowTarget,
     updateSavedWorkflowMeta,
     removeSavedWorkflow,
     listSavedWorkflowRuns,

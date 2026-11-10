@@ -807,8 +807,15 @@ test('POST /workflows/save reads the run script, compiles it and saves', async (
   assert.equal(saveCall[1].runId, 'run-1');
   assert.equal(saveCall[1].code, SAVED_CODE);
 
+  // An empty description is legal (the contract requires the key, not a non-empty value); a
+  // non-string is not.
+  const emptyDescription = await call(fixture, 'POST', `${BASE}/workflows/save`, {
+    body: { projectRoot: WORKSPACE, runId: 'run-1', name: 'x', meta: { description: '' }, overwrite: true },
+  });
+  assert.equal(emptyDescription.status, 200);
+
   const badMeta = await call(fixture, 'POST', `${BASE}/workflows/save`, {
-    body: { projectRoot: WORKSPACE, runId: 'run-1', name: 'x', meta: { description: '' } },
+    body: { projectRoot: WORKSPACE, runId: 'run-1', name: 'x', meta: { description: 5 } },
   });
   assert.equal(badMeta.status, 400);
 });

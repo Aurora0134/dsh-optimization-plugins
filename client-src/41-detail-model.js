@@ -378,16 +378,30 @@ function wfRosterEntry(run, actor, questions) {
   };
 }
 
-/** Every actor, in roster order (running first, then failed, pending, done). */
-function wfRunRoster(run) {
+/**
+ * How many subagents the run involved: the roster, or the distinct actor instances the node
+ * list still mentions (a settled run may keep node records after its actors were evicted).
+ * The status row reports the larger of the two so the count never under-reports the graph.
+ */
+function wfDetailAgentCount(run, roster) {
+  const lanes = new Set();
+  for (const node of wfObjects(run?.nodes)) {
+    const siteId = wfText(node.actorSiteId);
+    const ordinal = wfNum(node.actorOrdinal);
+    if (siteId === undefined) continue;
+    lanes.add(`${siteId}@${ordinal ?? 0}`);
+  }
+  return Math.max((roster ?? []).length, lanes.size);
+}
+
+/** Every actor, in roster order (running first, then failed, pending, done). */function wfRunRoster(run) {
   const questions = wfRunQuestions(run);
   const entries = wfObjects(run?.actors).map((actor) => wfRosterEntry(run, actor, questions));
   const rank = { running: 0, failed: 1, pending: 2, done: 3 };
   return entries.slice().sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9));
 }
 
-/** Pinned pills, the rest of the roster and its tallies for one station. */
-function wfStationRoster(run, station, roster, unlistedByPhase) {
+/** Pinned pills, the rest of the roster and its tallies for one station. */function wfStationRoster(run, station, roster, unlistedByPhase) {
   const own = roster.filter((entry) => wfPhaseMatches(station.name, entry.phaseName));
   const unlisted = wfObjects(unlistedByPhase)
     .filter((entry) => wfPhaseMatches(station.name, wfText(entry.phaseName)))

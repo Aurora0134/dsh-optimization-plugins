@@ -126,7 +126,7 @@ function WfSettingsRow(props) {
     option === defaultMode ? WF_H('span', { className: 'zwf-set-seg-tag' }, say('settings.dynamicWorkflow.defaultTag')) : null)));
   }
 
-  return WF_H('div', { className: 'zwf-set-row', 'data-testid': 'workflow-settings-row' },
+  return WF_H('div', { className: 'zwf-set-row', 'data-testid': 'workflow-settings' },
     WF_H('div', { className: 'zwf-set-main' },
       WF_H('div', { className: 'zwf-set-title' }, say('settings.dynamicWorkflow')),
       WF_H('div', { className: 'zwf-set-desc' }, say('settings.dynamicWorkflowDescription')),

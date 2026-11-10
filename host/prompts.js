@@ -1,26 +1,19 @@
 /**
- * 工作流的模型可见文案：子代理身份、ask 尾巴、修复/催促提示词、升级提问回执。
+ * 工作流的模型可见文案：子代理身份、ask 尾巴、修复/催促提示词、升级提问标记协议。
  *
- * 这里只放“会被模型读到”的字符串，并且逐字取自 ZCode CLI 0.21.1（`beauty/zcode-cli.js`
- * 的 657371-657424 / 739040-739062 / 739775-739786 / 739847-739870 / 424118-424189 /
- * 424259-424268）。为什么单独成文件：这些文案是行为的一部分（子代理靠它们决定怎么交付结果），
- * 散落在调度器里时任何一处手改都无法被测试逐一断言。
- *
- * 与原 bundle 的对应关系（原文位置）：
- * - `buildWorkflowActorIdentity` ← `wBa`（657383）+ `SBa`（657371）+ `kDn`（657321）+ `lBo`（657318）
- * - `qualityEpilogue` ← `ZBn`（739040）
- * - `schemaEpilogue` ← `lmi`（739775） / `genericSubmitEpilogue` ← `umi`（739855）
- * - `NUDGE_PROMPT` ← `cmi`（739852）
- * - `ESCALATION_BUDGET_EXHAUSTED` ← `imi`（739847）
- * - `TRANSIENT_CONTINUE` ← `hmi`（739867）
- * - `escalateRefusal` / `submitResult` 回执 ← 424259-424189
+ * ## 与上游 ZCode 的差异（这是有意的、被决策过的偏离）
+ * ZCode 的 actor 子会话有 `submit_result` / `escalate` 两个**真工具**（`cli.md` §1.13）。
+ * DSH 的 subagent activation 没有工具注入通道（`host/subagent.js` 自述），所以本移植把
+ * 这两条交互改成**回复协议**：
+ * - 结构化结果：把符合 JSON Schema 的 JSON **作为最终回复直接输出**（不包裹、不加解说）；
+ * - 阻塞提问：在最终回复里给一个 ```json {"escalate":{"question":"…","context":"…"}} ``` 围栏块，
+ *   引擎识别后挂起该 ask，主代理用 ResolveWorkflowQuestion 回答，答案作为下一回合的文本回灌。
+ * 上游原文仍保留在 `tmp/zc3172/notes/cli.md` §5，便于对照；改文案时以本文件为准。
  */
 
-/** 子代理侧提交结果的工具名（G2 引擎按这个名字识别 typed ask 的完成）。 */
-export const SUBMIT_RESULT_TOOL = 'submit_result';
-/** 子代理侧升级提问的工具名。 */
-export const ESCALATE_TOOL = 'escalate';
-/** 每个 ask 允许的 escalate 次数（`QBn = 3`）。 */
+/** 子代理侧的结果/提问都走回复协议，没有工具名可用。 */
+export const ESCALATION_MARKER_KEY = 'escalate';
+/** 每个 ask 允许的升级提问次数（ZCode `QBn = 3`）。 */
 export const ESCALATIONS_PER_ASK = 3;
 
 /** 安全声明：所有 actor 的系统提示词都带它，与主代理保持同一份口径。 */
@@ -31,12 +24,11 @@ export const SECURITY_NOTICE = 'IMPORTANT: Assist with authorized security testi
   + 'engagements, CTF competitions, security research, or defensive use cases.';
 
 /**
- * Harness 段落。`systemReminder` 决定用「系统会插入提醒」还是「`<system-reminder>` 标签」的说法，
- * 与宿主注入方式一致：DSH 走标签，ZCode 走系统 turn。
+ * Harness 段落。默认按 ZCode 的“系统 turn”措辞（`kDn(true)`）；DSH 注入方式不同时可传 false。
  * @param {boolean} [systemReminder]
  * @returns {string}
  */
-export function buildHarnessBlock(systemReminder = false) {
+export function buildHarnessBlock(systemReminder = true) {
   return [
     '# Harness',
     ' - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.',
@@ -49,42 +41,43 @@ export function buildHarnessBlock(systemReminder = false) {
   ].join('\n');
 }
 
-/** 「工作流里干活」契约里“有什么工具”的那一条（`vBa`）。 */
+/** 「工作流里干活」契约里“有什么工具”的那一条（已按回复协议改写）。 */
 export const WORKFLOW_TOOL_LINE = 'You have the regular working tools — reading, searching, editing, running '
-  + 'commands — plus `submit_result` and `escalate`. There is no tool that asks a person anything.';
+  + 'commands. Results and blocking questions travel in your final reply; there is no tool that asks a person anything.';
 
-/** 契约里“证据与诚实”的那一条（`bBa`）。 */
+/** 契约里“证据与诚实”的那一条。 */
 export const WORKFLOW_GROUNDING_LINE = 'Ground every claim in something you read or ran in this session, or in '
   + 'the material the ask gave you, and say which. Cite code as `path:line`. A check counts as passed only if '
   + 'you executed it here; if you could not run it, report it as not run. Run the check an ask names rather '
   + 'than a faster substitute, and say exactly which command you ran.';
 
+/** 升级提问的回复协议（系统提示词、质量尾巴、schema 尾巴共用同一句）。 */
+export const ESCALATION_PROTOCOL = 'If you are blocked by something outside your reach, end your reply with one fenced JSON block on its own: '
+  + '```json\n{"escalate":{"question":"<one focused question>","context":"<what you tried and where you are stuck>"}}\n``` '
+  + 'The run\'s owner answers it and your next turn starts with that answer. Questions written in prose reach nobody.';
+
 /**
- * 每个 actor 都收到的「# Working inside a workflow」契约（`SBa` 逐行）。
+ * 每个 actor 都收到的「# Working inside a workflow」契约。
  * @returns {string}
  */
 export function buildWorkflowContract() {
   return [
     '# Working inside a workflow',
     `- ${WORKFLOW_TOOL_LINE}`,
-    '- Each ask states what to do. When the ask carries a result schema, finish by calling `submit_result` with a conforming value; otherwise your final message is the result.',
+    '- Each ask states what to do. When the ask carries a result schema, make your final reply exactly the conforming JSON value — no prose, no code fence around it (unless the ask asks for one); otherwise your final message is the result.',
     `- ${WORKFLOW_GROUNDING_LINE}`,
     '- Report outcomes faithfully. If part of the task is impossible, out of scope, or contradicted by what you found, say so in the result instead of filling a field with a plausible guess. Never fake a passing result to satisfy an instruction.',
-    "- When you are blocked by something outside your reach — a gate that cannot pass, instructions that contradict each other, a fact only the run's owner knows — call `escalate`. Questions written in prose reach nobody.",
+    `- ${ESCALATION_PROTOCOL}`,
     '- Do not write report or summary files on your own initiative; findings go in the result. When the ask names an output path, write exactly there and return that path in the result — the script publishes it to the user.',
   ].join('\n');
 }
 
 /**
- * actor 的系统提示词（`wBa`）：身份句 + persona + 安全声明 + Harness + 工作流契约。
- *
- * 为什么身份句要写「没有真人可对话」：actor 的多轮对话只由脚本消费，模型若把 ask 当聊天会写出
- * 面向用户的过程叙述，脚本拿到的东西就不再是结果。
- *
+ * actor 的系统提示词：身份句 + persona + 安全声明 + Harness + 工作流契约。
  * @param {{ name?: string, persona?: string, systemReminder?: boolean }} options
  * @returns {string}
  */
-export function buildWorkflowActorIdentity({ name, persona, systemReminder = false } = {}) {
+export function buildWorkflowActorIdentity({ name, persona, systemReminder = true } = {}) {
   const actorName = typeof name === 'string' ? name.trim() : '';
   const identity = `You are a subagent inside a dynamic workflow run${actorName ? `, named "${actorName}"` : ''}. `
     + 'A script created you and hands you work one ask at a time; the script — not a person — consumes what you '
@@ -103,11 +96,7 @@ export function buildWorkflowActorIdentity({ name, persona, systemReminder = fal
 }
 
 /**
- * `qualityEpilogue`（`ZBn`）：每个 ask 尾巴上的「这份结果的标准」。
- *
- * schema 里声明了 `evidence` / `confidence` 字段时追加对应条目——这两个字段名的含义由脚本定义，
- * 尾巴必须提醒模型它们会被当真，否则模型会填一个好看的值而不是诚实的值。
- *
+ * `qualityEpilogue`：每个 ask 尾巴上的「这份结果的标准」。
  * @param {object | undefined} schema
  * @returns {string}
  */
@@ -129,16 +118,12 @@ export function qualityEpilogue(schema) {
     ...(fields.has('confidence')
       ? ['- Rate `confidence` honestly; a low value with a reason beats a confident guess.']
       : []),
-    '- If you are blocked by something outside your reach, call `escalate` instead of inventing a value.',
+    `- ${ESCALATION_PROTOCOL}`,
   ].join('\n');
 }
 
 /**
- * typed ask 的实现尾巴（`lmi`）：把 schema 原样写进提示词。
- *
- * 为什么把 schema 全文塞进提示词：DSH 的 actor 没有宿主侧工具 schema 可变注册，模型只能靠这段
- * 文本知道结果该长什么样；JSON Schema 本身就是最不容易被误读的写法。
- *
+ * typed ask 的实现尾巴：JSON Schema + “直接作为最终回复输出”。
  * @param {object | undefined} schema
  * @returns {string}
  */
@@ -147,26 +132,24 @@ export function schemaEpilogue(schema) {
     '',
     '',
     '---',
-    'When you have finished, call the `submit_result` tool to submit your final result. Its `result` argument must be a JSON value conforming to this JSON Schema:',
+    'When you have finished, your final reply must be exactly one JSON value conforming to this JSON Schema:',
     '',
     schema === undefined ? '(any JSON value)' : JSON.stringify(schema, null, 2),
     '',
-    'Pass the conforming JSON as the `result` argument — do not wrap it or add commentary.',
+    'Output the conforming JSON as your final reply — do not wrap it in prose, a code fence, or commentary.',
   ].join('\n');
 }
 
-/** mono 提交档位（schema 已知、工具 schema 固定）用的通用尾句（`umi`）。 */
+/** mono 提交档位用的通用尾句（schema 已在工具侧声明时的等价文本）。 */
 export const GENERIC_SUBMIT_EPILOGUE = [
   '',
   '',
   '---',
-  "When you have finished, call the `submit_result` tool to submit your final result. Its `result` argument must match the tool's declared schema — pass the conforming JSON directly, do not wrap it or add commentary.",
+  'When you have finished, your final reply must be exactly the JSON value the task described — output it directly, no wrapping or commentary.',
 ].join('\n');
 
 /**
  * 一次 turn 的完整用户提示词：指令 + 质量尾巴 + 提交尾巴。
- * 对应 `startAsk` 里的 `${o.instructions}${ZBn(...)}${typed ? … : ''}`。
- *
  * @param {{ instructions: string, typed?: boolean, schema?: object }} ask
  * @returns {string}
  */
@@ -175,29 +158,25 @@ export function buildAskPrompt({ instructions, typed = false, schema }) {
   return typed ? `${head}${schemaEpilogue(schema)}` : head;
 }
 
-/** typed ask 结束却未提交结果时，引擎发出的催促（`cmi`，逐字）。 */
-export const NUDGE_PROMPT = 'You ended your turn without submitting a result. Call the submit_result tool now '
-  + 'with a payload conforming to the required schema.';
+/** typed ask 结束却未给出结果时，引擎发出的催促（回复协议版本）。 */
+export const NUDGE_PROMPT = 'You ended your turn without giving the result. Output the JSON conforming to the '
+  + 'required schema now, as your final reply — no wording, no code fence around it.';
 
-/** 每个 ask 的 escalate 预算用尽后的回执（`imi`，逐字含 `${QBn}` 展开）。 */
+/** 每个 ask 的升级预算用尽后的回执。 */
 export const ESCALATION_BUDGET_EXHAUSTED = `Escalation budget exhausted: at most ${ESCALATIONS_PER_ASK} escalations per task. `
-  + 'Do not call escalate again. Proceed on your best judgement with the information you have, and state in your '
-  + 'final result the assumptions you relied on and the doubts that remain.';
+  + 'Do not ask again. Proceed on your best judgement with the information you have, and state in your final '
+  + 'result the assumptions you relied on and the doubts that remain.';
 
-/** 模型请求瞬断后重试前注入的续跑提示（`hmi`）。 */
+/** 模型请求瞬断后重试前注入的续跑提示。 */
 export const TRANSIENT_CONTINUE = 'The previous model request failed transiently and was abandoned; continue from '
   + 'where you left off.';
 
-/** 没有在飞 ask 时 escalate 的回执（424270 分支，逐字）。 */
+/** 没有在飞 ask 时升级提问的回执。 */
 export const ESCALATION_NO_ACTIVE_ASK = 'No ask is in flight, so there is nowhere to park this question and nobody '
-  + 'would answer it. Escalate only while working on an ask.';
+  + 'would answer it. Raise a question only while working on an ask.';
 
-/** submit_result 校验失败时回给模型的抬头（424178-424183）。 */
-export const SUBMIT_VIOLATIONS_HEADER = 'The submitted result does not match the required schema:';
-
-/** 校验通过 / 未通过时 submit_result 的模型可见回执（424186-424189）。 */
-export const SUBMIT_ACCEPTED_RECEIPT = 'The result was accepted.';
-export const SUBMIT_INVALID_RECEIPT = 'submit_result returned an invalid result.';
+/** 结果校验失败时回给模型（repair 回合）的抬头。 */
+export const SUBMIT_VIOLATIONS_HEADER = 'The reply did not match the required schema:';
 
 /**
  * 逐行渲染校验违规：`${path}: expected ${expected}, got ${got}`；无细节时 `(no details provided)`。
@@ -212,28 +191,38 @@ export function formatViolations(violations) {
 }
 
 /**
- * submit_result 工具描述（有 schema / 无 schema 两版，424123-424125）。
- * @param {{ schema?: object }} [options]
- * @returns {string}
+ * 从一段回复里取出升级提问标记（```json {"escalate":{...}} ```）。
+ *
+ * 为什么是围栏块而不是裸 JSON：最终回复在 typed ask 里本身就是 JSON，裸对象无法区分
+ * “结果”与“提问”；围栏是模型最稳定能产出的分隔形态。
+ *
+ * @param {string} text
+ * @returns {{ escalations: {question: string, context?: string}[], rest: string }}
  */
-export function submitResultDescription({ schema } = {}) {
-  return schema === undefined
-    ? 'Submit the structured result for the current ask. The required JSON shape is described in the ask instructions.'
-    : "Submit the structured result for the current ask. The `result` argument must match this tool's schema.";
+export function parseEscalationMarkers(text) {
+  const source = typeof text === 'string' ? text : '';
+  /** @type {{question: string, context?: string}[]} */
+  const escalations = [];
+  const cleaned = source.replace(/```(?:json)?\s*([\s\S]*?)```/giu, (whole, body) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(String(body).trim());
+    } catch {
+      return whole;
+    }
+    const marker = parsed?.escalate;
+    if (marker === undefined || marker === null) return whole;
+    const record = typeof marker === 'string' ? { question: marker } : marker;
+    const question = typeof record?.question === 'string' ? record.question.trim() : '';
+    if (question === '') return whole;
+    escalations.push({
+      question,
+      ...(typeof record.context === 'string' && record.context.trim() !== '' ? { context: record.context.trim() } : {}),
+    });
+    return '';
+  });
+  return { escalations, rest: cleaned.trim() };
 }
 
-/** escalate 工具描述（424259-424268 逐行）。 */
-export const ESCALATE_DESCRIPTION = [
-  'Escalates a question that is BLOCKING you to the main agent that created this workflow, and waits here for the answer.',
-  '',
-  'This is a LAST RESORT, for when you are genuinely stuck on something outside your reach:',
-  '- a gate that is broken or impossible to pass (a check capped at 95 when the threshold is 96);',
-  '- instructions that contradict each other, so no output can satisfy both;',
-  "- a fact you cannot obtain (a tradeoff, an external convention, what 'good' means here) that only whoever started this run knows.",
-  '',
-  'Do NOT use it for curiosity, progress reports, asking permission, confirming a conclusion you could verify yourself, or thinking out loud. None of those are blocked — keep working.',
-  '',
-  'Ask ONE focused question that can be answered in a sentence, and put your evidence in `context`: what you already tried, and exactly where you are stuck. The quality of the answer depends on it.',
-  '',
-  'The cost: this call BLOCKS until the main agent answers, which may take a long time. You get at most 3 escalations per ask; the 4th tells you the budget is spent and to proceed on your own best judgement. Do not spend them on questions not worth waiting for.',
-].join('\n');
+/** 升级提问标记的示例文本（测试与技能文档共用）。 */
+export const ESCALATION_MARKER_EXAMPLE = '```json\n{"escalate":{"question":"Which branch should I take?","context":"both look valid and the gate cannot decide"}}\n```';

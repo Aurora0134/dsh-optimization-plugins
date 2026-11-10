@@ -191,11 +191,10 @@ test('facade 取引用是 9001（站点身份依赖直接调用）', () => {
   assert.match(text(result), /facade function 'report' may only be called directly/);
 });
 
-test('空脚本报 9012', () => {
+test('空脚本合法（契约没有空脚本诊断）', () => {
   const result = compileWorkflowScript({ code: '' });
-  assert.equal(result.ok, false);
-  assert.deepEqual(codes(result), [COMPILER_DIAGNOSTIC_CODES.HOLE]);
-  assert.match(text(result), /the workflow script is empty/);
+  assert.equal(result.ok, true);
+  assert.equal(result.lowered, '');
 });
 
 test('args / run 被 lowering 到 __host', () => {

@@ -61,9 +61,240 @@ function budget(text, limit = MAX_MODEL_TEXT) {
 }
 
 /** @param {string} text @param {object} [extra] */
-const fail = (text, extra = {}) => ({ ok: false, text, ...extra });
+const fail = (text, extra = {}) => ({ ok: false, text, response: text, ...extra });
 /** @param {string} text @param {object} [extra] */
-const succeed = (text, extra = {}) => ({ ok: true, text, ...extra });
+const succeed = (text, extra = {}) => ({ ok: true, text, response: text, ...extra });
+
+/**
+ * Output JSON Schema shared by every tool: the port keeps `text` for DSH's renderer, while
+ * the contract fields named in `cli.md` §1.2–§1.11 stay camelCase and required.
+ *
+ * @param {Record<string, object>} properties
+ * @param {string[]} [required] tool-specific required fields
+ */
+function outputSchema(properties, required = []) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['ok', 'response', 'text', ...required],
+    properties: {
+      ok: { type: 'boolean' },
+      response: { type: 'string' },
+      text: { type: 'string' },
+      ...properties,
+    },
+  };
+}
+
+const DIAGNOSTIC_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['code', 'column', 'line', 'message'],
+  properties: {
+    code: { type: 'number' },
+    column: { type: 'number' },
+    line: { type: 'number' },
+    message: { type: 'string' },
+  },
+};
+
+/** `k4`/`$at` shape pieces shared by the authoring tools. */
+const DIAGNOSTICS_PROPERTY = { type: 'array', items: DIAGNOSTIC_SCHEMA };
+
+const FILL_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['siteId', 'name'],
+  properties: {
+    siteId: { type: 'string' },
+    name: { type: 'string' },
+    draftPath: { type: 'string' },
+    line: { type: 'number' },
+  },
+};
+
+/** One row of ListWorkflowRuns' `runs` (`cli.md` §1.6). */
+const RUN_ROW_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['runId', 'label', 'labelSource', 'status', 'ownedByThisSession', 'createdAt', 'updatedAt', 'spentTokens'],
+  properties: {
+    runId: { type: 'string' },
+    label: { type: 'string' },
+    labelSource: { type: 'string', enum: ['name', 'script'] },
+    status: { type: 'string', enum: ['completed', 'errored', 'pending', 'running', 'stopped'] },
+    stopReason: { type: 'string', enum: ['user', 'model', 'provider', 'interrupted', 'superseded'] },
+    resumedFrom: { type: 'string' },
+    supersededBy: { type: 'string' },
+    ownedByThisSession: { type: 'boolean' },
+    possiblyInterrupted: { type: 'boolean' },
+    createdAt: { type: 'number' },
+    updatedAt: { type: 'number' },
+    spentTokens: { type: 'number' },
+  },
+};
+
+/** One artifact row of GetWorkflowRun's `artifacts` (`cli.md` §1.5). */
+const ARTIFACT_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'kind', 'version', 'itemCount'],
+  properties: {
+    id: { type: 'string' },
+    kind: { type: 'string', enum: ['file', 'markdown', 'chart', 'table', 'metrics', 'board'] },
+    title: { type: 'string' },
+    version: { type: 'number' },
+    contentType: { type: 'string' },
+    bytes: { type: 'number' },
+    sourcePath: { type: 'string' },
+    itemCount: { type: 'number' },
+    primary: { type: 'boolean' },
+  },
+};
+
+/** One hole row of GetWorkflowRun's `holes` (`cli.md` §1.5). */
+const HOLE_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['siteId', 'name', 'state'],
+  properties: {
+    siteId: { type: 'string' },
+    ordinal: { type: 'number' },
+    name: { type: 'string' },
+    type: { type: 'string' },
+    state: { type: 'string', enum: ['waiting', 'filled'] },
+    since: { type: 'number' },
+    filledAt: { type: 'number' },
+    filledBy: { type: 'string' },
+  },
+};
+
+/** One pending question row (`cli.md` §1.5/§1.11). */
+const QUESTION_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['qid', 'question'],
+  properties: {
+    qid: { type: 'string' },
+    actorSiteId: { type: 'string' },
+    actorOrdinal: { type: 'number' },
+    actorName: { type: 'string' },
+    question: { type: 'string' },
+    context: { type: 'string' },
+    askedAt: { type: 'number' },
+  },
+};
+
+/** `Uoe` — GetWorkflowRun's snapshot output (`cli.md` §1.5). */
+const RUN_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['spentTokens', 'summary', 'generatedAt', 'usage', 'actors', 'logTail', 'health'],
+  properties: {
+    spentTokens: { type: 'number' },
+    summary: { type: 'string' },
+    generatedAt: { type: 'number' },
+    usage: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['spentTokens', 'nodesObserved', 'nodesRunning', 'nodesCompleted', 'nodesFailed'],
+      properties: {
+        spentTokens: { type: 'number' },
+        nodesObserved: { type: 'number' },
+        nodesRunning: { type: 'number' },
+        nodesCompleted: { type: 'number' },
+        nodesFailed: { type: 'number' },
+      },
+    },
+    maxConcurrency: { type: 'number' },
+    subagentModel: { type: 'string' },
+    modelBindings: { type: 'object', additionalProperties: { type: 'string' } },
+    scriptPath: { type: 'string' },
+    actors: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['siteId', 'ordinal'],
+        properties: {
+          siteId: { type: 'string' },
+          ordinal: { type: 'number' },
+          name: { type: 'string' },
+        },
+      },
+    },
+    logTail: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['sequence', 'message'],
+        properties: {
+          sequence: { type: 'number' },
+          message: { type: 'string' },
+          at: { type: 'number' },
+        },
+      },
+    },
+    phases: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'state', 'rounds'],
+        properties: {
+          name: { type: 'string' },
+          state: { type: 'string', enum: ['done', 'current', 'ahead', 'unfinished'] },
+          rounds: { type: 'number' },
+          nodesSettled: { type: 'number' },
+          nodesRunning: { type: 'number' },
+          enteredAt: { type: 'number' },
+          exitedAt: { type: 'number' },
+        },
+      },
+    },
+    subagents: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    subagentsTruncated: { type: 'boolean' },
+    health: {
+      type: 'object',
+      additionalProperties: true,
+      required: ['consecutiveFailures', 'cachedSteps', 'pendingQuestionsKnown'],
+      properties: {
+        lastProgressAt: { type: 'number' },
+        stalledSince: { type: 'number' },
+        concurrency: { type: 'object', additionalProperties: true },
+        consecutiveFailures: { type: 'number' },
+        cachedSteps: { type: 'number' },
+        leftoverRunning: { type: 'boolean' },
+        pendingQuestionsKnown: { type: 'boolean' },
+      },
+    },
+    result: { type: 'string' },
+    error: { type: 'object', additionalProperties: true },
+    pendingQuestions: { type: 'array', items: QUESTION_OUTPUT_SCHEMA },
+    holes: { type: 'array', items: HOLE_OUTPUT_SCHEMA },
+    artifacts: { type: 'array', items: ARTIFACT_OUTPUT_SCHEMA },
+  },
+};
+
+/** `F0e` — TaskOutput's task record (`cli.md` §1.12). */
+const TASK_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['task_id', 'task_type', 'status', 'description', 'output'],
+  properties: {
+    task_id: { type: 'string' },
+    task_type: { type: 'string' },
+    status: { type: 'string' },
+    description: { type: 'string' },
+    output: { type: 'string' },
+    exitCode: { type: ['number', 'null'] },
+    error: { type: 'string' },
+    prompt: { type: 'string' },
+    result: { type: 'string' },
+    outputFile: { type: 'string' },
+  },
+};
 
 /**
  * Render one diagnostic list in ZCode's `{file}:L{line}:C{column} {message}` form.
@@ -372,6 +603,166 @@ function renderRunRow(run, sessionId) {
   return `- ${bits.join(', ')}`;
 }
 
+const RUN_STATUSES = new Set(['completed', 'errored', 'pending', 'running', 'stopped']);
+const STOP_REASONS = new Set(['user', 'model', 'provider', 'interrupted', 'superseded']);
+
+/**
+ * Map one runtime run row to ListWorkflowRuns' `runs[]` contract (`cli.md` §1.6).
+ * @param {object} run
+ */
+function toRunRow(run) {
+  const runId = run.id ?? run.runId ?? '';
+  const label = run.name ?? run.label;
+  const rawStatus = run.status;
+  const status = RUN_STATUSES.has(rawStatus) ? rawStatus : 'pending';
+  const rawStopReason = run.stopReason ?? run.stop_reason;
+  const stopReason = STOP_REASONS.has(rawStopReason) ? rawStopReason : undefined;
+  const owned = run.ownedByThisSession ?? run.owned_by_this_session ?? false;
+  const possiblyInterrupted = run.possiblyInterrupted
+    ?? (owned === true && stopReason !== 'user' && run.introducesProviders === undefined && (status === 'running' || status === 'pending'));
+  return {
+    runId,
+    label: typeof label === 'string' ? label : runId,
+    labelSource: typeof label === 'string' ? 'name' : 'script',
+    status,
+    ...(stopReason === undefined ? {} : { stopReason }),
+    ...(typeof run.resumedFrom === 'string' ? { resumedFrom: run.resumedFrom } : {}),
+    ...(typeof run.supersededBy === 'string' ? { supersededBy: run.supersededBy } : {}),
+    ownedByThisSession: owned === true,
+    ...(possiblyInterrupted === true ? { possiblyInterrupted: true } : {}),
+    createdAt: typeof run.createdAt === 'number' ? run.createdAt : 0,
+    updatedAt: typeof run.updatedAt === 'number' ? run.updatedAt : (typeof run.createdAt === 'number' ? run.createdAt : 0),
+    spentTokens: typeof run.spentTokens === 'number' ? run.spentTokens : 0,
+  };
+}
+
+/**
+ * Map a runtime snapshot to GetWorkflowRun's `Uoe` output (`cli.md` §1.5).
+ * @param {object} run
+ */
+function toRunOutput(run) {
+  const used = run.usage ?? {};
+  const usage = {
+    spentTokens: Number(used.spentTokens ?? run.spentTokens ?? 0),
+    nodesObserved: Number(used.nodesObserved ?? 0),
+    nodesRunning: Number(used.nodesRunning ?? 0),
+    nodesCompleted: Number(used.nodesCompleted ?? 0),
+    nodesFailed: Number(used.nodesFailed ?? 0),
+  };
+  const phases = phasesOf(run).map((phase) => {
+    if (typeof phase !== 'string') {
+      return {
+        name: String(phase?.name ?? ''),
+        state: ['done', 'current', 'ahead', 'unfinished'].includes(phase?.state) ? phase.state : 'unfinished',
+        rounds: Number(phase?.rounds ?? 1),
+        ...(typeof phase?.nodesSettled === 'number' ? { nodesSettled: phase.nodesSettled } : {}),
+        ...(typeof phase?.nodesRunning === 'number' ? { nodesRunning: phase.nodesRunning } : {}),
+      };
+    }
+    const names = phasesOf(run).map((entry) => (typeof entry === 'string' ? entry : entry?.name));
+    const index = names.indexOf(phase);
+    const currentIndex = run.currentPhase === undefined ? -1 : names.indexOf(run.currentPhase);
+    const state = run.status === 'completed'
+      ? 'done'
+      : (currentIndex === -1 ? (index === 0 ? 'current' : 'unfinished') : (index < currentIndex ? 'done' : (index === currentIndex ? 'current' : 'ahead')));
+    return { name: phase, state, rounds: 1 };
+  });
+  const actors = (Array.isArray(run.actors) ? run.actors : []).map((actor) => ({
+    siteId: String(actor.siteId ?? ''),
+    ordinal: Number(actor.ordinal ?? 0),
+    ...(typeof actor.name === 'string' ? { name: actor.name } : {}),
+  }));
+  const subagents = (Array.isArray(run.actors) ? run.actors : []).map((actor) => ({
+    siteId: String(actor.siteId ?? ''),
+    ordinal: Number(actor.ordinal ?? 0),
+    ...(typeof actor.name === 'string' ? { name: actor.name } : {}),
+    state: actor.status === 'completed' ? 'done' : (actor.status === 'running' ? 'executing' : 'idle'),
+    stepsSettled: 0,
+    stepsFailed: 0,
+    tokens: 0,
+  }));
+  const health = {
+    consecutiveFailures: Number(run.health?.consecutiveFailures ?? usage.nodesFailed),
+    cachedSteps: Number(run.health?.cachedSteps ?? 0),
+    pendingQuestionsKnown: run.health?.pendingQuestionsKnown !== false,
+    ...(typeof run.health?.lastProgressAt === 'number' ? { lastProgressAt: run.health.lastProgressAt } : {}),
+    ...(typeof run.health?.stalledSince === 'number' ? { stalledSince: run.health.stalledSince } : {}),
+    ...(run.health?.concurrency === undefined ? {} : { concurrency: run.health.concurrency }),
+    ...(run.health?.leftoverRunning === true ? { leftoverRunning: true } : {}),
+  };
+  const logTail = (Array.isArray(run.logTail) ? run.logTail : []).map((entry, index) => ({
+    sequence: Number(entry.sequence ?? index),
+    message: String(entry.message ?? ''),
+  }));
+  const pendingQuestions = (Array.isArray(run.pendingQuestions) ? run.pendingQuestions : []).map((question) => ({
+    qid: String(question.qid ?? ''),
+    ...(typeof question.actorSiteId === 'string' ? { actorSiteId: question.actorSiteId } : {}),
+    ...(typeof question.actor?.siteId === 'string' ? { actorSiteId: question.actor.siteId } : {}),
+    ...(typeof question.actorOrdinal === 'number' ? { actorOrdinal: question.actorOrdinal } : {}),
+    ...(typeof question.actor?.ordinal === 'number' ? { actorOrdinal: question.actor.ordinal } : {}),
+    ...(typeof question.actorName === 'string' ? { actorName: question.actorName } : {}),
+    question: String(question.question ?? ''),
+    ...(typeof question.context === 'string' ? { context: question.context } : {}),
+    ...(typeof question.askedAt === 'number' ? { askedAt: question.askedAt } : {}),
+  }));
+  const holes = (Array.isArray(run.holes) ? run.holes : []).map((hole) => ({
+    siteId: String(hole.siteId ?? hole.id ?? ''),
+    ...(typeof hole.ordinal === 'number' ? { ordinal: hole.ordinal } : {}),
+    name: String(hole.name ?? hole.siteId ?? ''),
+    ...(typeof hole.type === 'string' ? { type: hole.type } : {}),
+    state: hole.state === 'filled' ? 'filled' : 'waiting',
+    ...(typeof hole.since === 'number' ? { since: hole.since } : {}),
+    ...(typeof hole.filledAt === 'number' ? { filledAt: hole.filledAt } : {}),
+    ...(typeof hole.filledBy === 'string' ? { filledBy: hole.filledBy } : {}),
+  }));
+  const artifacts = (Array.isArray(run.artifacts) ? run.artifacts : []).map((artifact) => ({
+    id: String(artifact.id ?? ''),
+    kind: ['file', 'markdown', 'chart', 'table', 'metrics', 'board'].includes(artifact.kind) ? artifact.kind : 'file',
+    ...(typeof artifact.title === 'string' ? { title: artifact.title } : {}),
+    version: Number(artifact.version ?? 1),
+    ...(typeof artifact.contentType === 'string' ? { contentType: artifact.contentType } : {}),
+    ...(typeof artifact.bytes === 'number' ? { bytes: artifact.bytes } : {}),
+    ...(typeof artifact.sourcePath === 'string' ? { sourcePath: artifact.sourcePath } : {}),
+    itemCount: Number(artifact.itemCount ?? 0),
+    ...(artifact.primary === true ? { primary: true } : {}),
+  }));
+  const result = run.result === undefined
+    ? undefined
+    : (typeof run.result === 'string' ? run.result : JSON.stringify(run.result));
+  const error = run.error === undefined
+    ? undefined
+    : (typeof run.error === 'string' ? { message: run.error } : {
+      ...(typeof run.error.code === 'string' ? { code: run.error.code } : {}),
+      message: String(run.error.message ?? ''),
+      ...(run.error.providerStop === undefined ? {} : { providerStop: run.error.providerStop }),
+    });
+  const waiting = pendingQuestions.length + holes.filter((hole) => hole.state === 'waiting').length;
+  const summary = `${run.name ?? run.runId ?? run.id ?? 'run'} — ${run.status ?? 'unknown'}`
+    + `${usage.spentTokens === 0 ? '' : `, ${usage.spentTokens} tokens`}`
+    + `, ${usage.nodesCompleted}/${usage.nodesObserved} nodes completed`
+    + `${waiting === 0 ? '' : `, ${waiting} waiting on you`}`;
+  return {
+    spentTokens: usage.spentTokens,
+    summary: summary.length > 400 ? `${summary.slice(0, 397)}…` : summary,
+    generatedAt: Date.now(),
+    usage,
+    ...(typeof run.maxConcurrency === 'number' ? { maxConcurrency: run.maxConcurrency } : {}),
+    ...(typeof run.subagentModel === 'string' ? { subagentModel: run.subagentModel } : {}),
+    ...(run.modelBindings === undefined ? {} : { modelBindings: run.modelBindings }),
+    ...(typeof run.scriptPath === 'string' ? { scriptPath: run.scriptPath } : {}),
+    actors,
+    logTail,
+    phases,
+    subagents,
+    health,
+    ...(result === undefined ? {} : { result }),
+    ...(error === undefined ? {} : { error }),
+    pendingQuestions,
+    holes,
+    artifacts,
+  };
+}
+
 /**
  * Build the tool definitions bound to one plugin instance.
  *
@@ -538,7 +929,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       renderDiagnostics(file, diagnostics),
       '',
       note,
-    ].join('\n'), { diagnostics, script_path: absolutePath });
+    ].join('\n'), { diagnostics, scriptPath: absolutePath });
   };
 
   /**
@@ -631,16 +1022,12 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
       },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args, exec) {
       const cwd = sessionCwd(ctx, exec);
       const sources = ['script', 'saved', 'path'].filter((key) => args?.[key] !== undefined);
-      if (sources.length === 0) return fail(NO_WORKFLOW_SOURCE);
-      if (sources.length > 1) return fail(MULTIPLE_WORKFLOW_SOURCES);
-      if (args?.args !== undefined && args?.path === undefined) return fail(ARGS_WITHOUT_PATH);
+      if (sources.length === 0) return fail(NO_WORKFLOW_SOURCE, { diagnostics: [] });
+      if (sources.length > 1) return fail(MULTIPLE_WORKFLOW_SOURCES, { diagnostics: [] });
+      if (args?.args !== undefined && args?.path === undefined) return fail(ARGS_WITHOUT_PATH, { diagnostics: [] });
 
       let code;
       let scriptPath;
@@ -655,7 +1042,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         origin = 'inline';
       } else if (args?.path !== undefined) {
         const file = await readWorkspaceFile(cwd, String(args.path));
-        if (!file.ok) return fail(`${file.message} Nothing ran.`);
+        if (!file.ok) return fail(`${file.message} Nothing ran.`, { diagnostics: [] });
         scriptPath = file.absolute;
         origin = 'path';
         const header = compiler.extractMetadataHeader(file.text);
@@ -664,14 +1051,14 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           code = header.body;
           runName = runName ?? meta.name;
           runArgs = validateSavedArgs(runArgs, meta.args ?? {});
-          if (!runArgs.ok) return fail(`${runArgs.message} Nothing ran.`);
+          if (!runArgs.ok) return fail(`${runArgs.message} Nothing ran.`, { diagnostics: [] });
           runArgs = runArgs.args;
         } else {
           code = file.text;
         }
       } else {
         const saved = await resolveSaved(args.saved, cwd);
-        if (!saved.ok) return fail(`${saved.message} Nothing ran.`);
+        if (!saved.ok) return fail(`${saved.message} Nothing ran.`, { diagnostics: [] });
         code = saved.code;
         meta = saved.meta;
         runArgs = saved.args;
@@ -681,10 +1068,10 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         origin = 'saved';
       }
       if (typeof code !== 'string' || code.trim().length === 0) {
-        return fail('the workflow script is empty. Nothing ran.');
+        return fail('the workflow script is empty. Nothing ran.', { diagnostics: [] });
       }
       if (!has('start') && !has('prepare')) {
-        return fail(`The workflow script compiled cleanly.\n\n${NO_EXECUTION_NOTE}`);
+        return fail(`The workflow script compiled cleanly.\n\n${NO_EXECUTION_NOTE}`, { diagnostics: [] });
       }
 
       const label = typeof runName === 'string' && runName.length > 0 ? runName : 'workflow';
@@ -710,7 +1097,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         try {
           prepared = await runtime.prepare(requested);
         } catch (error) {
-          return fail(`the workflow could not be prepared: ${error instanceof Error ? error.message : String(error)}`);
+          return fail(`the workflow could not be prepared: ${error instanceof Error ? error.message : String(error)}`, { diagnostics: [] });
         }
       }
       const diagnostics = Array.isArray(prepared?.diagnostics) ? prepared.diagnostics : [];
@@ -860,10 +1247,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           description: 'Omit to keep the predecessor\'s choice, null for the session model, a model id to set one (only when the user asks, never a model under another provider the user did not name — ask them first if one would help).',
         },
       },
-    },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
     },
     async execute(args, exec) {
       if (args?.script !== undefined && args?.path !== undefined) return fail(AMEND_BOTH_SCRIPTS);
@@ -1071,10 +1454,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
       },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args, exec) {
       if (!has('resume')) return fail(RESUME_UNAVAILABLE);
       const runId = String(args?.run_id);
@@ -1138,10 +1517,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
       },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args) {
       if (!has('getRun')) return fail(INTROSPECTION_UNAVAILABLE);
       const run = await runtime.getRun(String(args?.run_id));
@@ -1173,10 +1548,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           description: 'Optional status filter. Omit to see every run in this project. Pass ["running", "pending"] to see only what is still in flight.',
         },
       },
-    },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
     },
     async execute(args, exec) {
       if (!has('listRuns')) return fail(INTROSPECTION_UNAVAILABLE);
@@ -1251,10 +1622,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           description: 'A file holding those statements — usually the fill file named by a rejected attempt, edited in place. This OR `script`, never both.',
         },
       },
-    },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
     },
     async execute(args, exec) {
       const runId = String(args?.run_id);
@@ -1359,10 +1726,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           description: 'Wall clock for the whole snippet, in ms. Default 60000, at most 600000.',
         },
       },
-    },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
     },
     async execute(args, exec) {
       const sources = [args?.code, args?.path].filter((value) => value !== undefined);
@@ -1477,10 +1840,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
       },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args, exec) {
       const hasScript = args?.script !== undefined;
       const hasPath = args?.script_path !== undefined;
@@ -1545,10 +1904,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
     name: 'ListSavedWorkflows',
     description: TOOL_DESCRIPTIONS.listSavedWorkflows,
     parameters: { type: 'object', additionalProperties: false, properties: {} },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args, exec) {
       const cwd = sessionCwd(ctx, exec);
       const listed = await store.listSavedWorkflows({ cwd });
@@ -1602,10 +1957,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           description: 'The answer text, delivered verbatim to the subagent that asked',
         },
       },
-    },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
     },
     async execute(args) {
       const questionId = typeof args?.question_id === 'string' ? args.question_id : '';
@@ -1669,10 +2020,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
       },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args, exec) {
       if (!has('getRun')) return fail(INTROSPECTION_UNAVAILABLE);
       const runId = String(args?.run_id);
@@ -1735,10 +2082,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         },
       },
     },
-    output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
-    },
     async execute(args) {
       if (!has('stopRun')) return fail(STOP_UNAVAILABLE);
       const runId = String(args?.run_id);
@@ -1760,6 +2103,110 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       });
     },
   });
+
+  /**
+   * Each tool's output contract (`cli.md` §1.2–§1.11). `text` and `response` are always
+   * present; the contract fields are camelCase, and the per-tool required list stays strict.
+   */
+  const OUTPUT_SCHEMAS = {
+    CreateWorkflow: outputSchema({
+      diagnostics: DIAGNOSTICS_PROPERTY,
+      status: { type: 'string', enum: ['backgrounded'] },
+      backgroundTaskId: { type: 'string' },
+      runId: { type: 'string' },
+      scriptPath: { type: 'string' },
+      retuned: { type: 'object', additionalProperties: true },
+      causalityGraph: { type: 'object', additionalProperties: true },
+      fill: FILL_OUTPUT_SCHEMA,
+    }, ['diagnostics']),
+    AmendWorkflow: outputSchema({
+      diagnostics: DIAGNOSTICS_PROPERTY,
+      status: { type: 'string', enum: ['backgrounded'] },
+      backgroundTaskId: { type: 'string' },
+      runId: { type: 'string' },
+      supersededRunId: { type: 'string' },
+      scriptPath: { type: 'string' },
+      retuned: { type: 'object', additionalProperties: true },
+      causalityGraph: { type: 'object', additionalProperties: true },
+      fill: FILL_OUTPUT_SCHEMA,
+    }, ['diagnostics']),
+    ResumeWorkflowRun: outputSchema({
+      runId: { type: 'string' },
+      status: { type: 'string', enum: ['backgrounded'] },
+      backgroundTaskId: { type: 'string' },
+    }),
+    GetWorkflowRun: outputSchema(RUN_OUTPUT_SCHEMA.properties, RUN_OUTPUT_SCHEMA.required),
+    ListWorkflowRuns: outputSchema({
+      runs: { type: 'array', items: RUN_ROW_OUTPUT_SCHEMA },
+      truncated: { type: 'boolean' },
+    }, ['runs']),
+    FillWorkflowHole: outputSchema({
+      diagnostics: DIAGNOSTICS_PROPERTY,
+      fill: FILL_OUTPUT_SCHEMA,
+    }, ['diagnostics']),
+    EvalWorkflowSnippet: outputSchema({
+      diagnostics: DIAGNOSTICS_PROPERTY,
+      logs: { type: 'array', items: { type: 'string' } },
+      durationMs: { type: 'number' },
+    }, ['diagnostics', 'logs', 'durationMs']),
+    SaveWorkflow: outputSchema({
+      diagnostics: DIAGNOSTICS_PROPERTY,
+      name: { type: 'string' },
+      scope: { type: 'string', enum: ['project', 'global'] },
+      path: { type: 'string' },
+      overwritten: { type: 'boolean' },
+    }, ['diagnostics']),
+    ListSavedWorkflows: outputSchema({
+      workflows: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['name', 'scope', 'path'],
+          properties: {
+            name: { type: 'string' },
+            description: { type: 'string' },
+            whenToUse: { type: 'string' },
+            args: { type: 'object', additionalProperties: true },
+            scope: { type: 'string', enum: ['project', 'global'] },
+            path: { type: 'string' },
+          },
+        },
+      },
+      invalid: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['path', 'reason'],
+          properties: { path: { type: 'string' }, reason: { type: 'string' } },
+        },
+      },
+    }, ['workflows']),
+    ResolveWorkflowQuestion: outputSchema({
+      qid: { type: 'string' },
+    }),
+    TaskOutput: outputSchema({
+      retrieval_status: { type: 'string', enum: ['success', 'not_ready', 'timeout'] },
+      task: {
+        type: ['object', 'null'],
+        additionalProperties: false,
+        required: TASK_OUTPUT_SCHEMA.required,
+        properties: TASK_OUTPUT_SCHEMA.properties,
+      },
+    }, ['retrieval_status', 'task']),
+    StopWorkflowRun: outputSchema({
+      runId: { type: 'string' },
+      status: { type: 'string' },
+      stopReason: { type: 'string', enum: ['user', 'model', 'provider', 'interrupted', 'superseded'] },
+    }),
+  };
+  for (const tool of tools) {
+    tool.output = {
+      schema: OUTPUT_SCHEMAS[tool.name] ?? outputSchema({}),
+      render: (args, value) => [{ type: 'text', text: value.text ?? '' }],
+    };
+  }
 
   return tools;
 }

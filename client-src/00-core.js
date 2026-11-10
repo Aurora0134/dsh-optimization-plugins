@@ -19,6 +19,7 @@ const TOOL_NAMES = [
   'StopWorkflowRun',
   'ResumeWorkflowRun',
   'FillWorkflowHole',
+  'ResolveWorkflowQuestion',
   'SaveWorkflow',
   'ListSavedWorkflows',
   'EvalWorkflowSnippet',

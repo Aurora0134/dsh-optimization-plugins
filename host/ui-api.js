@@ -20,7 +20,8 @@ import { APPROVAL_OPTIONS } from './approval.js';
 import { compileWorkflowScript } from './compiler.js';
 import { pageEvents } from './journal.js';
 import { userMessage } from './messages.js';
-import { derivePhaseStates } from './phase-state.js';
+import { derivePhaseStates, isRunActive } from './phase-state.js';
+import { isResumable } from './resumability.js';
 import { createSubagentRunner } from './subagent.js';
 
 const BASE = '/zcode-workflow';
@@ -226,8 +227,9 @@ function runSummary(row) {
     ...(row.stopReason === undefined ? {} : { stopReason: row.stopReason }),
     ...(row.resumedFrom === undefined ? {} : { resumedFrom: row.resumedFrom }),
     ...(row.supersededBy === undefined ? {} : { supersededBy: row.supersededBy }),
+    ...(row.failureCode === undefined ? {} : { failureCode: row.failureCode }),
     ...(row.failureMessage === undefined ? {} : { failureMessage: row.failureMessage }),
-    resumable: row.resumable === true || row.status === 'stopped',
+    resumable: isResumable(row.status, row.stopReason),
     // Legacy aliases used by the plugin's status panel and directory.
     id: row.id ?? runId,
     name: row.name ?? row.label ?? runId,
@@ -441,6 +443,7 @@ export function readArtifactChunk({ bytes, mediaType, offset, limit }) {
 export function validateArtifactRead(payload) {
   const totalBytes = Number(payload?.totalBytes);
   if (!Number.isInteger(totalBytes) || totalBytes < 0) return 'totalBytes must be a non-negative integer';
+  // 上游 zod 文案与实际 20 MiB 上限不一致（engine.md §7.3）；移植原则是文案逐字复刻。
   if (totalBytes > ATTACHMENT_MAX_BYTES) return 'Too big: expected number to be <=16777216';
   const decoded = decodedBase64ByteLength(String(payload?.dataBase64 ?? ''));
   if (decoded === null) return 'invalid base64';
@@ -481,7 +484,8 @@ export function truncateNodeResult(result, maxBytes = NODE_RESULT_MAX_BYTES) {
     let used = 2;
     for (const item of result) {
       const text = JSON.stringify(item) ?? 'null';
-      const cost = Buffer.byteLength(text, 'utf8') + (items.length === 0 ? 0 : 1);
+      // 每个元素都占「JSON 字节 + 1 个逗号」，首元素也不例外（§8 `Dyc`）。
+      const cost = Buffer.byteLength(text, 'utf8') + 1;
       if (used + cost > budget) break;
       items.push(item);
       used += cost;
@@ -495,7 +499,7 @@ export function truncateNodeResult(result, maxBytes = NODE_RESULT_MAX_BYTES) {
     && typeof result.stdout === 'string'
     && typeof result.stderr === 'string'
   ) {
-    const skeleton = JSON.stringify({ exitCode: result.exitCode, stdout: '', stderr: '' });
+    const skeleton = JSON.stringify({ ...result, stdout: '', stderr: '' });
     const remaining = Math.max(0, budget - Buffer.byteLength(skeleton, 'utf8'));
     const stdoutBytes = Buffer.byteLength(result.stdout, 'utf8');
     const stderrBytes = Buffer.byteLength(result.stderr, 'utf8');
@@ -503,7 +507,7 @@ export function truncateNodeResult(result, maxBytes = NODE_RESULT_MAX_BYTES) {
     const stdoutBudget = Math.max(0, remaining - stderrBudget);
     return {
       result: {
-        exitCode: result.exitCode,
+        ...result,
         stdout: utf8SafeSlice(result.stdout, stdoutBudget),
         stderr: utf8SafeSlice(result.stderr, stderrBudget),
       },
@@ -862,8 +866,10 @@ export function registerWorkflowUiApi({
             sequence: event.sequence,
             siteId,
             ordinal,
-            item,
-            ...(fields === undefined ? {} : { fields: projectArtifactFields(item, fields) }),
+            // §2.5 fields 模式：只回投影字段，完整 item 不再下传，带宽优化才成立。
+            ...(fields === undefined
+              ? { item }
+              : { fields: projectArtifactFields(item, fields) }),
           });
           bytes += size;
         }
@@ -894,6 +900,7 @@ export function registerWorkflowUiApi({
           throw fault(404, 'fault.workflowRunArtifactRead.notFound', `${runId}/${artifactId}@${version}`);
         }
         if (payload.totalBytes > ATTACHMENT_MAX_BYTES) {
+          // 同 §7.3：上游文案写的是 16 MiB，实际上限是 20 MiB，逐字复刻。
           throw new ApiError(400, 'invalid-request', 'Too big: expected number to be <=16777216');
         }
         const response = readArtifactChunk({
@@ -1112,14 +1119,20 @@ export function registerWorkflowUiApi({
       async GET(req, res, query) {
         const cwd = await cwdFrom(query);
         const scope = workflowScope(query.scope);
-        const listed = await storeFor(cwd).listSavedWorkflows({ cwd, ...(scope === undefined ? {} : { scope }) });
+        const store = storeFor(cwd);
+        const listed = await store.listSavedWorkflows({ cwd, ...(scope === undefined ? {} : { scope }) });
         const entries = Array.isArray(listed?.entries) ? listed.entries : Array.isArray(listed) ? listed : [];
         const workflows = entries.map(savedWorkflow);
         const invalid = Array.isArray(listed?.invalid) ? listed.invalid : [];
+        // §1.2 #1 响应带必填 dir：目录页用它显示归档位置，也用于打开工作流文件。
+        const dir = scope === 'global'
+          ? (typeof store.paths?.globalSavedDir === 'function' ? store.paths.globalSavedDir() : path.join(cwd, '.dsh', 'workflows'))
+          : (typeof store.paths?.projectSavedDir === 'function' ? store.paths.projectSavedDir(cwd) : path.join(cwd, '.dsh', 'workflows'));
         sendJson(res, 200, {
           workflows,
           entries: workflows,
           invalid: invalid.map(invalidWorkflowRow),
+          dir,
         });
       },
     },
@@ -1243,12 +1256,26 @@ export function registerWorkflowUiApi({
           sendJson(res, 200, { ok: false, reason: 'run_not_found' });
           return;
         }
+        const meta = readWorkflowMeta(body.meta);
         const code = typeof store.readRunScript === 'function'
           ? await store.readRunScript(runId, { cwd })
           : (typeof run.scriptPath === 'string' ? await fsp.readFile(run.scriptPath, 'utf8').catch(() => undefined) : undefined);
         if (typeof code !== 'string' || code.trim() === '') {
           sendJson(res, 200, { ok: false, reason: 'script_missing' });
           return;
+        }
+        // §1.2 #7 / N19：先判目标存在，再编译；overwrite 缺省等价 false。
+        if (body.overwrite !== true && typeof store.savedWorkflowTarget === 'function') {
+          const target = store.savedWorkflowTarget(name, { cwd, ...(scope === undefined ? {} : { scope }) });
+          if (target?.exists === true) {
+            sendJson(res, 200, {
+              ok: false,
+              reason: 'target_exists',
+              path: target.path,
+              detail: `a ${target.scope} workflow named "${name}" already exists`,
+            });
+            return;
+          }
         }
         const compiled = compileWorkflowScript({
           code,
@@ -1259,10 +1286,6 @@ export function registerWorkflowUiApi({
           sendJson(res, 200, { ok: false, reason: 'compile_failed', detail: describeStartFailure(compiled) });
           return;
         }
-        const meta = readWorkflowMeta(body.meta);
-        if (meta.description === undefined) {
-          throw new ApiError(400, 'bad-parameter', '"meta.description" is required');
-        }
         const result = typeof store.saveWorkflow === 'function'
           ? await store.saveWorkflow({
             cwd,
@@ -1270,10 +1293,10 @@ export function registerWorkflowUiApi({
             name,
             meta,
             ...(scope === undefined ? {} : { scope }),
-            ...(body.overwrite === undefined ? {} : { overwrite: body.overwrite === true }),
+            overwrite: body.overwrite === true,
             code,
           })
-          : await legacySaveWorkflow(store, { cwd, name, meta, scope: scope ?? 'project', code, overwrite: body.overwrite !== false });
+          : await legacySaveWorkflow(store, { cwd, name, meta, scope: scope ?? 'project', code, overwrite: body.overwrite === true });
         sendJson(res, 200, result);
       },
     },
@@ -1622,13 +1645,16 @@ function workflowScope(raw) {
  * @returns {{ description?: string, whenToUse?: string, args?: Record<string, unknown> }}
  */
 function readWorkflowMeta(raw) {
-  if (raw === undefined || raw === null) return {};
+  if (raw === undefined || raw === null) {
+    throw new ApiError(400, 'missing-parameter', '"meta" is required');
+  }
   if (typeof raw !== 'object' || Array.isArray(raw)) {
     throw new ApiError(400, 'bad-parameter', '"meta" must be an object');
   }
   const record = /** @type {Record<string, unknown>} */ (raw);
-  if (record.description !== undefined && (typeof record.description !== 'string' || record.description.trim() === '')) {
-    throw new ApiError(400, 'bad-parameter', '"meta.description" must be a non-empty string');
+  // `Ow.description: J` 必填但允许空串（§1.2 / validation.js:14823-14827）。
+  if (typeof record.description !== 'string') {
+    throw new ApiError(400, 'missing-parameter', '"meta.description" is required');
   }
   if (record.whenToUse !== undefined && typeof record.whenToUse !== 'string') {
     throw new ApiError(400, 'bad-parameter', '"meta.whenToUse" must be a string');
@@ -1637,7 +1663,7 @@ function readWorkflowMeta(raw) {
     throw new ApiError(400, 'bad-parameter', '"meta.args" must be an object');
   }
   return {
-    ...(record.description === undefined ? {} : { description: /** @type {string} */ (record.description) }),
+    description: /** @type {string} */ (record.description),
     ...(record.whenToUse === undefined ? {} : { whenToUse: /** @type {string} */ (record.whenToUse) }),
     ...(record.args === undefined ? {} : { args: /** @type {Record<string, unknown>} */ (record.args) }),
   };

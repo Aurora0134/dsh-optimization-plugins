@@ -59,10 +59,15 @@ function explicitMode(raw) {
 
 /**
  * Normalize the configured mode to ZCode's enum.
+ *
+ * A row may carry `enabled: false` instead of a mode — that is the same switch the settings surface
+ * writes — so it has to collapse to `disabled` rather than fall through to the default.
  * @param {unknown} raw
+ * @param {unknown} [enabled]
  * @returns {'disabled' | 'onDemand' | 'alwaysOn'}
  */
-function normalizeMode(raw) {
+function normalizeMode(raw, enabled) {
+  if (enabled === false) return 'disabled';
   return explicitMode(raw) ?? 'alwaysOn';
 }
 
@@ -236,7 +241,7 @@ export function apply(ctx, config = {}) {
   const settingsFile = path.join(homeDir, 'zcode-workflow', 'settings.json');
   // An explicit fallback file outranks the patch config: it is only written when configEditor
   // could not persist a mode change, and keeps that choice across restarts.
-  const mode = explicitMode(readStoredMode(settingsFile)) ?? normalizeMode(config.mode);
+  const mode = explicitMode(readStoredMode(settingsFile)) ?? normalizeMode(config.mode, config.enabled);
   /** The host logger is optional; console keeps a failure visible without a service dependency. */
   let logger = console;
   try {
@@ -440,6 +445,7 @@ export function apply(ctx, config = {}) {
         readPolicy,
         writePolicy,
         approval,
+        config,
         logger,
       });
     });
@@ -515,9 +521,15 @@ export function apply(ctx, config = {}) {
     name: source.name,
     description: source.description,
     parameters: source.parameters,
+    // The tool half declares the contract's own output shape per tool; this adapter only supplies a
+    // fallback for a tool that has not declared one yet, and always renders the human text block.
     output: {
-      schema: { type: 'object', additionalProperties: true },
-      render: (args, value) => [{ type: 'text', text: String(value?.text ?? '') }],
+      schema: source.output?.schema ?? { type: 'object', additionalProperties: true },
+      render: (args, value) => {
+        const fromTool = typeof source.output?.render === 'function' ? source.output.render(args, value) : undefined;
+        if (Array.isArray(fromTool) && fromTool.length > 0) return fromTool;
+        return [{ type: 'text', text: String(value?.text ?? '') }];
+      },
     },
     isConcurrencySafe: () => false,
     presentCall: (args) => {

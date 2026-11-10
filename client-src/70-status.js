@@ -197,16 +197,27 @@ function wfStatusRunningPhases(run) {
 
 /**
  * The progress line of one island pill (J.1 `R8t`): running phases, else the step tally, else the
- * status word.
+ * status word. The kind decides whether the status word is the line itself or a trailing word.
  */
 function wfStatusProgress(t, run) {
   const phases = wfStatusRunningPhases(run);
-  if (phases.length > 0) return { text: phases.join(' \u2225 '), rail: wfStatusList(run?.phases) };
+  if (phases.length > 0) return { kind: 'phases', text: phases.join(' \u2225 '), rail: wfStatusList(run?.phases) };
   const steps = wfStatusSteps(run);
   if (steps !== undefined) {
-    return { text: wfStatusSay(t, 'chat.toolCall.workflow.card.steps', { done: steps.done, total: steps.total }) };
+    return {
+      kind: 'steps',
+      text: wfStatusSay(t, 'chat.toolCall.workflow.card.steps', { done: steps.done, total: steps.total }),
+    };
   }
-  return { text: wfStatusWord(t, wfStatusState(run)) };
+  return { kind: 'status', text: wfStatusWord(t, wfStatusState(run)) };
+}
+
+/** The project a run belongs to, when the snapshot carries one. */
+function wfStatusProject(run) {
+  const root = wfStatusText(run?.projectRoot, run?.workspacePath, run?.cwd, run?.workspace);
+  if (root === '') return '';
+  const parts = root.replace(/[\\/]+$/u, '').split(/[\\/]/u);
+  return parts[parts.length - 1] ?? root;
 }
 
 /**
@@ -318,6 +329,7 @@ function WfStatusIsland(props) {
   const elapsed = started === 0 ? '' : WF_UI.duration(started, now);
   const progress = wfStatusProgress(t, run);
   const word = wfStatusWord(t, state);
+  const project = wfStatusProject(run);
   const label = `${say('chat.toolCall.workflow.openRunDetails')} \u00b7 ${name} \u00b7 ${word}${progress.text === '' ? '' : ` \u00b7 ${progress.text}`}`;
   const tone = WF_UI.statusTone(state);
   return WF_H('li', {
@@ -344,12 +356,23 @@ function WfStatusIsland(props) {
   WF_H('div', { className: 'zwf-island-main' },
     WF_H('div', { className: 'zwf-island-line', 'data-workflow-island-line': 'name', 'data-testid': 'workflow-island-line' },
       WF_H('span', { className: 'zwf-island-name', title: name }, name),
+      project === '' ? null : WF_H('span', { className: 'zwf-island-project', 'data-testid': 'workflow-run-project', title: project }, project),
       elapsed === '' ? null : WF_H('span', { className: 'zwf-island-time', 'data-workflow-run-elapsed': 'true', 'data-testid': 'workflow-run-elapsed' }, elapsed)),
-    WF_H('div', { className: 'zwf-island-line zwf-island-line-phase', 'data-workflow-island-line': 'phase' },
-      progress.rail === undefined
-        ? WF_H(WF_UI.StatusDot, { tone })
-        : WF_H(WfStatusRail, { t, phases: progress.rail }),
-      WF_H('span', { className: 'zwf-island-phase', title: progress.text }, progress.text))),
+    WF_H('div', {
+      className: 'zwf-island-line zwf-island-line-phase',
+      'data-workflow-island-line': 'phase',
+      'data-testid': 'workflow-run-line',
+    },
+    progress.rail === undefined
+      ? WF_H(WF_UI.StatusDot, { tone })
+      : WF_H(WfStatusRail, { t, phases: progress.rail }),
+    progress.kind === 'status'
+      ? null
+      : WF_H('span', { className: 'zwf-island-phase', title: progress.text }, progress.text),
+    WF_H('span', {
+      className: `zwf-island-state${progress.kind === 'status' ? ' zwf-island-state-lead' : ''}`,
+      'data-testid': 'workflow-run-row-status',
+    }, progress.kind === 'status' ? progress.text : word))),
   props.stoppable !== false
     ? WF_H('button', {
       type: 'button',
@@ -366,13 +389,15 @@ function WfStatusIsland(props) {
 function WfStatusRail(props) {
   const phases = props.phases.slice(0, WF_STATUS_RAIL);
   const rest = props.phases.length - phases.length;
-  return WF_H('span', { className: 'zwf-rail', 'data-testid': 'workflow-timeline-rail', 'aria-hidden': 'true' },
+  return WF_H('span', { className: 'zwf-rail', 'data-testid': 'workflow-run-rail', 'aria-hidden': 'true' },
     phases.map((phase, index) => {
       const state = wfStatusText(phase.status);
       const tone = state === 'done' || state === 'completed' ? 'success' : state === 'running' || state === 'current' ? 'warn' : state === 'failed' || state === 'errored' ? 'error' : 'idle';
       return WF_H('span', { className: `zwf-rail-lamp zwf-rail-lamp-${tone}`, key: `${wfStatusText(phase.name, phase.id)}:${String(index)}` });
     }),
-    rest > 0 ? WF_H('span', { className: 'zwf-rail-more' }, `+${String(rest)}`) : null);
+    rest > 0
+      ? WF_H('span', { className: 'zwf-rail-more', 'data-testid': 'workflow-run-overflow' }, `+${String(rest)}`)
+      : null);
 }
 
 /** The background-result card of one run (J.4): eight kinds, one label each. */
@@ -416,7 +441,11 @@ function WfStatusNotice(props) {
       WF_H('span', { className: `zwf-notice-glyph zwf-notice-glyph-${WF_UI.statusTone(wfStatusState(run))}` }, WF_H(WF_ICON.workflow, { size: 14 })),
       WF_H('span', { className: 'zwf-notice-label' }, notice.label),
       WF_H('span', { className: 'zwf-notice-name', title: name }, `\u00b7 ${name}`),
-      WF_H('span', { className: 'zwf-notice-status' }, word)),
+      WF_H('span', {
+        className: 'zwf-notice-status',
+        // A terminal result has been surfaced here: ZCode marks that state on the notification.
+        ...(wfStatusTerminal(wfStatusState(run)) ? { 'data-testid': 'workflow-run-acknowledged' } : {}),
+      }, word)),
     artifacts.length === 0
       ? null
       : WF_H('div', { className: 'zwf-notice-artifacts', 'data-testid': 'workflow-notification-artifacts' },
@@ -825,6 +854,9 @@ const WF_STATUS_CSS = `
 .zwf-island-time{flex:none;font-size:11.5px;line-height:18px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
 .zwf-island-line-phase{height:18px;font-size:11.5px}
 .zwf-island-phase{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}
+.zwf-island-state{flex:none;font-size:11px;line-height:18px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.zwf-island-state-lead{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.zwf-island-project{flex:none;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;line-height:18px;color:var(--dsw-alias-label-secondary);opacity:.85}
 .zwf-rail{display:inline-flex;align-items:center;gap:3px;flex:none}
 .zwf-rail-lamp{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-idle-primary);opacity:.5}
 .zwf-rail-lamp-success{background:var(--dsw-alias-state-success-primary);opacity:1}

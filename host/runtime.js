@@ -46,12 +46,35 @@ import {
   ConcurrencyController, defaultMaxConcurrency, transientBackoffMs,
 } from './concurrency.js';
 import {
+  ARTIFACT_BINARY_UNSUPPORTED, ARTIFACT_NO_SESSION_SCOPE, ARTIFACT_STORE_UNAVAILABLE,
+  describeArg, fileArtifactFailureMessage, invalidArtifactIdMessage, invalidArtifactOptionsMessage,
+  invalidMarkdownMessage, mimeForPath,
+} from './artifact-messages.js';
+import {
   ESCALATIONS_PER_ASK, ESCALATION_BUDGET_EXHAUSTED, ESCALATION_NO_ACTIVE_ASK, NUDGE_PROMPT,
   SUBMIT_VIOLATIONS_HEADER, buildAskPrompt, buildWorkflowActorIdentity, formatViolations,
+  parseEscalationMarkers,
 } from './prompts.js';
 
 /** 运行终态。 */
 const TERMINAL = new Set(['completed', 'errored', 'stopped']);
+
+/** provider 侧错误码：这些失败把 run 收成 `stopped/provider`，而不是 `errored`（M11）。 */
+const PROVIDER_ERROR_CODES = new Set([
+  'auth', 'AuthError', 'not_configured', 'model_unavailable', 'invalid_request', 'quota',
+  'ProviderThrottled', 'ProviderUnavailable', 'ProviderAuth', 'ProviderQuota', 'ModelUnavailable',
+]);
+
+/** 一个 ask 的升级回合上限（防止模型反复提同一个问题把回合循环拖死）。 */
+const MAX_ESCALATION_ROUNDS = ESCALATIONS_PER_ASK + 1;
+
+/** 会被当作“有进展”的事件：停滞判定读它刷新 lastProgressAt。 */
+const PROGRESS_EVENTS = new Set([
+  'node-queued', 'node-dispatched', 'node-executing', 'node-progress', 'node-settled',
+  'node-repairing', 'node-nudged', 'report', 'artifact-published', 'artifact-failed',
+  'phase-entered', 'hole-reached', 'hole-filled', 'usage-updated', 'log',
+  'escalation-raised', 'escalation-resolved',
+]);
 
 /** 引擎内部错误：带稳定 `code`，脚本侧 catch 后能按 `err.code` 分支。 */
 export class WorkflowError extends Error {
@@ -269,7 +292,12 @@ class WorkflowEngine {  /**
     this.failure = undefined;
     this.settleDeferred = Promise.withResolvers();
     this.scheduler = new AskScheduler(this);
-    this.concurrency = new ConcurrencyController(runId, this.caps.maxConcurrency, RUNTIME_CAPS.maxConcurrencyCeiling, now);
+    // AIMD 的增长上界就是本次 run 的并发上限（不是全局 1024 上限）：否则 cap 会漂到
+    // `max_concurrency` 之上（评审 m9）。改上限走 setMaxConcurrency()。
+    this.concurrency = new ConcurrencyController(runId, this.caps.maxConcurrency, this.caps.maxConcurrency, now);
+    this.lastProgressAt = now();
+    this.stalledSince = undefined;
+    this.stallReminders = 0;
 
     const existing = journal.getRun(runId);
     if (existing === undefined) {
@@ -314,7 +342,10 @@ class WorkflowEngine {  /**
    * 记录一条事件（原实现 `record`）：先补 phase 信息，再写 journal + 通知 driver。
    * @param {object} event
    */
+  /** 记录一条事件（原实现 `record`）：先补 phase 信息，再写 journal + 通知 driver。 */
   record(event) {
+    // 进展时间戳：停滞判定与 health.lastProgressAt 共用（评审 M10）。
+    if (PROGRESS_EVENTS.has(event.type)) this.noteProgress();
     const stamped = stampBirthPhase(event, this.instancePhases);
     try {
       this.journal.appendEvent(this.runId, stamped);
@@ -403,12 +434,8 @@ class WorkflowEngine {  /**
       this.fail(error);
       return Promise.reject(error);
     }
-    if (typeof instructions !== 'string' || instructions.trim() === '') {
-      const error = new WorkflowError('DriverError', `ask at ${siteId} needs a non-empty instruction string.`);
-      this.fail(error);
-      return Promise.reject(error);
-    }
-    return this.scheduler.admitAsk(siteId, actor, instructions, spec);
+    // 空指令照常下发（契约没有这条校验；评审 m15）。ask() 只要求句柄与站点存在。
+    return this.scheduler.admitAsk(siteId, actor, typeof instructions === 'string' ? instructions : String(instructions ?? ''), spec);
   }
 
   /**
@@ -474,14 +501,48 @@ class WorkflowEngine {  /**
    * `phase()`：只发事件，不落 journal 节点（阶段是展示结构）。
    * @param {string} name
    */
-  enterPhase(name) {
-    if (this.settled) return;
+  enterPhase(name) {    if (this.settled) return;
     const trimmed = String(name ?? '').trim();
     if (trimmed.length === 0) return;
     const ordinal = (this.phaseOrdinals.get(trimmed) ?? 0) + 1;
     this.phaseOrdinals.set(trimmed, ordinal);
     this.currentPhase = trimmed;
     this.record({ type: 'phase-entered', name: trimmed, ordinal });
+  }
+
+  /**
+   * 记录“有进展”的时间戳（停滞判定与 `health.lastProgressAt` 共用）。
+   */
+  noteProgress() {
+    this.lastProgressAt = this.now();
+    this.stalledSince = undefined;
+    this.stallReminders = 0;
+  }
+
+  /**
+   * 运行中调整并发上限（`setMaxConcurrency`）：改 caps + journal + `run-caps-changed`，
+   * 并让 AIMD 的增长上界跟着走（评审 M2/m3/m9）。
+   *
+   * @param {number} value
+   * @returns {boolean} 是否真的改了
+   */
+  setMaxConcurrency(value) {
+    if (this.settled || !Number.isFinite(value)) return false;
+    const next = Math.max(1, Math.floor(value));
+    if (next === this.caps.maxConcurrency) return false;
+    const previous = { maxConcurrency: this.caps.maxConcurrency };
+    this.caps = { maxConcurrency: next };
+    try {
+      this.journal.updateRunCaps?.(this.runId, { ...this.caps });
+    } catch (error) {
+      this.driver.logger?.warn?.(`zcode-workflow: updateRunCaps failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    this.record({ type: 'run-caps-changed', runId: this.runId, caps: { ...this.caps }, previous });
+    for (const change of this.concurrency.setGrowthLimit(this.now(), next)) {
+      this.record({ type: 'concurrency-changed', ...change });
+    }
+    if (next > previous.maxConcurrency) this.scheduler.pumpAll();
+    return true;
   }
 
   /**
@@ -523,14 +584,20 @@ class WorkflowEngine {  /**
    * @param {string} siteId
    * @param {string} code
    * @param {string} [filledBy]
+   * @param {string} [name]
    * @returns {{ok: true} | {ok: false, reason: string}}
    */
-  fillHole(siteId, code, filledBy) {
+  fillHole(siteId, code, filledBy, name) {
     if (this.settled) return { ok: false, reason: 'settled' };
     const parked = this.holes.get(siteId);
     if (parked === undefined && !this.filledHoles.has(siteId)) return { ok: false, reason: 'not_waiting' };
     const filledAt = this.now();
-    this.filledHoles.set(siteId, { code, filledAt, ...(filledBy === undefined ? {} : { filledBy }) });
+    this.filledHoles.set(siteId, {
+      code,
+      filledAt,
+      name: name ?? parked?.name ?? this.filledHoles.get(siteId)?.name ?? siteId,
+      ...(filledBy === undefined ? {} : { filledBy }),
+    });
     this.record({
       type: 'hole-filled',
       siteId,
@@ -542,7 +609,48 @@ class WorkflowEngine {  /**
       this.holes.delete(siteId);
       parked.deferred.resolve({ code });
     }
+    this.noteProgress();
     return { ok: true };
+  }
+
+  /**
+   * 续跑时把脚本里记录的 fill 体重新装回引擎（评审 M4）：站点直接算已补全，不再挂起。
+   * @param {Record<string, {code: string, filledAt?: number, filledBy?: string, name?: string}>} fills
+   */
+  seedFills(fills) {
+    for (const [siteId, record] of Object.entries(fills ?? {})) {
+      if (record === undefined || typeof record.code !== 'string') continue;
+      this.filledHoles.set(siteId, record);
+    }
+  }
+
+  /**
+   * 留白清单（含已填）：`GetWorkflowRun.holes` 的 `state` 需要 waiting/filled 两种（评审 m14）。
+   * @returns {object[]}
+   */
+  holeRecords() {
+    /** @type {object[]} */
+    const rows = [...this.holes.values()].map((hole) => ({
+      siteId: hole.siteId,
+      ordinal: hole.ordinal,
+      name: hole.name,
+      ...(hole.type === undefined ? {} : { type: hole.type }),
+      state: 'waiting',
+      since: hole.since,
+    }));
+    for (const [siteId, record] of this.filledHoles.entries()) {
+      if (this.holes.has(siteId)) continue;
+      rows.push({
+        siteId,
+        ordinal: record.ordinal ?? 0,
+        name: record.name ?? siteId,
+        ...(record.type === undefined ? {} : { type: record.type }),
+        state: 'filled',
+        ...(record.filledAt === undefined ? {} : { filledAt: record.filledAt }),
+        ...(record.filledBy === undefined ? {} : { filledBy: record.filledBy }),
+      });
+    }
+    return rows;
   }
 
   /**
@@ -575,17 +683,18 @@ class WorkflowEngine {  /**
     const ref = { siteId, ordinal };
     const id = args[0];
     const content = args[1];
-    if (typeof id !== 'string' || id === '') {
-      throw new WorkflowError('DriverError', `artifact.${op}: id must be a non-empty string (at ${refToString(ref)}).`);
-    }
-    if (typeof content !== 'string') {
-      throw new WorkflowError('DriverError', op === 'file'
-        ? `artifact.file: path must be a string (at ${refToString(ref)}).`
-        : `artifact.markdown: content must be a string (at ${refToString(ref)}).`);
-    }
     const opts = args[2];
-    if (opts !== undefined && opts !== null && typeof opts === 'object' && 'primary' in opts && typeof opts.primary !== 'boolean') {
-      throw new WorkflowError('DriverError', `artifact.${op}: opts.primary must be a boolean (at ${refToString(ref)}).`);
+    // §6.6 的逐字文案：id → opts（title/description/primary/contentType）→ 正文/大小。
+    const invalidId = invalidArtifactIdMessage(op, id);
+    if (invalidId !== undefined) throw new WorkflowError('DriverError', invalidId);
+    const invalidOptions = invalidArtifactOptionsMessage(op, opts);
+    if (invalidOptions !== undefined) throw new WorkflowError('DriverError', invalidOptions);
+    if (op === 'file' && typeof content !== 'string') {
+      throw new WorkflowError('DriverError', `artifact.file: path must be a string, got ${describeArg(content)}.`);
+    }
+    if (op === 'markdown') {
+      const invalidMarkdown = invalidMarkdownMessage(content);
+      if (invalidMarkdown !== undefined) throw new WorkflowError('DriverError', invalidMarkdown);
     }
     const hash = inputHash({ op, args, id });
     const existing = this.journal.getNode(this.runId, siteId, ordinal);
@@ -609,6 +718,15 @@ class WorkflowEngine {  /**
         version,
         ...(typeof opts?.title === 'string' ? { title: opts.title } : {}),
         ...(typeof opts?.description === 'string' ? { description: opts.description } : {}),
+        ...(op === 'file'
+          ? {
+            ...(opts?.contentType === undefined ? (mimeForPath(content) === undefined ? {} : { contentType: mimeForPath(content) }) : { contentType: opts.contentType }),
+            sourcePath: content,
+          }
+          : { bytes: utf8Length(content) }),
+        ...(published?.contentType === undefined ? {} : { contentType: published.contentType }),
+        ...(published?.bytes === undefined ? {} : { bytes: published.bytes }),
+        ...(published?.sourcePath === undefined ? {} : { sourcePath: published.sourcePath }),
         primary: primaryRequested || this.artifacts.get(id)?.primary === true,
       };
       this.journal.putNode({
@@ -616,12 +734,17 @@ class WorkflowEngine {  /**
       });
       this.artifacts.set(id, { kind: op, versions: version, primary: record.primary === true });
       this.record({ type: 'artifact-published', instance: ref, artifact: record });
-      void published;
+      this.noteProgress();
       return { id, version };
     } catch (error) {
       const wrapped = error instanceof WorkflowError
         ? error
-        : new WorkflowError('DriverError', `Artifact publish failed: ${op} "${id}".`);
+        : new WorkflowError(
+          error?.name === 'ArtifactTooLarge' ? 'ArtifactTooLarge' : 'DriverError',
+          error?.name === 'ArtifactTooLarge'
+            ? fileArtifactFailureMessage({ path: String(content), reason: 'too_large', bytes: error?.bytes })
+            : (error?.message ?? `Artifact publish failed: ${op} "${id}".`),
+        );
       throw this.failArtifact(ref, hash, { id, op }, wrapped);
     }
   }
@@ -639,7 +762,7 @@ class WorkflowEngine {  /**
     const id = args[0];
     const spec = args[1];
     if (typeof id !== 'string' || id === '') {
-      this.fail(new WorkflowError('DriverError', `artifact.${op}: id must be a non-empty string (at ${refToString(ref)}).`));
+      this.fail(new WorkflowError('DriverError', invalidArtifactIdMessage(op, id) ?? `artifact.${op}: invalid id.`));
       return;
     }
     const hash = inputHash({ op, args, id });
@@ -748,17 +871,22 @@ class WorkflowEngine {  /**
       return;
     }
     this.reportTally = { count: this.reportTally.count + 1, bytes: this.reportTally.bytes + bytes };
-    this.journal.putNode({
-      runId: this.runId, siteId, ordinal, kind: 'report', inputHash: hash, status: 'completed', result: item,
-      ...(tag === undefined ? {} : { artifactId: tag }),
-    });
+    // journal 侧最多保留 Vs.maxReports(64) 行（评审 M14）：超出后仍计数与发事件，但不再落行，
+    // 这样 GetWorkflowRun 的读取侧裁剪就不再是唯一护栏。
+    const keepRow = this.reportTally.count <= RUNTIME_CAPS.maxReports;
+    if (keepRow) {
+      this.journal.putNode({
+        runId: this.runId, siteId, ordinal, kind: 'report', inputHash: hash, status: 'completed', result: item,
+        ...(tag === undefined ? {} : { artifactId: tag }),
+      });
+    }
     if (tag !== undefined) {
       const preset = this.artifacts.get(tag);
       if (preset !== undefined) {
         this.artifacts.set(tag, { ...preset, items: (preset.items ?? 0) + 1 });
-        this.record({ type: 'artifact-updated', id: tag, kind: preset.kind });
       }
     }
+    this.noteProgress();
     this.record({ type: 'report', instance: ref, item, ...(tag === undefined ? {} : { artifactId: tag }) });
   }
 
@@ -1058,6 +1186,41 @@ function refToString(ref) {
 }
 
 /**
+ * `max_concurrency` 规范化（`normalizeRunConcurrency = max(1, floor(x))`，契约 cli:960）。
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function normalizeConcurrency(value, fallback) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.floor(value));
+}
+
+/**
+ * 脚本失败的终态分类（评审 M11）：
+ * - 错误码 `Interrupted`（进程/沙箱退出）→ `stopped/interrupted`（可续跑）；
+ * - provider 侧错误（认证/配额/模型不可用/限流）→ `stopped/provider`（解决原因后 resume）；
+ * - 其余才是 `errored`（脚本自身的问题，只能 amend）。
+ * @param {object} engine
+ * @param {Error | WorkflowError} error
+ */
+function settleScriptFailure(engine, error) {
+  const code = typeof error?.code === 'string' ? error.code : '';
+  if (code === 'Interrupted' || /interrupted|sandbox.*(exit|died)/iu.test(error?.message ?? '')) {
+    engine.stop('interrupted', error instanceof WorkflowError ? error : new WorkflowError('Interrupted', error?.message ?? 'interrupted'));
+    return;
+  }
+  const providerish = error?.providerStop !== undefined
+    || PROVIDER_ERROR_CODES.has(code)
+    || /provider|rate.?limit|quota|sign.?in|not configured|model.*unavailable/iu.test(`${code} ${error?.message ?? ''}`);
+  if (providerish) {
+    engine.stop('provider', error instanceof WorkflowError ? error : new WorkflowError(code || 'ProviderError', error?.message ?? 'provider error'));
+    return;
+  }
+  engine.fail(error instanceof Error ? error : new Error(String(error)));
+}
+
+/**
  * persona 规范化（`normalizePersona`）。
  * @param {string | undefined} name
  * @param {string | object | undefined} persona
@@ -1331,6 +1494,7 @@ class AskScheduler {
       status: 'running',
     });
     actor.liveQueue.push(node);
+    this.setNodePhase(node, 'queued');
     this.engine.record({
       type: 'node-queued',
       instance: ref,
@@ -1352,9 +1516,16 @@ class AskScheduler {
   pumpActor(actor) {
     const engine = this.engine;
     if (engine.settled || actor.current !== undefined || actor.liveQueue.length === 0) return;
-    if (this.activeAsks >= engine.caps.maxConcurrency) return;
-    // AIMD 窗口的另一半：cap 也可能小于 caps.maxConcurrency（被限流过），此时尊重 cap。
-    if (!engine.concurrency.canAdmit(engine.now())) return;
+    if (this.activeAsks >= engine.caps.maxConcurrency || !engine.concurrency.canAdmit(engine.now())) {
+      // 被 slot/冷却挡住：把该 actor 队首的节点标成 waiting（`cause:"slot"`，评审 M3）。
+      const blocked = actor.liveQueue[0];
+      if (blocked !== undefined && blocked.waiting !== true) {
+        blocked.waiting = true;
+        this.setNodePhase(blocked, 'waiting', { wait: { cause: 'slot' } });
+        engine.record({ type: 'node-waiting', instance: blocked.instance, cause: 'slot' });
+      }
+      return;
+    }
     const node = actor.liveQueue.shift();
     actor.current = node;
     this.activeAsks += 1;
@@ -1386,6 +1557,9 @@ class AskScheduler {
       ...(node.instructions.trim() === '' ? {} : { instructionsHead: preview(node.instructions.trim(), RUNTIME_CAPS.maxInstructionsHeadLength) }),
     });
     node.dispatched = true;
+    node.waiting = false;
+    this.setNodePhase(node, 'dispatched', { wait: undefined });
+    this.engine.noteProgress();
     try {
       await this.driverRunAsk(node, session);
     } catch (error) {
@@ -1407,20 +1581,36 @@ class AskScheduler {
     const spec = node.spec;
     // 每个 ask 重置升级预算（原实现 startAsk 里 escalationsUsed = 0）。
     node.actor.escalationsUsed = 0;
-    let submit = session.lastValue;
-    let finalText = session.lastText;
+    let finalText = '';
     let turns = 0;
     let toolCalls = 0;
-    let tokens = 0;
+    let escalationRounds = 0;
     for (;;) {
       if (engine.settled || node.settled) return;
+      // 回合开始：executing（评审 M3：queued→dispatched→executing 全程落 journal）。
+      this.setNodePhase(node, 'executing');
+      engine.record({ type: 'node-executing', instance: node.instance });
       const turn = await session.runTurn(this.buildPrompt(node), node);
       turns += 1;
       toolCalls += turn.toolCalls ?? 0;
-      tokens += turn.tokens ?? 0;
       finalText = turn.text ?? '';
       engine.askStats(node.instance, { tokens: turn.tokens ?? 0, turns, toolCalls });
-      submit = turn.value;
+      engine.askProgress(node.instance, { turn: turns, toolCalls });
+      this.setNodePhase(node, 'executing', { turn: turns, toolCalls });
+
+      // 升级提问（B3 的回复标记协议）：回复里出现 ```json {"escalate":{…}} ``` 就挂起该 ask，
+      // 主代理用 ResolveWorkflowQuestion 回答；答案（message）作为下一回合文本回灌。
+      if (Array.isArray(turn.escalations) && turn.escalations.length > 0 && escalationRounds < MAX_ESCALATION_ROUNDS) {
+        escalationRounds += 1;
+        const marker = turn.escalations[0];
+        this.setNodePhase(node, 'waiting', { wait: { cause: 'question' } });
+        engine.record({ type: 'node-waiting', instance: node.instance, cause: 'question' });
+        const answer = await engine.driver.raiseQuestion(node.actor, node.instance, marker);
+        session.answer = typeof answer?.message === 'string' ? answer.message : ESCALATION_BUDGET_EXHAUSTED;
+        continue;
+      }
+
+      const submit = turn.value;
       const hasSubmit = turn.submitted === true || submit !== undefined;
       if (!spec.typed) {
         // untyped ask：最终回复文本就是结果；带了结构化值也接受。
@@ -1436,6 +1626,7 @@ class AskScheduler {
         if (node.repairsRemaining > 0) {
           node.repairsRemaining -= 1;
           const attempt = ASK_BUDGET.repairs - node.repairsRemaining;
+          this.setNodePhase(node, 'repairing', { outcome: undefined, violations: normalized.violations });
           engine.record({
             type: 'node-repairing',
             instance: node.instance,
@@ -1452,9 +1643,10 @@ class AskScheduler {
         ));
         return;
       }
-      // typed ask 没提交结果
+      // typed ask 没给结果：还有 nudge 预算就催一回合，否则失败。
       if (node.nudgesRemaining > 0) {
         node.nudgesRemaining -= 1;
+        this.setNodePhase(node, 'nudged');
         engine.record({ type: 'node-nudged', instance: node.instance });
         session.nudge = true;
         continue;
@@ -1466,6 +1658,38 @@ class AskScheduler {
       ));
       return;
     }
+  }
+
+  /**
+   * 把节点的 `phase`（+附加字段）写回 journal。评审 M3：节点行必须带 phase，快照直接读它。
+   * @param {object} node
+   * @param {string} phase
+   * @param {object} [extra]
+   */
+  setNodePhase(node, phase, extra = {}) {
+    const { siteId, ordinal } = node.instance;
+    const row = this.journal.getNode(this.engine.runId, siteId, ordinal);
+    const base = row ?? {
+      runId: this.engine.runId,
+      siteId,
+      ordinal,
+      kind: 'ask',
+      actorSiteId: node.actor.ref.siteId,
+      actorOrdinal: node.actor.ref.ordinal,
+      inputHash: node.hash,
+      status: 'running',
+    };
+    const next = { ...base, phase, ...extra };
+    if (extra.outcome === undefined && phase !== 'settled') delete next.outcome;
+    if (base.phase === 'settled') return; // 已结算的节点不再改状态
+    this.journal.putNode(next);
+  }
+
+  /** 当前排队等 slot 的 ask 数（AIMD 的 waiters 语义，评审 M2）。 */
+  queuedCount() {
+    let total = 0;
+    for (const actor of this.actorOrder) total += actor.liveQueue.length;
+    return total;
   }
 
   /**
@@ -1485,10 +1709,10 @@ class AskScheduler {
       instructions: node.instructions,
       typed: spec.typed === true,
       schema: spec.schema,
-      reputation: undefined,
       history: actor.history,
       repairNotice: actor.session?.repairNotice,
       nudge: actor.session?.nudge === true,
+      answer: actor.session?.answer,
       system: buildWorkflowActorIdentity({ name: actor.name, persona: actor.persona.system }),
     };
   }
@@ -1548,7 +1772,8 @@ class AskScheduler {
       result: value,
     });
     this.engine.record({ type: 'node-settled', instance: node.instance, outcome: 'ok' });
-    this.finishLiveNode(node);
+    this.setNodePhase(node, 'settled', { outcome: 'ok', status: 'completed' });
+    this.finishLiveNode(node, 'ok');
     node.deferred.resolve(value);
   }
 
@@ -1573,19 +1798,50 @@ class AskScheduler {
       error: error.toJSON(),
     });
     this.engine.record({ type: 'node-settled', instance: node.instance, outcome: 'failed', error: error.toJSON() });
-    this.finishLiveNode(node);
+    this.setNodePhase(node, 'settled', { outcome: 'failed', status: 'failed' });
+    // provider 侧的限流/配额失败走 throttled（收缩 + 冷却），其余失败走 failedTransient
+    // （只减 inFlight，不奖励增长）。评审 M2：失败绝不能算成功。
+    const throttled = error?.providerStop !== undefined
+      || PROVIDER_ERROR_CODES.has(error?.code)
+      || /throttl|rate.?limit|quota/i.test(error?.message ?? '');
+    this.finishLiveNode(node, throttled ? 'throttled' : 'failed', error);
     node.deferred.reject(error);
   }
 
-  /** @param {object} node */
-  finishLiveNode(node) {
+  /**
+   * @param {object} node
+   * @param {'ok'|'failed'|'throttled'} outcome
+   * @param {WorkflowError} [error]
+   */
+  finishLiveNode(node, outcome = 'ok', error) {
     this.liveNodes.delete(refToString(node.instance));
     const actor = node.actor;
     if (actor.current === node) {
       actor.current = undefined;
       this.activeAsks = Math.max(0, this.activeAsks - 1);
-      const changes = this.engine.concurrency.succeeded(this.engine.now(), node.epoch ?? 0);
+      const now = this.engine.now();
+      const epoch = node.epoch ?? 0;
+      let changes = this.engine.concurrency.noteWaiters(now, this.queuedCount());
+      if (outcome === 'ok') changes = changes.concat(this.engine.concurrency.succeeded(now, epoch));
+      else if (outcome === 'throttled') changes = changes.concat(this.engine.concurrency.throttled(now, epoch, error?.code ?? 'throttled', error?.retryAfterMs));
+      else changes = changes.concat(this.engine.concurrency.failedTransient(now));
       for (const change of changes) this.engine.record({ type: 'concurrency-changed', ...change });
+      this.engine.noteProgress();
+      // actor 结算后状态是 completed（评审 m7）。
+      try {
+        this.journal.putActor({
+          runId: this.engine.runId,
+          siteId: actor.ref.siteId,
+          ordinal: actor.ref.ordinal,
+          ...(actor.name === undefined ? {} : { name: actor.name }),
+          persona: actor.persona,
+          ...(actor.session?.id === undefined ? {} : { sessionId: actor.session.id }),
+          status: 'completed',
+          ...(actor.persona.model === undefined ? {} : { model: actor.persona.model }),
+        });
+      } catch {
+        // actor 行写失败不影响 ask 的结算
+      }
     }
     this.pumpAll();
   }
@@ -1622,11 +1878,6 @@ class AskScheduler {
 }
 
 /**
- * 一轮的时长上限（没有引擎侧超时：ZCode 的 ask 可以无限等；这里只兜底 DSH activation 卡死）。
- */
-const TURN_HARD_CAP_MS = 60 * 60 * 1000;
-
-/**
  * 构造 run 的 driver：会话、world 读取、产物发布、提问通道、事件出口。
  *
  * driver 是引擎与宿主能力（subagent / workspace / artifact store）之间唯一的桥，
@@ -1650,6 +1901,8 @@ function createDriver({
   runId, cwd, journal, workspace, artifacts, runner, notify, onEvent, logger, signal, phaseNames = [],
 }) {
   const pendingQuestions = new Map();
+  const resolvedQuestions = new Set();
+  const questionRuns = new Map();
   const liveAsks = new Map();
   /** @type {object | undefined} 供 session.runTurn 反查 driver 方法（return 前赋值）。 */
   let driverRef;
@@ -1657,6 +1910,8 @@ function createDriver({
     logger,
     phaseNames,
     pendingQuestions,
+    resolvedQuestions,
+    questionRuns,
     emit(event) {
       onEvent?.(event);
     },
@@ -1690,8 +1945,7 @@ function createDriver({
           if (signal?.aborted) abort();
           signal?.addEventListener('abort', abort, { once: true });
           liveAsks.set(refToString(node.instance), controller);
-          const timer = setTimeout(() => controller.abort(new Error('workflow ask timed out')), TURN_HARD_CAP_MS);
-          timer.unref?.();
+          const timer = undefined; // 没有引擎侧超时（评审 m15）：ask 可以无限等，只有停止/中断能打断
           try {
             const userText = buildTurnPrompt(prompt);
             const answer = await runner({
@@ -1714,23 +1968,29 @@ function createDriver({
               // escalate 通道：子代理在回合内调用它挂起提问，主代理用 ResolveWorkflowQuestion 回答。
               escalate: (ask) => driverRef.raiseQuestion(actor, node.instance, ask ?? {}),
             });
+            const rawText = answer?.text ?? '';
+            // B3：回复标记协议——先摘出升级提问围栏块，再按需解析结果 JSON。
+            const marker = parseEscalationMarkers(rawText);
+            const text = marker.rest;
             const value = answer?.structured !== undefined
               ? answer.structured
-              : (node.spec.typed === true ? parseJsonLoose(answer?.text ?? '') : undefined);
-            session.lastText = answer?.text ?? '';
+              : (node.spec.typed === true ? parseJsonLoose(text) : undefined);
+            session.lastText = text;
             session.lastValue = value;
+            session.answer = undefined;
             const turn = {
-              text: session.lastText,
+              text,
               value,
               submitted: value !== undefined,
               tokens: answer?.tokens,
               toolCalls: answer?.toolCalls,
+              escalations: marker.escalations,
             };
             if (session.nudge) session.nudge = false;
             if (session.repairNotice !== undefined) session.repairNotice = undefined;
             return turn;
           } finally {
-            clearTimeout(timer);
+            if (timer !== undefined) clearTimeout(timer);
             liveAsks.delete(refToString(node.instance));
             signal?.removeEventListener('abort', abort);
           }
@@ -1812,25 +2072,40 @@ function createDriver({
       if (actor.escalationsUsed >= ESCALATIONS_PER_ASK) {
         return { status: 'refused', reason: 'budget_exhausted', message: ESCALATION_BUDGET_EXHAUSTED };
       }
+      if (pendingQuestions.size >= RUNTIME_CAPS.maxPendingQuestions) {
+        return {
+          status: 'refused',
+          reason: 'too_many_questions',
+          message: `This run already has ${RUNTIME_CAPS.maxPendingQuestions} questions waiting for an answer, the maximum. Resolve one before asking another, or proceed on your best judgement.`,
+        };
+      }
       actor.escalationsUsed += 1;
       actor.escalationSeq += 1;
       const qid = `dwfq-${runId}-${actor.escalationSeq}`;
       const deferred = Promise.withResolvers();
       actor.escalations.set(qid, deferred);
+      // The pending question names the *conversation* that asked, not the ask site: the contract's
+      // `actorSiteId`/`actorOrdinal` identify the subagent so the reader can open it, and the ask
+      // site is already recoverable from the node table.
       const record = {
         qid,
-        actor: { siteId: instance.siteId, ordinal: instance.ordinal },
+        actorSiteId: actor.ref.siteId,
+        actorOrdinal: actor.ref.ordinal,
         ...(actor.name === undefined ? {} : { actorName: actor.name }),
-        question: String(ask.question ?? '').slice(0, RUNTIME_CAPS.maxQuestionLength),
-        ...(ask.context === undefined ? {} : { context: String(ask.context).slice(0, RUNTIME_CAPS.maxQuestionLength) }),
+        question: String(ask?.question ?? '').slice(0, RUNTIME_CAPS.maxQuestionLength),
+        ...(ask?.context === undefined ? {} : { context: String(ask.context).slice(0, RUNTIME_CAPS.maxQuestionLength) }),
         askedAt: Date.now(),
       };
       pendingQuestions.set(qid, { record, deferred });
-      // escalation-raised 事件（engine.md §2.2 / cli:740157）。
+      resolvedQuestions.delete(qid);
+      questionRuns.set(qid, runId);
       driverRef?.record?.({
         type: 'escalation-raised',
         qid,
-        actor: record.actor,
+        // The projection keys questions by the conversation that raised them, so the event carries
+        // the same identity the pending record does.
+        actorSiteId: record.actorSiteId,
+        actorOrdinal: record.actorOrdinal,
         ...(record.actorName === undefined ? {} : { actorName: record.actorName }),
         question: record.question,
         ...(record.context === undefined ? {} : { context: record.context }),
@@ -1839,7 +2114,8 @@ function createDriver({
       return deferred.promise;
     },
     /**
-     * 解决一个问题（`resolveQuestion`）。
+     * 解决一个问题（`resolveQuestion`）：答案以 `message` 逐字回灌（评审 M9）。
+     * 失败时按 22/23/24 区分：未知 / 已答 / run 已收尾。
      * @param {string} qid
      * @param {string} answer
      * @returns {{ok: true, qid: string, response: string} | {ok: false, code: string, message: string}}
@@ -1847,11 +2123,16 @@ function createDriver({
     answerQuestion(qid, answer) {
       const parked = pendingQuestions.get(qid);
       if (parked === undefined) {
+        if (resolvedQuestions.has(qid)) {
+          return { ok: false, code: 'ALREADY_RESOLVED', message: `Question ${qid} was already answered; the subagent that asked it has resumed.` };
+        }
         return { ok: false, code: 'UNKNOWN_QUESTION', message: `No workflow question with ID ${qid} is pending. It may have been answered already, or the run may have settled.` };
       }
       pendingQuestions.delete(qid);
+      resolvedQuestions.add(qid);
       driverRef?.record?.({ type: 'escalation-resolved', qid, answer });
-      parked.deferred.resolve({ status: 'answered', answer, qid });
+      // 回灌对象：字段名是 `message`（契约 Zat），不是 `answer`。
+      parked.deferred.resolve({ status: 'answered', message: String(answer ?? ''), qid });
       return { ok: true, qid, response: `Answer delivered for question ${qid}. The subagent that asked has resumed its turn with your answer; the run keeps going as before.` };
     },
     /**
@@ -1889,6 +2170,10 @@ function buildTurnPrompt(prompt) {
   });
   if (prompt.repairNotice !== undefined) return `${base}\n\n---\n\n${prompt.repairNotice}`;
   if (prompt.nudge === true) return `${base}\n\n---\n\n${NUDGE_PROMPT}`;
+  if (typeof prompt.answer === 'string' && prompt.answer !== '') {
+    // 升级提问被回答后：答案原文进入下一回合，ask 正文与提交尾巴仍在（typed ask 还要交 JSON）。
+    return `${base}\n\n---\n\nYour question was answered:\n${prompt.answer}`;
+  }
   if (Array.isArray(prompt.history) && prompt.history.length > 0) {
     const transcript = prompt.history
       .map((entry, index) => `### Ask ${index + 1}\n${entry.ask}\n\n### Answer ${index + 1}\n${entry.answer}`)
@@ -1898,7 +2183,75 @@ function buildTurnPrompt(prompt) {
   return base;
 }
 
-/** 错误摘要（`describeCause`，最多 300 字符）。 */
+/**
+ * fill 落盘用的脚本标记前缀（评审 M4）。写进脚本注释里，因此重新编译/续跑都不会破坏脚本。
+ */
+const FILL_MARKER_PREFIX = '// zcode-workflow-fill ';
+
+/**
+ * 把一次 fill 追加到脚本尾部。
+ * @param {string} scriptText
+ * @param {string} siteId
+ * @param {string} name
+ * @param {string} code
+ * @param {string} [filledBy]
+ * @returns {string}
+ */
+function appendFillMarker(scriptText, siteId, name, code, filledBy) {
+  const payload = JSON.stringify({
+    siteId,
+    name,
+    code,
+    filledAt: Date.now(),
+    ...(filledBy === undefined ? {} : { filledBy }),
+  });
+  return `${scriptText.replace(/\s+$/u, '')}\n${FILL_MARKER_PREFIX}${payload}\n`;
+}
+
+/**
+ * 从脚本里恢复已填留白。
+ * @param {string} scriptText
+ * @returns {Record<string, {code: string, name: string, filledAt?: number, filledBy?: string}>}
+ */
+export function parseFillMarkers(scriptText) {
+  /** @type {Record<string, {code: string, name: string, filledAt?: number, filledBy?: string}>} */
+  const fills = {};
+  if (typeof scriptText !== 'string') return fills;
+  for (const line of scriptText.split('\n')) {
+    if (!line.startsWith(FILL_MARKER_PREFIX)) continue;
+    try {
+      const payload = JSON.parse(line.slice(FILL_MARKER_PREFIX.length));
+      if (typeof payload?.siteId !== 'string' || typeof payload?.code !== 'string') continue;
+      fills[payload.siteId] = {
+        code: payload.code,
+        name: typeof payload.name === 'string' ? payload.name : payload.siteId,
+        ...(Number.isFinite(payload.filledAt) ? { filledAt: payload.filledAt } : {}),
+        ...(typeof payload.filledBy === 'string' ? { filledBy: payload.filledBy } : {}),
+      };
+    } catch {
+      // 坏行忽略，不影响脚本
+    }
+  }
+  return fills;
+}
+
+/**
+ * 脚本内容哈希（只用于判断“还是不是同一份脚本”，与 compiler 的 hashSource 同算法）。
+ * @param {string} text
+ * @returns {string}
+ */
+function computeScriptHash(text) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index) & 255;
+    hash ^= (text.charCodeAt(index) >> 8) & 255;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `s${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+/**
+ * 错误摘要（`describeCause`，最多 300 字符）。 */
 function describeCause(error) {
   const text = (error instanceof Error ? error.message : String(error)).trim();
   if (text.length === 0) return 'unknown error';
@@ -2056,7 +2409,7 @@ export function createRuntime({
       runId,
       journal: store,
       driver,
-      caps: { maxConcurrency: Number.isInteger(request.maxConcurrency) && request.maxConcurrency > 0 ? request.maxConcurrency : defaultConcurrency },
+      caps: { maxConcurrency: normalizeConcurrency(request.maxConcurrency, defaultConcurrency) },
       askSpecs: compileResult.askSpecs ?? new Map(),
       sitePhases: compileResult.sitePhases ?? new Map(),
       launch: {
@@ -2075,6 +2428,9 @@ export function createRuntime({
     });
     // driver 的提问通道要把 escalation 事件写回引擎（引擎创建后才能绑定）。
     driver.record = (event) => engine.record(event);
+    // 续跑：脚本尾部的 fill 标记把已补全的留白装回引擎（评审 M4）。
+    const seededFills = parseFillMarkers(sourceCode);
+    if (Object.keys(seededFills).length > 0) engine.seedFills(seededFills);
     entry = {
       meta: {
         id: runId,
@@ -2099,6 +2455,7 @@ export function createRuntime({
       notify: request.notify,
       driver,
       compile: compileResult,
+      scriptText: sourceCode,
     };
     runs.set(runId, entry);
 
@@ -2117,21 +2474,51 @@ export function createRuntime({
     });
     bridge.setCompleteHandler((message) => {
       if (message.ok === true) engine.complete(message.value === undefined ? null : message.value);
-      else engine.fail(workflowErrorFromWire(message.error));
+      else settleScriptFailure(engine, workflowErrorFromWire(message.error));
     });
 
     void (async () => {
       try {
         const outcome = await cell.execute();
         if (outcome.ok === true) engine.complete(outcome.value === undefined ? null : outcome.value);
-        else engine.fail(workflowErrorFromWire(outcome.error));
+        else settleScriptFailure(engine, workflowErrorFromWire(outcome.error));
       } catch (error) {
-        engine.fail(error instanceof Error ? error : new Error(String(error)));
+        settleScriptFailure(engine, error instanceof Error ? error : new Error(String(error)));
       }
     })();
 
+    // 停滞判定（评审 M10）：每 60s 检查一次 lastProgressAt；超过 stallMs 记一次 run-stalled
+    // 并发一条催促（预算 2 次），有进展后自动复位。
+    const stallMs = Number.isFinite(config.stallMs) && config.stallMs > 0 ? config.stallMs : 30 * 60 * 1000;
+    const reminderMs = Number.isFinite(config.stallCheckMs) && config.stallCheckMs > 0 ? config.stallCheckMs : 60 * 1000;
+    const stallTimer = setInterval(() => {
+      if (entry.settled) return;
+      const idleMs = Date.now() - engine.lastProgressAt;
+      if (idleMs < stallMs) return;
+      if (engine.stalledSince === undefined) {
+        engine.stalledSince = new Date(engine.lastProgressAt).toISOString();
+        engine.stallReminders += 1;
+        engine.record({ type: 'run-stalled', since: engine.lastProgressAt, idleMs, reminders: engine.stallReminders });
+        try {
+          entry.notify?.(`Workflow run ${runName} (${runId}) has made no progress for ${Math.round(idleMs / 60000)} minutes. It is still running; nothing times out on its behalf.`);
+        } catch {
+          // 催促失败不影响 run
+        }
+      } else if (engine.stallReminders < 2) {
+        engine.stallReminders += 1;
+        try {
+          entry.notify?.(`Workflow run ${runName} (${runId}) is still stalled since ${engine.stalledSince}. Either way the run keeps waiting; nothing times out on its behalf.`);
+        } catch {
+          // 同上
+        }
+      }
+    }, reminderMs);
+    stallTimer.unref?.();
+    entry.stallTimer = stallTimer;
+
     void engine.settleDeferred.promise.then((outcome) => {
       entry.settled = true;
+      if (entry.stallTimer !== undefined) clearInterval(entry.stallTimer);
       entry.meta = {
         ...entry.meta,
         status: outcome.status,
@@ -2140,6 +2527,7 @@ export function createRuntime({
         finishedAt: Date.now(),
         ...(outcome.status === 'completed' ? { result: outcome.value } : {}),
       };
+      entry.generatedAt = new Date().toISOString();
       publish(entry);
       for (const waiter of entry.waiters) {
         try {
@@ -2265,11 +2653,33 @@ export function createRuntime({
     const hole = entry.engine.openHoles().find((candidate) => candidate.siteId === holeId);
     // 包成表达式：cell 的 __evaluateFill 会 `evaluate(code)()`。
     const code = `(async () => {\n${script}\n})`;
-    const result = entry.engine.fillHole(holeId, code, options.filledBy);
+    const result = entry.engine.fillHole(holeId, code, options.filledBy, hole?.name);
     if (result.ok !== true) {
       return { ok: false, code: 'NOT_WAITING', message: `workflow_hole_not_waiting: run ${runId} is not waiting at ${holeId}. It may have been filled already, or the run never reached it.` };
     }
-    return { ok: true, siteId: holeId, name: hole?.name ?? holeId };
+    // 体落盘（评审 M4）：把 fill 追加成脚本里的标记块并写回 journal，resume 时据此把站点
+    // 当成已补全（见 parseFillMarkers/seedFills）。`updateRunScript` 不存在的 journal 只跳过落盘。
+    try {
+      const stored = store.getRun(runId);
+      const baseScript = typeof stored?.scriptText === 'string' && stored.scriptText !== ''
+        ? stored.scriptText
+        : (typeof entry.scriptText === 'string' ? entry.scriptText : '');
+      if (baseScript !== '') {
+        const appended = appendFillMarker(baseScript, holeId, hole?.name ?? holeId, code, options.filledBy);
+        store.updateRunScript?.(runId, appended, computeScriptHash(appended));
+        entry.scriptText = appended;
+      }
+    } catch (error) {
+      logger.warn?.(`zcode-workflow: could not persist the filled body for ${holeId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const name = hole?.name ?? holeId;
+    return {
+      ok: true,
+      siteId: holeId,
+      name,
+      // 契约 FillWorkflowHole 成功时必带 `fill`（评审 M7）。
+      fill: { siteId: holeId, name },
+    };
   };
 
   /**
@@ -2281,7 +2691,19 @@ export function createRuntime({
   const resolveQuestion = (qid, answer) => {
     for (const entry of runs.values()) {
       if (!entry.driver.pendingQuestions.has(qid)) continue;
+      if (entry.settled) {
+        return {
+          ok: false,
+          code: 'RUN_NOT_IN_FLIGHT',
+          message: `Question ${qid} belongs to run ${entry.meta.id}, which is no longer running (${entry.meta.status}). Resume the run first, or start a new one.`,
+        };
+      }
       return entry.driver.answerQuestion(qid, String(answer ?? ''));
+    }
+    for (const entry of runs.values()) {
+      if (entry.driver.resolvedQuestions?.has(qid)) {
+        return { ok: false, code: 'ALREADY_RESOLVED', message: `Question ${qid} was already answered; the subagent that asked it has resumed.` };
+      }
     }
     return {
       ok: false,
@@ -2606,6 +3028,8 @@ export function createRuntime({
     startRun,
     start: startRun,
     resumeRun,
+    // 工具层（Host 评审 B2）按名字 `resume` 调用 ResumeWorkflowRun；两个名字同一实现。
+    resume: resumeRun,
     amend,
     stopRun,
     fillHole,
@@ -2728,7 +3152,9 @@ export function formatCompletionNotification(entry, outcome) {
     if (outcome.reason === 'user') {
       lines.push('The user stopped this workflow on purpose. Do not resume it with ResumeWorkflowRun and do not amend or rebuild it unless the user asks you to.');
     } else if (outcome.reason === 'model') {
-      lines.push("You stopped this workflow with TaskStop. If you stopped it to fix the script, do that now: call AmendWorkflow with this run's ID and the corrected script — everything that settled before the stop is imported as cache, and the sooner the fix runs the less it re-pays.");
+      // The tool name is the port's stop entry: upstream has no StopWorkflowRun and stops a run
+      // through its generic background-task tool, so the guidance names the tool this assembly has.
+      lines.push("You stopped this workflow with StopWorkflowRun. If you stopped it to fix the script, do that now: call AmendWorkflow with this run's ID and the corrected script — everything that settled before the stop is imported as cache, and the sooner the fix runs the less it re-pays. (Next time, amend the running run directly: AmendWorkflow stops it for you.)");
     } else if (outcome.reason === 'provider') {
       lines.push('A provider-side error stopped this run; the <error> block above names the cause and the fix.');
       lines.push(`Then resolve the cause with the user before calling ResumeWorkflowRun with run_id="${entry.meta.id}" — finished steps replay from the journal. Do not rebuild the workflow.`);

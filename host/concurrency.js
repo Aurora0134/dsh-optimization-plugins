@@ -273,13 +273,17 @@ export class ConcurrencyController {
   }
 
   /**
+   * 调整增长上界。这里刻意不用 `max(initial, …)`：对本移植来说 `initial` 是 run 启动时的
+   * 并发上限，而 `growthLimit` 必须跟随**当前**的 `max_concurrency`——用户把上限调小以后，
+   * AIMD 不能再长回去（评审 m9）。
+   *
    * @param {number} now
    * @param {number} limit
    * @returns {object[]}
    */
   setGrowthLimit(now, limit) {
     const changes = this.idleReset(now);
-    this.growthLimit = Math.max(this.initial, Math.floor(limit));
+    this.growthLimit = Math.max(1, Math.floor(limit));
     if (this.cap <= this.growthLimit) return changes;
     const previous = this.cap;
     this.cap = this.growthLimit;

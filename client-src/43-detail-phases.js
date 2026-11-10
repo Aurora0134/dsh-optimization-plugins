@@ -4,11 +4,35 @@
  * questions and the states that replace the list entirely (no graph, orphan questions).
  */
 
-/** One pending question. */
+/** One pending question, with the answer control the resolve route backs. */
 function WfQuestionBlock(props) {
   const question = props.question;
+  const [answering, setAnswering] = React.useState(false);
+  const [value, setValue] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(undefined);
   const asker = question.actorName
     ?? (question.actorSiteId === undefined ? undefined : `${question.actorSiteId}@${question.actorOrdinal ?? 0}`);
+  const submit = async () => {
+    if (busy || value.trim() === '' || typeof props.scope?.runId !== 'string') return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await WF_API.answerQuestion({
+        sessionId: props.scope.sessionId,
+        runId: props.scope.runId,
+        qid: question.qid,
+        answer: value,
+      });
+      setAnswering(false);
+      setValue('');
+      props.onRefresh?.();
+    } catch (failure) {
+      setError(wfText(failure?.message) ?? wfText(failure?.code));
+    } finally {
+      setBusy(false);
+    }
+  };
   return WF_H('div', {
     className: 'zwf-question',
     'data-testid': 'workflow-run-question',
@@ -22,12 +46,49 @@ function WfQuestionBlock(props) {
     WF_H('span', { className: 'zwf-question-text' }, question.question),
     question.context === undefined
       ? null
-      : WF_H('p', { className: 'zwf-question-context', 'data-testid': 'workflow-run-question-context' }, question.context)),
+      : WF_H('p', { className: 'zwf-question-context', 'data-testid': 'workflow-run-question-context' }, question.context),
+    answering
+      ? WF_H('div', { className: 'zwf-question-form' },
+        WF_H(WF_UI.Textarea, {
+          rows: 3,
+          value,
+          placeholder: WF_UI.say(props.t, UI_EN, 'run.questions.answer.placeholder'),
+          onChange: setValue,
+        }),
+        WF_H('div', { className: 'zwf-question-form-actions' },
+          WF_H('button', {
+            type: 'button',
+            className: 'zwf-btn zwf-btn-primary zwf-btn-sm',
+            disabled: busy || value.trim() === '',
+            onClick: () => { void submit(); },
+          }, WF_H('span', { className: 'zwf-btn-label' }, WF_UI.say(props.t, UI_EN, 'run.questions.answer.submit'))),
+          WF_H('button', {
+            type: 'button',
+            className: 'zwf-btn zwf-btn-ghost zwf-btn-sm',
+            disabled: busy,
+            onClick: () => {
+              setAnswering(false);
+              setError(undefined);
+            },
+          }, WF_H('span', { className: 'zwf-btn-label' }, WF_UI.say(props.t, UI_EN, 'ui.cancel')))))
+      : null,
+    error === undefined
+      ? null
+      : WF_H('div', { className: 'zwf-form-error' },
+        WF_H('p', { className: 'zwf-form-error-text' }, WF_UI.say(props.t, UI_EN, 'run.questions.answer.failed')),
+        WF_H('pre', { className: 'zwf-form-error-detail' }, error))),
   WF_H('span', { className: 'zwf-question-meta zwf-mono' },
     question.askedAt === undefined
       ? null
       : WF_H('span', { 'data-testid': 'workflow-run-question-waited' }, WF_UI.say(props.t, UI_EN, 'getRun.subagent.waitedFor', { age: wfAge(question.askedAt, props.now) })),
-    WF_H('span', { className: 'zwf-question-qid' }, question.qid)));
+    WF_H('span', { className: 'zwf-question-qid' }, question.qid),
+    answering
+      ? null
+      : WF_H('button', {
+        type: 'button',
+        className: 'zwf-link zwf-question-answer',
+        onClick: () => setAnswering(true),
+      }, WF_UI.say(props.t, UI_EN, 'run.questions.answer.action'))));
 }
 
 /** The actor's own steps: enough to see what it was asked and how far it got. */
@@ -54,16 +115,78 @@ function WfActorLedger(props) {
         : WF_H('span', { className: 'zwf-actor-meta zwf-mono' }, node.lastTool.name))));
 }
 
-/** The hole waiting block that sits at the top of an expanded phase body. */
+/** The hole waiting block, with the fill control the fill route backs. */
 function WfHoleWaiting(props) {
   const hole = props.hole;
+  const [filling, setFilling] = React.useState(false);
+  const [value, setValue] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(undefined);
+  const submit = async () => {
+    if (busy || value.trim() === '' || typeof props.scope?.runId !== 'string') return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await WF_API.fillHole({
+        sessionId: props.scope.sessionId,
+        runId: props.scope.runId,
+        holeId: hole.id,
+        script: value,
+      });
+      setFilling(false);
+      setValue('');
+      props.onRefresh?.();
+    } catch (failure) {
+      setError(wfText(failure?.message) ?? wfText(failure?.code));
+    } finally {
+      setBusy(false);
+    }
+  };
   return WF_H('div', { className: 'zwf-hole-waiting', 'data-testid': 'workflow-run-hole-waiting' },
     WF_H('span', { className: 'zwf-hole-waiting-text' },
       WF_UI.say(props.t, UI_EN, 'run.hole.waitingFor'),
       hole.since === undefined ? '' : ` · ${wfAge(hole.since, props.now)}`),
     hole.prompt === undefined
       ? null
-      : WF_H('p', { className: 'zwf-hole-prompt', 'data-testid': 'workflow-run-hole-prompt' }, hole.prompt));
+      : WF_H('p', { className: 'zwf-hole-prompt', 'data-testid': 'workflow-run-hole-prompt' }, hole.prompt),
+    filling
+      ? WF_H('div', { className: 'zwf-hole-fill' },
+        WF_H(WF_UI.Textarea, {
+          rows: 5,
+          value,
+          placeholder: WF_UI.say(props.t, UI_EN, 'run.hole.fill.placeholder'),
+          onChange: setValue,
+        }),
+        WF_H('div', { className: 'zwf-hole-fill-actions' },
+          WF_H('button', {
+            type: 'button',
+            className: 'zwf-btn zwf-btn-primary zwf-btn-sm',
+            disabled: busy || value.trim() === '',
+            onClick: () => { void submit(); },
+          }, WF_H('span', { className: 'zwf-btn-label' }, WF_UI.say(props.t, UI_EN, 'run.hole.fill.submit'))),
+          WF_H('button', {
+            type: 'button',
+            className: 'zwf-btn zwf-btn-ghost zwf-btn-sm',
+            disabled: busy,
+            onClick: () => {
+              setFilling(false);
+              setError(undefined);
+            },
+          }, WF_H('span', { className: 'zwf-btn-label' }, WF_UI.say(props.t, UI_EN, 'ui.cancel'))),
+          busy ? WF_H(WF_UI.Spinner, { inline: true }) : null))
+      : null,
+    error === undefined
+      ? null
+      : WF_H('div', { className: 'zwf-form-error' },
+        WF_H('p', { className: 'zwf-form-error-text' }, WF_UI.say(props.t, UI_EN, 'run.hole.fill.failed')),
+        WF_H('pre', { className: 'zwf-form-error-detail' }, error)),
+    filling
+      ? null
+      : WF_H('button', {
+        type: 'button',
+        className: 'zwf-link',
+        onClick: () => setFilling(true),
+      }, WF_UI.say(props.t, UI_EN, 'run.hole.fill.action')));
 }
 
 /**
@@ -130,7 +253,7 @@ function WfPhaseRow(props) {
   open
     ? WF_H('div', { className: 'zwf-phase-body', 'data-testid': 'workflow-run-phase-body' },
       station.hole === 'waiting' && props.hole !== undefined
-        ? WF_H(WfHoleWaiting, { hole: props.hole, t, now: props.now })
+        ? WF_H(WfHoleWaiting, { hole: props.hole, t, now: props.now, scope: props.scope, onRefresh: props.onRefresh })
         : null,
       props.pins.length > 0
         ? WF_H('div', { className: 'zwf-roster-pins', 'data-testid': 'workflow-roster-pins' },
@@ -146,6 +269,8 @@ function WfPhaseRow(props) {
               question,
               t,
               now: props.now,
+              scope: props.scope,
+              onRefresh: props.onRefresh,
             })))))
         : null,
       props.rest.length > 0 || props.unlisted > 0
@@ -233,6 +358,8 @@ function WfRunPhaseList(props) {
           onToggle: props.onToggle,
           onDoor: props.onDoor,
           onOpenEntry: props.onOpenEntry,
+          scope: props.scope,
+          onRefresh: props.onRefresh,
         }));
     }),
     orphans.length > 0
@@ -244,6 +371,8 @@ function WfRunPhaseList(props) {
           t,
           showAsker: true,
           now: props.now,
+          scope: props.scope,
+          onRefresh: props.onRefresh,
         })))
       : null);
 }

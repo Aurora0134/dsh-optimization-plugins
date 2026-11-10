@@ -428,6 +428,13 @@ export const DIAGNOSTIC_MESSAGES = Object.freeze({
   presetInLoop: 'a preset artifact declared inside a loop: hoist it to the top level and declare it once. A preset is declared once and fed many times — the loop body is where report(item, "<id>") belongs, not the declaration. Re-declaring the same spec is a no-op, but re-declaring it with a different spec fails the whole run, so the loop is the wrong place for it either way.',
   primaryConflict: (id, otherId, otherKind, otherLine) => `artifact "${id}" is marked primary, but "${otherId}" already is (artifact.${otherKind} on line ${otherLine}). A run has one deliverable — the card and the run pane lead with it. Drop primary from one of them, or publish this content as a new version of the other id.`,
   modelLiteral: 'model() takes the model name as a non-empty string literal (a model id or "providerId/modelId", optionally with "$level"): every model a script can use is checked against the configured models before the run starts. Put runtime choices in which ModelRef you pass, not in the name.',
+  modelUnavailable: (name, configured) => `The model "${name}" is not one this run can use: ${configured === undefined || configured.length === 0 ? 'this session named no models to choose from' : `the models it may use are ${configured.map((entry) => JSON.stringify(entry)).join(', ')}`}. Name one of them, or drop \`model\` from the persona.`,
+  /**
+   * 自制 9002 的一条（契约里由 TS 的语义诊断承担「Cannot find name」）：脚本调用了既未声明、
+   * 也不在 facade 里的函数。没有这条，把 G1 名字写进脚本会静默通过、运行期才 ReferenceError。
+   */
+  unknownCall: (name) => `"${name}" is not a function this script can call: it is neither declared here nor part of the workflow facade (agent, hole, log, report, phase, channel, future, model, artifact, files, git, world). Declare it, or use the facade.`,
+  legacyFacade: (name) => `"${name}" is not part of this workflow\'s facade: the old Workflow-tool helpers (agent(prompt, opts), parallel, pipeline, budget, workflow) do not exist in a script for this tool. Write the control flow yourself — loops, conditionals, and Promise.all over asks.`,
   actorModelDynamic: (type) => `A subagent's \`model\` must be known before the run starts: a string literal, a union of string literals, or a ModelRef from model("…"). This value's type is ${type}, which could be any model name. Write the name inline, add \`as const\` where it is declared, or declare the candidates with model() and choose among those ModelRefs at run time.`,
   declareModifier: 'The `declare` modifier is not allowed in a workflow script: the script is compiled inside a function body, where ambient declarations are illegal. Remove `declare` and write a plain declaration (e.g. `interface Foo { ... }`).',
   exportStatement: '`export` is not allowed in a workflow script: the script is compiled inside a function body. Remove `export` — the workflow\'s output is its final `return` value.',
@@ -1187,26 +1194,100 @@ function enclosingFunctionBodies(tokens, pairs, index) {
 }
 
 /**
- * 一个函数体是否属于某个扇出数组方法的回调（`xs.map(…)` / `Promise.all(xs.map(…))`）。
+ * 每个调用实参区间里的**函数字面量**区间。
+ *
+ * 为什么按实参区间而不是函数体块找回调：`.map((x) => agent("w"))` 的箭头只有表达式体，
+ * 没有 `{`，按块找会漏掉——这正是内联链式/单行回调的形态。
+ *
  * @param {object[]} tokens
  * @param {Map<number, number>} pairs
- * @param {number} bodyOpen
+ * @returns {{from: number, to: number}[]}
+ */
+function functionArgumentRanges(tokens, pairs) {
+  /** @type {{from: number, to: number}[]} */
+  const ranges = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (!isPunct(tokens[index], '(')) continue;
+    const previous = tokens[index - 1];
+    const isCall = isIdent(previous) || isKeyword(previous, 'super')
+      || isPunct(previous, ')') || isPunct(previous, ']');
+    if (!isCall) continue;
+    for (const arg of callArguments(tokens, pairs, index)) {
+      if (isFunctionArgument(tokens, arg)) ranges.push({ from: arg.from, to: arg.to });
+    }
+  }
+  return ranges;
+}
+
+/**
+ * 扇出数组方法的回调实参区间（`.map(`、`.forEach(`、`.reduce(` …）。
+ * @param {object[]} tokens
+ * @param {Map<number, number>} pairs
+ * @returns {{from: number, to: number}[]}
+ */
+function fanOutRanges(tokens, pairs) {
+  /** @type {{from: number, to: number}[]} */
+  const ranges = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (!isPunct(tokens[index], '(')) continue;
+    const member = tokens[index - 1];
+    if (!isIdent(member) || !FANOUT_METHODS.has(String(member.value))) continue;
+    const dot = tokens[index - 2];
+    if (!isPunct(dot, '.') && !isPunct(dot, '?.')) continue;
+    for (const arg of callArguments(tokens, pairs, index)) {
+      if (isFunctionArgument(tokens, arg)) ranges.push({ from: arg.from, to: arg.to });
+    }
+  }
+  return ranges;
+}
+
+/**
+ * token 下标是否落在某个区间里。
+ * @param {{from: number, to: number}[]} ranges
+ * @param {number} index
  * @returns {boolean}
  */
-function isFanOutCallbackBody(tokens, pairs, bodyOpen) {
-  // body ← `=>` ← (参数表) ← 方法名 `.` … ；或 function 表达式
-  let cursor = bodyOpen - 1;
-  if (isPunct(tokens[cursor], '=>')) cursor -= 1;
-  if (isPunct(tokens[cursor], ')')) {
-    const paramsOpen = pairs.get(cursor);
-    if (paramsOpen === undefined) return false;
-    cursor = paramsOpen - 1;
+function inRanges(ranges, index) {
+  return ranges.some((range) => range.from <= index && index < range.to);
+}
+
+/**
+ * 值位置上是内联函数的变量名（`const fn = async () => …`）：`hole(name, fn)` 的体不是内联箭头，
+ * 是契约里的 9012（体必须内联，fill 要按文本拼接）。
+ * @param {object[]} tokens
+ * @returns {Set<string>}
+ */
+function collectFunctionVariables(tokens) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  for (let index = 0; index < tokens.length - 3; index += 1) {
+    if (!(isKeyword(tokens[index], 'const') || isKeyword(tokens[index], 'let') || isKeyword(tokens[index], 'var'))) continue;
+    if (!isIdent(tokens[index + 1]) || !isPunct(tokens[index + 2], '=')) continue;
+    let cursor = index + 3;
+    if (isKeyword(tokens[cursor], 'async')) cursor += 1;
+    if (isKeyword(tokens[cursor], 'function')) {
+      names.add(String(tokens[index + 1].value));
+      continue;
+    }
+    // `(a) =>` 或 `x =>`
+    if (isPunct(tokens[cursor], '(')) {
+      // 找到参数表结尾，再看是否 `=>`
+      let depth = 0;
+      for (let scan = cursor; scan < tokens.length; scan += 1) {
+        if (isPunct(tokens[scan], '(')) depth += 1;
+        else if (isPunct(tokens[scan], ')')) {
+          depth -= 1;
+          if (depth === 0) {
+            if (isPunct(tokens[scan + 1], '=>')) names.add(String(tokens[index + 1].value));
+            break;
+          }
+        }
+      }
+      continue;
+    }
+    if (isIdent(tokens[cursor]) && isPunct(tokens[cursor + 1], '=>')) names.add(String(tokens[index + 1].value));
   }
-  // 箭头函数单参数形如 `item => {`
-  const callee = tokens[cursor];
-  if (!isIdent(callee)) return false;
-  if (!isPunct(tokens[cursor - 1], '.') && !isPunct(tokens[cursor - 1], '?.')) return false;
-  return FANOUT_METHODS.has(String(callee.value));
+  return names;
 }
 
 /** 数组方法集合：回调按元素并发执行。 */
@@ -1361,6 +1442,18 @@ function isValueRead(tokens, index) {
 /** facade 里「只能直接调用」的函数名（`agent/phase/report/hole/log/channel/future/model`）。 */
 const FACADE_CALLABLES = new Set(['agent', 'phase', 'report', 'hole', 'log', 'channel', 'future', 'model']);
 
+/** G1 旧 Workflow facade 的名字：现行脚本里不存在，必须显式诊断（见 M1）。 */
+const LEGACY_FACADE_NAMES = new Set(['parallel', 'pipeline', 'budget', 'workflow']);
+
+/** 语言内建可调用名：不算「未知调用」。（Node/web API 不在此列，见 forbiddenGlobal。） */
+const BUILTIN_CALLABLES = new Set([
+  'String', 'Number', 'Boolean', 'Array', 'Object', 'Promise', 'Set', 'Map', 'WeakMap', 'WeakSet',
+  'Symbol', 'BigInt', 'Error', 'TypeError', 'RangeError', 'SyntaxError', 'JSON', 'Math', 'Date',
+  'Intl', 'RegExp', 'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent',
+  'decodeURIComponent', 'encodeURI', 'decodeURI', 'structuredClone', 'console', 'queueMicrotask',
+  'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'TextEncoder', 'TextDecoder',
+]);
+
 /** 片段（snippet）里不存在的 facade 名。 */
 const SNIPPET_ABSENT = new Set(['agent', 'phase', 'report', 'artifact', 'hole', 'model']);
 
@@ -1373,9 +1466,10 @@ const SNIPPET_ABSENT = new Set(['agent', 'phase', 'report', 'artifact', 'hole', 
  * @param {object[]} tokens
  * @param {Map<number, number>} pairs
  * @param {'workflow'|'snippet'} mode
+ * @param {{availableModels?: string[]}} [options]
  * @returns {{diagnostics: object[], sites: object[], types: Map<string, object>}}
  */
-function analyze(code, tokens, pairs, mode) {
+function analyze(code, tokens, pairs, mode, options = {}) {
   /** @type {object[]} */
   const diagnostics = [];
   const report = (code_, token, message) => {
@@ -1384,6 +1478,11 @@ function analyze(code, tokens, pairs, mode) {
 
   const declared = collectDeclaredNames(tokens);
   const typeDecls = collectTypeDeclarations(tokens, pairs);
+  // 回调/扇出按**实参区间**识别（内联单行回调没有函数体块，见 functionArgumentRanges 注释）。
+  const functionArgs = functionArgumentRanges(tokens, pairs);
+  const fanOutArgs = fanOutRanges(tokens, pairs);
+  const functionVariables = collectFunctionVariables(tokens);
+  const availableModels = Array.isArray(options.availableModels) ? options.availableModels : undefined;
   /** @type {Map<string, object>} */
   const interfaces = new Map();
   const isFacadeFree = (name) => !declared.has(name);
@@ -1454,6 +1553,25 @@ function analyze(code, tokens, pairs, mode) {
     if (mode === 'snippet' && SNIPPET_ABSENT.has(name) && isFacadeFree(name)
       && (isPunct(tokens[index + 1], '(') || isPunct(tokens[index + 1], '<'))) {
       report(CODE.FACADE_MISUSE, token, DIAGNOSTIC_MESSAGES.snippetAbsent(name));
+      continue;
+    }
+    // 旧 G1 facade / 未知函数调用（9002，自制；契约里由 TS 语义诊断承担，见 messages 注释）
+    if (!declared.has(name) && LEGACY_FACADE_NAMES.has(name)) {
+      report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.legacyFacade(name));
+      continue;
+    }
+    if (!declared.has(name) && !FACADE_CALLABLES.has(name) && !BUILTIN_CALLABLES.has(name)
+      && !typeDecls.has(name) && isPunct(tokens[index + 1], '(')
+      && !isPunct(tokens[index - 1], '.') && !isPunct(tokens[index - 1], '?.')
+      && !isKeyword(tokens[index - 1], 'new') && !isKeyword(tokens[index - 1], 'function')
+      && !isKeyword(tokens[index - 1], 'async') && !isKeyword(tokens[index - 1], 'get')
+      && !isKeyword(tokens[index - 1], 'set')) {
+      // 类/对象字面量的方法定义（`name(...) {`）不是调用。
+      const callClose = pairs.get(index + 1);
+      const methodDefinition = callClose !== undefined && isPunct(tokens[callClose + 1], '{')
+        && (isPunct(tokens[index - 1], '{') || isPunct(tokens[index - 1], ';')
+          || isPunct(tokens[index - 1], '}') || isPunct(tokens[index - 1], ','));
+      if (!methodDefinition) report(CODE.FORBIDDEN_API, token, DIAGNOSTIC_MESSAGES.unknownCall(name));
     }
   }
 
@@ -1580,10 +1698,13 @@ function analyze(code, tokens, pairs, mode) {
       // await 与扇出位置
       if (!isKeyword(tokens[index - 1], 'await')) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeNotAwaited);
       if (isInsideFanOutAt(index)) report(CODE.HOLE, token, DIAGNOSTIC_MESSAGES.holeInFanOut);
-      // body 必须是内联箭头
+      // body 必须是内联箭头（函数放进变量就没有可拼接的文本，9012）
       const bodyArg = holeArgs.length >= 3 ? holeArgs[2] : (holeArgs.length === 2 && isFunctionArgument(tokens, holeArgs[1]) ? holeArgs[1] : undefined);
       if (bodyArg !== undefined && !isArrowFunctionArgument(tokens, bodyArg)) {
         report(CODE.HOLE, tokens[bodyArg.from], DIAGNOSTIC_MESSAGES.holeBodyNotArrow);
+      } else if (bodyArg === undefined && holeArgs.length === 2 && isIdent(tokens[holeArgs[1].from])
+        && functionVariables.has(String(tokens[holeArgs[1].from].value))) {
+        report(CODE.HOLE, tokens[holeArgs[1].from], DIAGNOSTIC_MESSAGES.holeBodyNotArrow);
       }
       const typeText = typeArgFrom >= 0 ? rangeText(code, tokens, typeArgFrom, typeArgTo) : undefined;
       sites.push({
@@ -1628,6 +1749,9 @@ function analyze(code, tokens, pairs, mode) {
     if (name === 'model' && !shadowed) {
       const literal = args[0] === undefined ? undefined : literalText(tokens[args[0].from]);
       if (literal === undefined || literal.length === 0) report(CODE.MODEL, token, DIAGNOSTIC_MESSAGES.modelLiteral);
+      else if (availableModels !== undefined && !availableModels.includes(literal)) {
+        report(CODE.MODEL_UNAVAILABLE, token, DIAGNOSTIC_MESSAGES.modelUnavailable(literal, availableModels));
+      }
       sites.push({ kind: 'model', id: counters.next('model'), callee: index, open, close, line: token.line, args, model: literal });
       continue;
     }
@@ -1764,15 +1888,12 @@ function analyze(code, tokens, pairs, mode) {
 
   /* ------- 局部辅助 ------- */
   function isInsideFanOutAt(callIndex) {
-    for (const body of enclosingFunctionBodies(tokens, pairs, callIndex)) {
-      if (isFanOutCallbackBody(tokens, pairs, body)) return true;
-    }
-    return false;
+    return inRanges(fanOutArgs, callIndex);
   }
 
   function isInsideCallbackAt(callIndex) {
-    // 用户写的任何函数体都算回调：脚本顶层没有函数体包着（cell 的包壳发生在编译之后）。
-    return enclosingFunctionBodies(tokens, pairs, callIndex).length > 0;
+    // 实参里的函数字面量（含单行箭头）+ 脚本自己声明的辅助函数体，都算“回调式位置”。
+    return inRanges(functionArgs, callIndex) || enclosingFunctionBodies(tokens, pairs, callIndex).length > 0;
   }
 
   function askSpecAt(typeFrom, typeTo, siteToken) {
@@ -1840,7 +1961,8 @@ function analyze(code, tokens, pairs, mode) {
   }
 
   function hasPrimary(op, opArgs) {
-    const optionsArg = op === 'file' ? opArgs[2] : opArgs[1];
+    // markdown 的 opts 也是第 3 个实参（id, content, opts）；preset 是第 2 个（id, spec）。
+    const optionsArg = op === 'file' || op === 'markdown' ? opArgs[2] : opArgs[1];
     if (optionsArg === undefined) return false;
     for (let cursor = optionsArg.from; cursor < optionsArg.to - 1; cursor += 1) {
       if (isIdent(tokens[cursor], 'primary') && isPunct(tokens[cursor + 1], ':')) {
@@ -1859,10 +1981,8 @@ function analyze(code, tokens, pairs, mode) {
     }
   }
 
-  // 空脚本
-  if (mode === 'workflow' && tokens.length === 0) {
-    report(CODE.HOLE, { line: 1, column: 1 }, DIAGNOSTIC_MESSAGES.emptyScript);
-  }
+  // 空脚本：契约里没有对应诊断（空的 `return;` 也合法），这里不报；空脚本在运行期就是一个
+  // 立即完成、返回 undefined 的 run。
 
   return { diagnostics, sites, types: interfaces, phases, sitePhases };
 }
@@ -1873,6 +1993,24 @@ const ARTIFACT_KINDS = new Set(['file', 'markdown', 'chart', 'table', 'metrics',
 /* ================================================================================================
  * 8. lowering：文本编辑
  * ============================================================================================== */
+
+/**
+ * 把落在 `[from, to)` 里的编辑套用到这段源码上（用于把 receiver 的内部改写烘焙进外层替换文本）。
+ * @param {string} code
+ * @param {number} from
+ * @param {number} to
+ * @param {{start: number, end: number, text: string}[]} edits
+ * @returns {string}
+ */
+function applyEditsInRange(code, from, to, edits) {
+  const inner = edits.filter((edit) => edit.start >= from && edit.end <= to);
+  inner.sort((a, b) => (b.start - a.start) || (b.end - a.end));
+  let output = code.slice(from, to);
+  for (const edit of inner) {
+    output = `${output.slice(0, edit.start - from)}${edit.text}${output.slice(edit.end - from)}`;
+  }
+  return output;
+}
 
 /**
  * 把分析得到的站点改写为 `__host.*` 调用。
@@ -1899,17 +2037,8 @@ function lowerScript(code, analysis) {
       continue;
     }
     if (site.kind === 'ask') {
-      // <recv>.ask<T>(args) → __host.ask("ask#N", <recv>, <args>)
-      if (site.optional) {
-        // x?.ask(…) → ((__a) => __a === null || __a === undefined ? undefined : __host.ask("s", __a, args))(x)
-        const receiver = site.receiverText;
-        const argsText = site.argsText;
-        replace(site.receiverStartOffset, site.end, `((__a) => __a === null || __a === undefined ? undefined : __host.ask(${jsString(site.id)}, __a${argsText.length > 0 ? `, ${argsText}` : ''}))(${receiver})`);
-      } else {
-        // 把 `<recv>.ask<T>(` 整段替换成 `__host.ask("ask#1", <recv>, `：原调用的右括号与实参
-        // 原样保留，因此括号配平不依赖任何“只删点号”的局部编辑（嵌套调用也不受影响）。
-        replace(site.receiverStartOffset, site.afterOpen, `__host.ask(${jsString(site.id)}, ${site.receiverText}, `);
-      }
+      // 放到所有其它编辑收集完之后统一处理：ask 的替换区间包住 receiver，必须先把 receiver
+      // 内部的站点改写（`agent(...)` → `__host.createActor(...)`）套用进替换文本，见 B1。
       continue;
     }
     if (site.kind === 'hole') {
@@ -1977,13 +2106,49 @@ function lowerScript(code, analysis) {
     replace(token.start, token.end, `__host.${token.value}`);
   }
 
+  // —— ask 站点：自底向上（先 receiver 内部、再本层）——
+  // 为什么最后做：替换区间 `receiverStart..afterOpen` 包住 receiver，内联链式
+  // `agent("x").ask("y")` 的 actor 改写必须已经生成，才能被"烘焙"进替换文本；
+  // 被烘焙的编辑从最终应用列表里剔除，避免同一段被改两次。
+  /** @type {Set<object>} */
+  const consumed = new Set();
+  const askSites = sites.filter((site) => site.kind === 'ask')
+    .sort((a, b) => b.receiverStartOffset - a.receiverStartOffset);
+  for (const site of askSites) {
+    if (site.optional) {
+      const receiver = applyEditsInRange(code, site.receiverStartOffset, site.dotStartOffset, edits);
+      const argsText = site.afterOpen <= site.closeOffset
+        ? applyEditsInRange(code, site.afterOpen, site.closeOffset, edits)
+        : '';
+      for (const edit of edits) {
+        if (edit.start >= site.receiverStartOffset && edit.end <= site.end) consumed.add(edit);
+      }
+      edits.push({
+        start: site.receiverStartOffset,
+        end: site.end,
+        text: `((__a) => __a === null || __a === undefined ? undefined : __host.ask(${jsString(site.id)}, __a${argsText.trim() === '' ? '' : `, ${argsText}`}))(${receiver})`,
+      });
+      continue;
+    }
+    const receiver = applyEditsInRange(code, site.receiverStartOffset, site.dotStartOffset, edits);
+    for (const edit of edits) {
+      if (edit.start >= site.receiverStartOffset && edit.end <= site.afterOpen) consumed.add(edit);
+    }
+    edits.push({
+      start: site.receiverStartOffset,
+      end: site.afterOpen,
+      text: `__host.ask(${jsString(site.id)}, ${receiver}, `,
+    });
+  }
+
   // 应用编辑：从后往前，保证偏移不互相影响
-  edits.sort((a, b) => (b.start - a.start) || (b.end - a.end));
+  const remaining = edits.filter((edit) => !consumed.has(edit));
+  remaining.sort((a, b) => (b.start - a.start) || (b.end - a.end));
   let output = code;
-  for (const edit of edits) {
+  for (const edit of remaining) {
     output = `${output.slice(0, edit.start)}${edit.text}${output.slice(edit.end)}`;
   }
-  return { code: output, edits };
+  return { code: output, edits: remaining };
 }
 
 /* ================================================================================================
@@ -2309,7 +2474,7 @@ function scalarText(value) {
  * @param {boolean} [options.snippet] 旧名兼容：等价于 mode:'snippet'
  * @returns {object}
  */
-export function compileWorkflowScript({ code, filename = 'workflow-script.ts', mode, snippet = false } = {}) {
+export function compileWorkflowScript({ code, filename = 'workflow-script.ts', mode, snippet = false, availableModels } = {}) {
   const resolvedMode = mode ?? (snippet === true ? 'snippet' : 'workflow');
   const source = normalizeSource(String(code ?? ''));
   const tokens = tokenize(source);
@@ -2318,7 +2483,7 @@ export function compileWorkflowScript({ code, filename = 'workflow-script.ts', m
 
   let analysis;
   try {
-    analysis = analyze(source, tokens, pairs, resolvedMode);
+    analysis = analyze(source, tokens, pairs, resolvedMode, { availableModels });
   } catch (error) {
     return {
       ok: false,

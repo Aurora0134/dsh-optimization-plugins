@@ -138,7 +138,8 @@ function wfRunCardParts(run) {
   if (steps.total > 0) parts.push(wfCardSay('card.steps', { done: steps.done, total: steps.total }));
   parts.push(wfCardSay('card.tokens', { count: (wfRunTokens(run) ?? 0).toLocaleString() }));
   const rounds = wfRunMaxRound(run);
-  if (rounds >= 2) parts.push(wfCardSay('card.round', { count: rounds }));
+  // A live run reports the round it is on; a finished one reports how many it visited.
+  if (rounds >= 2) parts.push(wfCardSay(wfRunIsActive(run) ? 'card.round' : 'card.rounds', { count: rounds }));
   const artifacts = wfRunArtifacts(run);
   if (artifacts.length > 0) parts.push(wfCardSayCount('card.artifact', 'card.artifacts', artifacts.length));
   return parts;
@@ -281,7 +282,177 @@ function WfRunHoles(props) {
     ` ${wfCardSay('run.hole.waitingFor')}${wfCardFirstText(hole.name) === '' ? '' : ` · ${wfCardFirstText(hole.name)}`}`)));
 }
 
+/* ------------------------------ draft timeline ----------------------------- */
+
+/**
+ * Stations of a call that has not produced a run yet.
+ * The Host projection may hand a draft its phases; otherwise the call's own `phaseNames` /
+ * `phase_streams` argument is the only source, and a draft without declared phases renders none.
+ * @returns {{name: string, status: string, current: boolean, rounds?: number}[]}
+ */
+function wfCardDraftStations(model) {
+  const declared = wfCardFirst(
+    model.args('draftStations'),
+    model.args('draft_stations'),
+    model.args('phaseNames'),
+    model.args('phase_names'),
+    model.args('phase_streams'),
+    model.args('phaseStreams'),
+  );
+  if (!Array.isArray(declared)) return [];
+  const names = [];
+  for (const entry of declared) {
+    const name = typeof entry === 'string' ? entry : wfCardFirstText(wfCardRecord(entry) ? entry.name : '', wfCardRecord(entry) ? entry.id : '');
+    if (name !== '' && !names.includes(name)) names.push(name);
+  }
+  const current = wfCardFirstText(model.args('currentPhase'), model.args('current_phase'));
+  return names.map((name) => ({
+    name,
+    status: name === current ? 'running' : model.phase === 'preparing' ? 'pending' : 'done',
+    current: name === current,
+  }));
+}
+
+/**
+ * The draft phase timeline (`workflow-draft-timeline` family).
+ * Read-only: it shows the shape the model has written so far, not a live run, so a station is
+ * pending, current or done and nothing else.
+ */
+function WfRunDraftTimeline(props) {
+  const stations = Array.isArray(props.stations) ? props.stations : [];
+  const ordinal = wfCardNum(props.ordinal);
+  return React.createElement('div', {
+    className: 'zwf-draft-timeline',
+    'data-testid': 'workflow-draft-timeline',
+    role: 'list',
+  },
+  stations.map((station, index) => React.createElement('span', {
+    className: 'zwf-draft-station',
+    key: `${station.name}-${index}`,
+    role: 'listitem',
+    title: station.name,
+  },
+  React.createElement('span', {
+    className: 'zwf-lamp',
+    'data-status': station.status === 'done' ? 'completed' : station.status,
+    'data-testid': 'workflow-draft-lamp',
+    'data-draft-station': station.name,
+  }),
+  React.createElement('span', { className: 'zwf-draft-name' }, station.name))),
+  ordinal === undefined
+    ? null
+    : React.createElement('span', { className: 'zwf-card-detail', 'data-testid': 'workflow-draft-ordinal' }, wfCardSay('workflow.draftOrdinal', { ordinal })),
+  React.createElement('span', { className: 'zwf-card-detail', 'data-testid': 'workflow-draft-status' }, props.status));
+}
+
+/* ------------------------------- completion ------------------------------- */
+
+/**
+ * The completion figures of a finished run.
+ * Same numbers as the footer, spelled out with their labels, because the footer drops the label to
+ * stay one line tall.
+ */
+function WfRunCompletion(props) {
+  const run = props.run;
+  const steps = wfRunSteps(run);
+  const agents = wfRunAgents(run);
+  const phases = wfRunStations(run);
+  const artifacts = wfRunArtifacts(run);
+  const elapsed = wfRunElapsed(run);
+  const figures = [
+    elapsed === '' ? undefined : { key: 'time', label: wfCardSay('completion.time'), value: elapsed },
+    { key: 'tokens', label: wfCardSay('completion.tokens'), value: (wfRunTokens(run) ?? 0).toLocaleString() },
+    { key: 'subagents', label: wfCardSay('completion.subagents'), value: String(agents.length) },
+    { key: 'phases', label: wfCardSay('completion.phases'), value: String(phases.length) },
+  ].filter(Boolean);
+  const more = artifacts.length > WF_RUN_CHIP_LIMIT ? artifacts.length - WF_RUN_CHIP_LIMIT : 0;
+  if (figures.length === 0 && more === 0 && steps.total === 0) return null;
+  return React.createElement('div', {
+    className: 'zwf-completion',
+    'data-testid': 'workflow-completion-card',
+  },
+  React.createElement('span', { className: 'zwf-section-label', 'data-testid': 'workflow-completion-status' }, wfCardSay('card.completed')),
+  React.createElement('span', { className: 'zwf-completion-figures', 'data-testid': 'workflow-completion-figures' },
+    figures.map((figure) => React.createElement('span', {
+      className: 'zwf-completion-figure',
+      key: figure.key,
+      'data-testid': `workflow-completion-figure-${figure.key}`,
+    },
+    React.createElement('span', { className: 'zwf-card-detail' }, figure.label),
+    React.createElement('span', { className: 'zwf-completion-value' }, figure.value)))),
+  more > 0
+    ? React.createElement('span', { className: 'zwf-card-detail', 'data-testid': 'workflow-completion-more' }, wfCardSay('completion.moreArtifacts', { count: more }))
+    : null,
+  steps.failed > 0
+    ? React.createElement('span', { className: 'zwf-completion-line', 'data-testid': 'workflow-completion-line' }, wfCardSay('getRun.nodesLine', {
+      observed: steps.total,
+      done: steps.done,
+      running: steps.running,
+      failed: steps.failed,
+    }))
+    : null);
+}
+
+/* ---------------------------- pending questions --------------------------- */
+
+/**
+ * Questions the run is waiting on inside the transcript (ui.md F.1).
+ * The card shows who asked, what was asked, the context and how long it has waited; answering
+ * happens in the run detail, which owns the answer form.
+ */
+function WfRunQuestions(props) {
+  const questions = Array.isArray(props.questions) ? props.questions : [];
+  if (questions.length === 0) return null;
+  return React.createElement('div', { className: 'zwf-questions' },
+    React.createElement('span', { className: 'zwf-section-label' }, wfCardSay('run.questions.title')),
+    questions.map((question, index) => React.createElement('div', {
+      className: 'zwf-question',
+      key: question.qid === '' ? `question-${index}` : question.qid,
+      'data-qid': question.qid === '' ? undefined : question.qid,
+      'data-testid': 'workflow-run-question',
+    },
+    React.createElement(WF_ICON.agent, { size: 12 }),
+    React.createElement('span', { className: 'zwf-question-body' },
+      question.actorName === '' ? null : React.createElement('span', { className: 'zwf-question-asker' }, question.actorName),
+      React.createElement('span', { className: 'zwf-question-text' }, question.question),
+      question.context === ''
+        ? null
+        : React.createElement('span', { className: 'zwf-question-context', 'data-testid': 'workflow-run-question-context' }, question.context)),
+    React.createElement('span', { className: 'zwf-question-tail' },
+      question.askedAt === undefined
+        ? null
+        : React.createElement('span', { 'data-testid': 'workflow-run-question-waited' }, wfCardSay('getRun.subagent.waitedFor', { age: wfCardAge(Date.now() - question.askedAt) })),
+      question.qid === '' ? null : React.createElement('span', { className: 'zwf-question-qid' }, question.qid)))));
+}
+
 /* -------------------------------- the card -------------------------------- */
+
+/* ---------------------------------- styles --------------------------------- */
+
+/** Draft timeline, completion figures and the pending-question block. */
+const WF_CARDS_RUN_CSS = `
+.zwf-card-state{display:none}
+.zwf-draft-timeline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;box-sizing:border-box;min-width:0;font-size:12px;line-height:18px}
+.zwf-draft-station{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:180px}
+.zwf-draft-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}
+.zwf-completion{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;box-sizing:border-box;min-width:0;padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-1);font-size:12px;line-height:18px}
+.zwf-completion-figures{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;min-width:0}
+.zwf-completion-figure{display:inline-flex;align-items:baseline;gap:4px;min-width:0}
+.zwf-completion-value{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}
+.zwf-completion-line{color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.zwf-questions{display:flex;flex-direction:column;gap:4px;min-width:0}
+.zwf-question{display:flex;align-items:flex-start;gap:8px;box-sizing:border-box;min-width:0;padding:6px 8px;border-radius:var(--dsw-radius-sm,8px);background:color-mix(in oklab,var(--dsw-alias-state-warn-primary) 10%,transparent);color:var(--dsw-alias-label-primary);font-size:12.5px;line-height:19px}
+.zwf-question-body{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.zwf-question-asker{font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:16px;font-weight:500;color:var(--dsw-alias-label-secondary)}
+.zwf-question-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.zwf-question-context{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary)}
+.zwf-question-tail{display:flex;flex:none;align-items:baseline;gap:6px;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption)}
+.zwf-question-qid{opacity:.7}
+`;
+
+WF_STYLE_PARTS.push(WF_CARDS_RUN_CSS);
+
+/* ---------------------------------- glyph --------------------------------- */
 
 /** CreateWorkflow / AmendWorkflow / FillWorkflowHole card. */
 function WfRunCard(props) {
@@ -308,6 +479,9 @@ function WfRunCard(props) {
   const agents = run === undefined ? [] : wfRunAgents(run);
   const artifacts = run === undefined ? [] : wfRunArtifacts(run);
   const holes = run === undefined ? [] : wfRunHoles(run);
+  const questions = run === undefined ? [] : wfRunQuestions(run);
+  const draftStations = run === undefined ? wfCardDraftStations(model) : [];
+  const draftOrdinal = wfCardNum(model.args('draft_ordinal') ?? model.args('draftOrdinal'));
   const script = model.argText('script');
   const saved = wfCardRecord(model.args('saved')) ? model.args('saved') : undefined;
   const canResume = run !== undefined && run.resumable === true && status === 'stopped';
@@ -385,6 +559,10 @@ function WfRunCard(props) {
       }));
     }
     if (holes.length > 0) body.push(React.createElement(WfRunHoles, { key: 'holes', holes }));
+    if (questions.length > 0) body.push(React.createElement(WfRunQuestions, { key: 'questions', questions }));
+    if (run !== undefined && status === 'completed') {
+      body.push(React.createElement(WfRunCompletion, { key: 'completion', run }));
+    }
     if (wfCardRecord(run) && run.truncated === true) {
       body.push(React.createElement('p', { className: 'zwf-note', key: 'truncated' }, wfCardSay('graph.truncated')));
     }
@@ -438,10 +616,37 @@ function WfRunCard(props) {
       actions));
 
   const children = [header];
+  // A call that has not produced a run yet shows the shape it has written so far.
+  if (run === undefined && permission === undefined && (draftStations.length > 0 || draftOrdinal !== undefined)) {
+    children.push(React.createElement(WfRunDraftTimeline, {
+      key: 'draft',
+      stations: draftStations,
+      ordinal: draftOrdinal,
+      status: kind,
+    }));
+  }
   // A launch waiting for a decision must stay visible even when the card's body is collapsed.
   if ((props.open === true || permission !== undefined) && body.length > 0) {
     children.push(React.createElement('div', { className: 'zwf-card-body', key: 'body', 'data-testid': 'workflow-card-body' }, body));
   }
+  // The digest sits under the fold: it summarises the run without opening the details.
+  if (run !== undefined && permission === undefined) {
+    children.push(React.createElement(WfRunDigest, {
+      key: 'digest',
+      run,
+      sessionId: model.sessionId,
+      runId,
+      stations,
+      artifacts,
+    }));
+  }
+  children.push(React.createElement('span', {
+    key: 'state',
+    className: 'zwf-card-state',
+    'data-testid': 'workflow-card-state',
+    'data-workflow-card-state': status !== '' ? status : (model.phase === 'preparing' ? 'writing' : 'static'),
+    'aria-hidden': 'true',
+  }));
   if (footer !== null) children.push(React.cloneElement(footer, { key: 'footer' }));
 
   return React.createElement('section', {

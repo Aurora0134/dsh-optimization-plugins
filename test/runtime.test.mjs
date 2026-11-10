@@ -226,8 +226,8 @@ test('typed ask：校验失败走 node-repairing，再交对结果', async () =>
   assert.equal(settled.status, 'completed');
   assert.deepEqual(settled.result, { ok: true });
   assert.equal(prompts.length, 2);
-  // 第二次提示词带着违规说明（submit_result 的返回形状）
-  assert.match(prompts[1], /The submitted result does not match the required schema:/);
+  // 第二次提示词带着违规说明（repair 回合的抬头，回复协议版本）
+  assert.match(prompts[1], /The reply did not match the required schema:/);
   const events = runtime.eventsAfter(started.runId, -1, 100).map((row) => row.type);
   assert.equal(events.includes('node-repairing'), true);
 });
@@ -256,7 +256,7 @@ test('typed ask：一回合没交结果走 node-nudged，预算内被催回', as
   assert.equal(settled.status, 'completed');
   assert.deepEqual(settled.result, { ok: true });
   assert.equal(prompts.length, 2);
-  assert.match(prompts[1], /You ended your turn without submitting a result\./);
+  assert.match(prompts[1], /You ended your turn without giving the result\./);
   assert.equal(ASK_BUDGET.nudges, 1);
   const events = runtime.eventsAfter(started.runId, -1, 100).map((row) => row.type);
   assert.equal(events.includes('node-nudged'), true);
@@ -315,7 +315,8 @@ test('escalate：子代理挂起提问，resolveQuestion 逐字回灌；未知 q
     cwd: '/tmp/ws',
     runner: async (request) => {
       const reply = await request.escalate({ question: 'Which branch?', context: 'both look valid' });
-      answer = reply.status === 'answered' ? reply.answer : reply.message;
+      // 契约回灌对象是 `{status:'answered', message, qid}`（评审 M9）。
+      answer = reply.status === 'answered' ? reply.message : reply.message;
       return { text: answer };
     },
   });
@@ -358,7 +359,12 @@ test('stopRun：在飞 run 记 stopped + stop_reason=user', async () => {
       request.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
     }),
   });
-  await until(async () => (await runtime.getRun(started.runId))?.nodes?.[0]?.phase !== undefined || true);
+  // 等 ask 真的派发出去（节点已落 journal 且 run 仍在跑），再发停止。
+  const dispatched = await until(async () => {
+    const running = await runtime.getRun(started.runId);
+    return Array.isArray(running?.nodes) && running.nodes.length > 0 && running.status === 'running';
+  });
+  assert.equal(Boolean(dispatched), true, 'ask 应该已派发');
   const stopped = await runtime.stopRun(started.runId, 'user');
   assert.equal(stopped.ok, true);
   const settled = await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
@@ -366,6 +372,125 @@ test('stopRun：在飞 run 记 stopped + stop_reason=user', async () => {
   assert.equal(settled.stopReason, 'user');
   const events = runtime.eventsAfter(started.runId, -1, 100).map((row) => row.type);
   assert.equal(events.includes('run-settled'), true);
+});
+
+test('ResumeWorkflowRun：runtime.resume 是同一实现，stopped run 用同一 runId 续跑', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var slow = __host.createActor("actor#1", "slow", void 0);',
+      'return await __host.ask("ask#1", slow, "take your time");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+  });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  assert.equal(runtime.resume, runtime.resumeRun);
+  let calls = 0;
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'resume',
+    cwd: '/tmp/ws',
+    runner: async (request) => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise((resolve, reject) => {
+          request.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        });
+      }
+      return { text: 'resumed answer' };
+    },
+  });
+  await until(async () => (await runtime.getRun(started.runId))?.nodes?.length > 0);
+  await runtime.stopRun(started.runId, 'user');
+  const stopped = await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+  assert.equal(stopped.status, 'stopped');
+
+  const resumed = await runtime.resume(started.runId, {
+    runner: async () => ({ text: 'resumed answer' }),
+  });
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(resumed.runId, started.runId);
+  const settled = await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+  assert.equal(settled.status, 'completed');
+  assert.equal(settled.result, 'resumed answer');
+});
+
+test('escalate 标记协议：回复里的围栏 JSON 触发提问，答案作为下一回合文本回灌', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var helper = __host.createActor("actor#1", "helper", void 0);',
+      'return await __host.ask("ask#1", helper, "do the thing");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+  });
+  const prompts = [];
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'marker-escalation',
+    cwd: '/tmp/ws',
+    runner: async (request) => {
+      prompts.push(request.prompt);
+      if (prompts.length === 1) {
+        return { text: 'I need a decision.\n```json\n{"escalate":{"question":"Which branch?","context":"both look valid"}}\n```' };
+      }
+      return { text: `I took the answer: ${request.prompt.includes('the left branch') ? 'left' : 'unknown'}` };
+    },
+  });
+  const pending = await until(async () => (await runtime.getRun(started.runId))?.pendingQuestions?.length === 1);
+  assert.equal(Boolean(pending), true, 'run 应该有挂起的问题');
+  const running = await runtime.getRun(started.runId);
+  const record = running.pendingQuestions[0];
+  assert.equal(record.qid.startsWith('dwfq-'), true);
+  assert.equal(record.actorSiteId, 'actor#1');
+  assert.equal(record.actorOrdinal, 1);
+  const resolved = runtime.resolveQuestion(record.qid, 'the left branch');
+  assert.equal(resolved.ok, true);
+  const settled = await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+  assert.equal(settled.status, 'completed');
+  assert.match(settled.result, /I took the answer: left/);
+  assert.match(prompts[1], /Your question was answered:\nthe left branch/);
+});
+
+test('escalate 失败原因区分未知/已答（22/23）', async () => {
+  const compiler = stubCompiler({
+    lowered: [
+      'var helper = __host.createActor("actor#1", "helper", void 0);',
+      'return await __host.ask("ask#1", helper, "ask");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+  });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'codes',
+    cwd: '/tmp/ws',
+    runner: async (request) => new Promise((resolve, reject) => {
+      request.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }),
+  });
+  assert.equal(runtime.resolveQuestion('dwfq-none', 'x').code, 'UNKNOWN_QUESTION');
+  await runtime.stopRun(started.runId, 'user');
+  await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+});
+
+test('通知信封：任务通知元素与终态指引（契约 §7.2）', () => {
+  const entry = {
+    meta: { id: 'dwf-1', name: 'demo', stopReason: undefined },
+    events: [
+      { type: 'report', item: { a: 1 } },
+      { type: 'artifact-published', artifact: { id: 'doc', kind: 'markdown', primary: true } },
+    ],
+  };
+  const completed = formatCompletionNotification(entry, { status: 'completed', value: { ok: true } });
+  for (const tag of ['<task-id>dwf-1</task-id>', '<status>completed</status>', '<summary>', '<result>', '<reports count="1">', '<artifacts count="1">']) {
+    assert.equal(completed.includes(tag), true, `缺少 ${tag}`);
+  }
+  const stopped = formatCompletionNotification(entry, { status: 'stopped', reason: 'model' });
+  assert.match(stopped, /amend the running run directly/);
+
+  const errored = formatCompletionNotification(entry, { status: 'errored', error: new Error('bad script') });
+  assert.match(errored, /<error>bad script<\/error>/);
+  assert.match(errored, /AmendWorkflow/);
 });
 
 test('完成通知：报错分支给出 AmendWorkflow 指引，摘要截断字段存在', () => {

@@ -77,10 +77,38 @@ function wfSaveRunId(run) {
   return '';
 }
 
+/** Argument rows per save card before the rest collapse behind a toggle. */
+const WF_SAVE_ARG_ROWS = 3;
+
+/** Characters of one argument value before it is clamped behind a toggle. */
+const WF_SAVE_ARG_CLAMP = 48;
+
+/**
+ * The arguments the run was given, as rows of `{ name, text }`.
+ * @param {unknown} run
+ * @param {unknown} given explicit argument object, when the mount site has one
+ */
+function wfSaveArgs(run, given) {
+  const record = run !== null && typeof run === 'object' ? run : {};
+  const envelope = record.approval !== null && typeof record.approval === 'object'
+    ? record.approval
+    : record.permission !== null && typeof record.permission === 'object'
+      ? record.permission
+      : record;
+  const input = envelope.input !== null && typeof envelope.input === 'object' ? envelope.input : {};
+  const candidates = [given, envelope.args, input.args, record.args, envelope.saved?.args, input.saved?.args];
+  for (const candidate of candidates) {
+    if (candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+    const rows = Object.entries(candidate).map(([name, value]) => ({ name, text: wfPermArgText(value) }));
+    if (rows.length > 0) return rows;
+  }
+  return [];
+}
+
 /**
  * The save action of a run's header: a button that opens the popover, or — when the run was
  * already saved — the saved chip beside "run again".
- * @param {{ sessionId?: string, runId?: string, run?: unknown, projectRoot?: string, t?: Function, openChat?: Function, onSaved?: Function, onOpenHub?: Function }} props
+ * @param {{ sessionId?: string, runId?: string, run?: unknown, projectRoot?: string, args?: unknown, t?: Function, openChat?: Function, onSaved?: Function, onOpenHub?: Function }} props
  */
 function WfSaveSlot(props) {
   const t = typeof props?.t === 'function' ? props.t : undefined;
@@ -90,6 +118,7 @@ function WfSaveSlot(props) {
   const runId = typeof props?.runId === 'string' && props.runId !== '' ? props.runId : wfSaveRunId(props?.run);
   const [open, setOpen] = React.useState(false);
   const [savedEntry, setSavedEntry] = React.useState(undefined);
+  const [announcement, setAnnouncement] = React.useState('');
   const anchorRef = React.useRef(null);
   const popRef = React.useRef(null);
 
@@ -121,8 +150,19 @@ function WfSaveSlot(props) {
     props.openChat(say('workflows.hub.prompt.runNoArgs', { name }));
   };
 
+  // The announcement region is the first child in both states, so the live node survives the swap
+  // from the save button to the saved chip and a screen reader still reads the result.
+  const announcementNode = WF_H('span', {
+    className: 'zwf-save-announce',
+    role: 'status',
+    'aria-live': 'polite',
+    'aria-atomic': 'true',
+    'data-testid': 'workflow-save-announcement',
+  }, announcement);
+
   if (savedEntry !== undefined) {
     return WF_H('div', { className: 'zwf-save-slot' },
+      announcementNode,
       WF_H('span', {
         className: 'zwf-save-chip',
         'data-testid': 'workflow-saved-chip',
@@ -151,6 +191,7 @@ function WfSaveSlot(props) {
   }
 
   return WF_H('div', { className: 'zwf-save-slot zwf-anchor', ref: anchorRef },
+    announcementNode,
     WF_H(WF_UI.Button, {
       variant: 'subtle',
       size: 'sm',
@@ -167,13 +208,15 @@ function WfSaveSlot(props) {
         projectRoot,
         runId,
         run: props?.run,
+        args: props?.args,
         anchorRef,
         popRef: popRef,
         openChat: props?.openChat,
         onClose: () => setOpen(false),
-        onSaved: (entry) => {
+        onSaved: (entry, scope) => {
           setSavedEntry(entry);
           setOpen(false);
+          setAnnouncement(say(`chat.toolCall.workflow.saveRun.announce.${scope === 'global' ? 'global' : 'project'}`));
           if (typeof props?.onSaved === 'function') props.onSaved(entry);
         },
       })
@@ -195,6 +238,9 @@ function WfSavePopover(props) {
   const [saving, setSaving] = React.useState(false);
   const [handed, setHanded] = React.useState(false);
   const [directory, setDirectory] = React.useState('');
+  const [argsOpen, setArgsOpen] = React.useState(false);
+  const [valuesOpen, setValuesOpen] = React.useState(false);
+  const args = React.useMemo(() => wfSaveArgs(props.run, props.args), [props.run, props.args]);
   const timer = React.useRef(undefined);
 
   React.useEffect(() => {
@@ -272,7 +318,7 @@ function WfSavePopover(props) {
         return;
       }
       setSaving(false);
-      props.onSaved(payload !== null && typeof payload === 'object' ? payload : undefined);
+      props.onSaved(payload !== null && typeof payload === 'object' ? payload : undefined, scope);
     } catch (error) {
       console.warn('zcode-workflow: saving a run as a workflow failed', error);
       setSaving(false);
@@ -371,6 +417,43 @@ function WfSavePopover(props) {
       onChange: (event) => setDescription(event.target.value),
     }),
     WF_H('span', { className: 'zwf-save-helper' }, say('chat.toolCall.workflow.saveRun.description.helper'))),
+  args.length === 0
+    ? null
+    : WF_H('div', { className: 'zwf-save-field', 'data-testid': 'workflow-save-args' },
+      WF_H('div', { className: 'zwf-save-args-head' },
+        WF_H('span', { className: 'zwf-save-label' }, say('chat.permission.workflow.save.args')),
+        args.length <= WF_SAVE_ARG_ROWS
+          ? null
+          : WF_H('button', {
+            type: 'button',
+            className: 'zwf-save-link',
+            'data-testid': 'workflow-save-args-toggle',
+            onClick: () => setArgsOpen((value) => value !== true),
+          }, say(argsOpen
+            ? 'chat.permission.workflow.save.args.showFewer'
+            : 'chat.permission.workflow.save.args.showAll', { count: args.length }))),
+      WF_H('ul', { className: 'zwf-save-args' },
+        (argsOpen ? args : args.slice(0, WF_SAVE_ARG_ROWS)).map((arg) => {
+          const clamped = arg.text.length > WF_SAVE_ARG_CLAMP;
+          const text = clamped && valuesOpen ? arg.text : clamped ? `${arg.text.slice(0, WF_SAVE_ARG_CLAMP)}\u2026` : arg.text;
+          return WF_H('li', {
+            className: 'zwf-save-arg',
+            key: arg.name,
+            'data-testid': 'workflow-save-arg',
+            'data-arg': arg.name,
+            title: `${arg.name}: ${arg.text}`,
+          },
+          WF_H('span', { className: 'zwf-save-arg-name' }, arg.name),
+          WF_H('span', { className: 'zwf-save-arg-value' }, text),
+          clamped
+            ? WF_H('button', {
+              type: 'button',
+              className: 'zwf-save-link',
+              'data-testid': 'workflow-save-clamp-toggle',
+              onClick: () => setValuesOpen((value) => value !== true),
+            }, say(valuesOpen ? 'chat.permission.workflow.save.showLess' : 'chat.permission.workflow.save.showMore'))
+            : null);
+        }))),
   failure === null
     ? null
     : WF_H('p', { className: 'zwf-save-failure', role: 'alert', 'data-testid': 'workflow-save-failure' }, failure),
@@ -448,6 +531,15 @@ const WF_SAVE_CSS = `
 .zwf-save-consequence{display:flex;flex-direction:column;gap:2px;margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
 .zwf-save-consequence-extra{color:var(--dsw-alias-label-secondary)}
 .zwf-save-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.zwf-save-announce{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.zwf-save-args-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.zwf-save-args{display:flex;flex-direction:column;gap:3px;margin:0;padding:0;list-style:none;min-width:0}
+.zwf-save-arg{display:flex;align-items:baseline;gap:6px;min-width:0;padding:3px 6px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1)}
+.zwf-save-arg-name{flex:none;max-width:44%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-save-arg-value{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary)}
+.zwf-save-link{padding:0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:16px;text-decoration:underline dotted;text-underline-offset:2px;cursor:pointer;white-space:nowrap}
+.zwf-save-link:hover{color:var(--dsw-alias-label-primary);text-decoration:underline}
+.zwf-save-link:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;border-radius:4px}
 `;
 
 WF_STYLE_PARTS.push(WF_SAVE_CSS);

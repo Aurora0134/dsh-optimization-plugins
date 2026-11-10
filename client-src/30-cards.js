@@ -550,6 +550,7 @@ function WfCardShell(props) {
       className: 'zwf-card-kind',
       'data-live': props.live === true ? 'true' : 'false',
       'data-testid': props.kindTestId,
+      title: props.kindTitle,
     }, props.kind),
     props.separator === true && props.summary !== undefined && props.summary !== ''
       ? React.createElement('span', { className: 'zwf-card-sep' }, '·')

@@ -151,6 +151,14 @@ function useWfVisible(forced) {
  * event log is pulled only after `lastEventSequence`, at a lower cadence, and only while the run
  * is active and the pane is visible.
  */
+/**
+ * One run's live snapshot plus the event page it has not folded yet.
+ *
+ * The snapshot comes from `GET /run` (the full run record: actors, nodes, holes, questions,
+ * usage and the event watermark). The run list is only a catalogue — its rows carry no station,
+ * roster or watermark fields — so the pane never derives anything from it. The event log is
+ * pulled only after `lastEventSequence`, at a lower cadence, while the run is active.
+ */
 function useWfDetailRun(scope, options) {
   const { runId, sessionId, visible } = scope;
   const withEvents = options?.events === true;
@@ -191,18 +199,17 @@ function useWfDetailRun(scope, options) {
         watermark.current = events.reduce((max, event) => Math.max(max, wfNum(event.sequence) ?? 0), sequence);
         setState((current) => ({ ...current, events: current.events.concat(events).slice(-400), watermark: watermark.current }));
       } catch {
-        // The summary remains authoritative; a failed page is retried on the next tick.
+        // The snapshot stays authoritative; a failed page is retried on the next tick.
       }
     };
     const tick = async () => {
       let nextRun;
       let nextError;
       try {
-        const payload = await WF_API.runs({ sessionId, limit: WF_DETAIL_RUN_LIMIT });
-        const rows = Array.isArray(payload?.runs) ? payload.runs : [];
-        nextRun = rows.find((row) => wfDetailRunId(row) === runId);
+        const payload = await WF_API.get('/run', { sessionId, runId });
+        nextRun = payload !== null && typeof payload === 'object' ? payload.run : undefined;
         if (nextRun === undefined) {
-          nextError = new Error('run is not in the live run list');
+          nextError = new Error('the run snapshot is empty');
           nextError.code = 'run-not-tracked';
         }
       } catch (error) {
@@ -315,6 +322,7 @@ function WfRunStatusRow(props) {
   const tokens = wfDetailTokens(run);
   const rounds = wfRunRounds(run, stations);
   const roster = wfRunRoster(run);
+  const agents = wfDetailAgentCount(run, roster);
   const working = roster.filter((entry) => entry.status === 'running').length;
   const artifacts = wfDetailArtifacts(run).length;
   const model = wfText(run?.subagentModel);
@@ -333,7 +341,7 @@ function WfRunStatusRow(props) {
       title: say(model === undefined ? 'card.agents' : 'run.subagentModel.label', { count: roster.length, model }),
     }, active
       ? say(working === 1 ? 'card.agentWorking' : 'card.agentsWorking', { count: working })
-      : say(roster.length === 1 ? 'card.agent' : 'card.agents', { count: Math.max(roster.length, roster.length) })),
+      : say(agents === 1 ? 'card.agent' : 'card.agents', { count: agents })),
   });
   parts.push({ key: 'steps', node: WF_H(WfStatusChip, { key: 'steps' }, say('card.steps', { done: steps.settled, total: steps.total })) });
   parts.push({ key: 'usage', node: WF_H(WfStatusChip, { key: 'usage', testId: 'workflow-run-usage', title: say('run.usage.label') }, say('run.usage.value', { tokens: wfGroup(tokens), steps: say('card.steps', { done: steps.settled, total: steps.total }) })) });
@@ -852,6 +860,8 @@ function WfDetailPane(props) {
           doors,
           now,
           landed,
+          scope,
+          onRefresh: state.reload,
           onToggle: togglePhase,
           onDoor: toggleDoor,
           onOpenEntry: openActor,

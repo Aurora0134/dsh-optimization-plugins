@@ -448,37 +448,73 @@ function wfRunStations(run) {
   });
 }
 
-/** Subagents of a run, normalized from either the actor list or the Host agent tally. */
+/**
+ * Subagents of a run, unioned from the actor list and the Host agent tally.
+ * A run snapshot can carry lanes that never landed as actors (and the reverse), so the card counts
+ * and shows both lists; an actor row wins when the two describe the same subagent.
+ */
 function wfRunAgents(run) {
+  const rows = new Map();
   const actors = wfRunField(run, 'actors');
-  if (Array.isArray(actors) && actors.length > 0) {
-    return actors.filter(wfCardRecord).map((actor, index) => ({
-      name: wfCardFirstText(actor.name, actor.actorName, `${wfCardFirstText(actor.siteId)}@${wfCardNum(actor.ordinal) ?? index}`),
-      status: wfCardFirstText(actor.status) || 'waiting',
-      phaseName: wfCardFirstText(actor.phaseName),
-      model: wfCardFirstText(actor.model),
-      ordinal: wfCardNum(actor.ordinal) ?? index,
-      siteId: wfCardFirstText(actor.siteId),
-      sessionId: wfCardFirstText(actor.sessionId),
-    }));
+  if (Array.isArray(actors)) {
+    for (const [index, actor] of actors.entries()) {
+      if (!wfCardRecord(actor)) continue;
+      const name = wfCardFirstText(actor.name, actor.actorName, `${wfCardFirstText(actor.siteId)}@${wfCardNum(actor.ordinal) ?? index}`);
+      if (name === '' || rows.has(name)) continue;
+      rows.set(name, {
+        name,
+        status: wfCardFirstText(actor.status) || 'waiting',
+        phaseName: wfCardFirstText(actor.phaseName),
+        model: wfCardFirstText(actor.model),
+        ordinal: wfCardNum(actor.ordinal) ?? index,
+        siteId: wfCardFirstText(actor.siteId),
+        sessionId: wfCardFirstText(actor.sessionId),
+      });
+    }
   }
   const agents = wfRunField(run, 'agents');
-  if (!Array.isArray(agents)) return [];
-  return agents.filter(wfCardRecord).map((agent, index) => {
-    const asks = wfCardNum(agent.asks) ?? 0;
-    const settled = wfCardNum(agent.settled) ?? 0;
-    const failed = wfCardNum(agent.failed) ?? 0;
-    const status = asks > settled + failed ? 'running' : 'completed';
-    return {
-      name: wfCardFirstText(agent.name, `#${index + 1}`),
-      status,
-      phaseName: wfCardFirstText(agent.phaseName),
-      model: wfCardFirstText(agent.model),
-      ordinal: index,
-      siteId: wfCardFirstText(agent.siteId),
-      sessionId: wfCardFirstText(agent.sessionId),
-    };
-  });
+  if (Array.isArray(agents)) {
+    for (const [index, agent] of agents.entries()) {
+      if (!wfCardRecord(agent)) continue;
+      const name = wfCardFirstText(agent.name, `#${index + 1}`);
+      if (name === '' || rows.has(name)) continue;
+      const asks = wfCardNum(agent.asks) ?? 0;
+      const settled = wfCardNum(agent.settled) ?? 0;
+      const failed = wfCardNum(agent.failed) ?? 0;
+      rows.set(name, {
+        name,
+        status: asks > settled + failed ? 'running' : 'completed',
+        phaseName: wfCardFirstText(agent.phaseName),
+        model: wfCardFirstText(agent.model),
+        ordinal: index,
+        siteId: wfCardFirstText(agent.siteId),
+        sessionId: wfCardFirstText(agent.sessionId),
+      });
+    }
+  }
+  return [...rows.values()];
+}
+
+/** `{age}` of a millisecond span, in the product's own short units. */
+function wfCardAge(ms) {
+  const value = Math.max(0, Number(ms) || 0);
+  if (value < 60000) return `${Math.floor(value / 1000)}s`;
+  if (value < 3600000) return `${Math.floor(value / 60000)}m`;
+  if (value < 86400000) return `${Math.floor(value / 3600000)}h`;
+  return `${Math.floor(value / 86400000)}d`;
+}
+
+/** Questions a run is waiting on (`run.pendingQuestions`). */
+function wfRunQuestions(run) {
+  const list = wfRunField(run, 'pendingQuestions', 'pending_questions');
+  if (!Array.isArray(list)) return [];
+  return list.filter(wfCardRecord).map((entry) => ({
+    qid: wfCardFirstText(entry.qid, entry.id, entry.questionId),
+    question: wfCardFirstText(entry.question, entry.text),
+    context: wfCardFirstText(entry.context),
+    actorName: wfCardFirstText(entry.actorName, entry.actor_name),
+    askedAt: wfCardNum(wfCardFirst(entry.askedAt, entry.asked_at)),
+  }));
 }
 
 /** Artifact chips of a run. */

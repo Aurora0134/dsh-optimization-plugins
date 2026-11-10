@@ -9,12 +9,9 @@
  *   SaveWorkflow                  the save card (name, scope, overwrite badge, path, argument table);
  *   StopWorkflowRun               the stop acknowledgement;
  *   ResumeWorkflowRun             the resume card (new run id, background hint);
- *   Escalate / Resolve…Question   the question cards (question/context/answer, question id/outcome);
+ *   Resolve…Question              the answer card (question id, answer, outcome);
  *   default                       an unknown workflow tool: kind, output, diagnostics.
  */
-
-/** Longest question text the escalate card pins in its header. */
-const WF_CARD_QUESTION_CHARS = 160;
 
 /** Status card, list rows and argument tables. */
 const WF_CARDS_TOOL_CSS = `
@@ -33,15 +30,6 @@ const WF_CARDS_TOOL_CSS = `
 WF_STYLE_PARTS.push(WF_CARDS_TOOL_CSS);
 
 /* --------------------------------- shared ---------------------------------- */
-
-/** `{age} ago` of a millisecond span, in the product's own short units. */
-function wfCardAge(ms) {
-  const value = Math.max(0, Number(ms) || 0);
-  if (value < 60000) return `${Math.floor(value / 1000)}s`;
-  if (value < 3600000) return `${Math.floor(value / 60000)}m`;
-  if (value < 86400000) return `${Math.floor(value / 3600000)}h`;
-  return `${Math.floor(value / 86400000)}d`;
-}
 
 /** Section list → body nodes; an empty section disappears so a card never shows a bare label. */
 function wfCardSections(sections) {
@@ -97,7 +85,7 @@ function WfGetRunPhaseTable(props) {
   const rows = props.rows;
   if (rows.length === 0) return null;
   return React.createElement('div', { className: 'zwf-phase-table', 'data-testid': 'workflow-run-phases' },
-    rows.map((row) => React.createElement('div', { className: 'zwf-phase-row', key: `${row.name}-${row.index}` },
+    rows.map((row) => React.createElement('div', { className: 'zwf-phase-row', key: `${row.name}-${row.index}`, 'data-testid': 'workflow-run-line' },
       React.createElement('span', { className: 'zwf-card-detail' }, `${row.index}.`),
       React.createElement('span', { className: 'zwf-phase-name', title: row.name }, row.name),
       React.createElement('span', { className: `zwf-phase-state`, 'data-state': row.state }, wfCardSay(`getRun.phase.state.${row.state}`)),
@@ -115,6 +103,7 @@ function WfGetRunAgents(props) {
     agents.map((agent, index) => React.createElement('span', {
       className: 'zwf-pill',
       key: `${agent.name}-${index}`,
+      'data-testid': 'workflow-run-line',
       'data-agent-status': agent.status,
       title: agent.phaseName === '' ? agent.name : wfCardSay('getRun.subagent.phase', { name: agent.phaseName }),
     },
@@ -222,7 +211,8 @@ function WfGetRunCard(props) {
   }
   for (const node of wfCardSections(sections)) body.push(node);
   if (healthParts.length > 0) {
-    body.push(React.createElement('p', { className: 'zwf-note', key: 'health', 'data-testid': 'workflow-run-health' }, healthParts.join(' · ')));
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'health', 'data-testid': 'workflow-run-rail' },
+      React.createElement('span', { 'data-testid': 'workflow-run-health' }, healthParts.join(' · '))));
   }
   if (run !== undefined) {
     const line = [];
@@ -255,6 +245,9 @@ function WfGetRunCard(props) {
     live: !settled,
     summary: runId,
     summaryMono: runId !== '',
+    nameTestId: 'workflow-run-summary-line',
+    detail: run === undefined ? '' : wfCardStatusText(status),
+    detailTestId: 'workflow-tool-summary',
     status: run === undefined
       ? null
       : React.createElement(WfCardState, { status, testId: 'workflow-run-stop-reason' }),
@@ -436,10 +429,12 @@ function WfSaveCard(props) {
   body.push(React.createElement('p', { className: 'zwf-note', key: 'scope' },
     `${wfCardSay('save.scope.label')} · ${wfCardSay(scope === 'global' ? 'save.scope.global' : 'save.scope.project')}`));
   if (overwrite) {
-    body.push(React.createElement('p', { className: 'zwf-note', key: 'overwrite', 'data-tone': 'warn' }, wfCardSay('save.scope.hidesGlobal')));
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'overwrite', 'data-tone': 'warn' }, wfCardSay('save.overwriteHint')));
   }
   if (savedPath !== '') {
-    body.push(React.createElement('p', { className: 'zwf-note zwf-mono-tab', key: 'path', title: savedPath }, savedPath));
+    body.push(React.createElement('p', { className: 'zwf-note', key: 'path' },
+      React.createElement('span', { className: 'zwf-section-label' }, wfCardSay('save.path')),
+      React.createElement('span', { className: 'zwf-mono-tab', title: savedPath }, ` ${savedPath}`)));
   }
   if (whenToUse !== '') {
     body.push(React.createElement('section', { className: 'zwf-section', key: 'when' },
@@ -455,6 +450,7 @@ function WfSaveCard(props) {
     tool: model.key,
     state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
     kind: wfCardSay(settled && !model.failed ? 'save.saved' : 'save.saving'),
+    kindTitle: wfCardSay('save.title'),
     live: !settled,
     summary: name,
     summaryMono: name !== '',
@@ -462,6 +458,13 @@ function WfSaveCard(props) {
       ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
       : null,
     detail: scope === '' ? '' : wfCardSay(scope === 'global' ? 'save.scope.global' : 'save.scope.project'),
+    actions: React.createElement('span', { className: 'zwf-chips' },
+      overwrite
+        ? React.createElement('span', { className: 'zwf-chip', 'data-static': 'true', 'data-testid': 'workflow-overwrite-badge', title: wfCardSay('save.overwriteTitle') }, wfCardSay('save.overwrite'))
+        : null,
+      scope === '' || (scope !== 'project' && scope !== 'global')
+        ? null
+        : React.createElement('span', { className: 'zwf-chip', 'data-static': 'true', 'data-testid': 'workflow-scope-badge' }, wfCardSay(`save.scope.${scope}`))),
     body: body.length === 0 ? undefined : body,
     expandable: props.expandable,
     open: props.open,
@@ -526,43 +529,6 @@ function WfResumeCard(props) {
 }
 
 /* -------------------------------- questions -------------------------------- */
-
-/** Escalate card (`msn`): question, context and the answer once it arrives. */
-function WfEscalateCard(props) {
-  const model = props.model;
-  const settled = model.phase === 'result';
-  const question = model.argText('question') ?? '';
-  const context = model.argText('context') ?? '';
-  const answer = settled ? model.resultText : '';
-  const summary = question.length > WF_CARD_QUESTION_CHARS ? `${question.slice(0, WF_CARD_QUESTION_CHARS - 1)}…` : question;
-  const sections = [{
-    key: 'question',
-    title: wfCardSay('escalate.question'),
-    node: React.createElement('p', { className: 'zwf-note' }, question),
-  }];
-  if (context !== '') {
-    sections.push({ key: 'context', title: wfCardSay('escalate.context'), node: React.createElement('p', { className: 'zwf-note' }, context) });
-  }
-  if (settled && answer !== '') {
-    sections.push({ key: 'answer', title: wfCardSay('escalate.answer'), node: React.createElement('p', { className: 'zwf-note' }, answer) });
-  }
-  const body = wfCardSections(sections);
-  return React.createElement(WfCardShell, {
-    tool: model.key,
-    state: model.failed === true ? 'error' : settled ? 'ok' : 'running',
-    icon: React.createElement(WF_ICON.agent, { size: 14 }),
-    kind: wfCardSay(settled ? 'escalate.asked' : 'escalate.asking'),
-    live: !settled,
-    summary,
-    status: settled && model.failed === true
-      ? React.createElement('span', { className: 'zwf-state', 'data-status': 'errored' }, wfCardSay('status.failed'))
-      : null,
-    body: body.length === 0 ? undefined : body,
-    expandable: props.expandable,
-    open: props.open,
-    onToggle: props.toggle,
-  });
-}
 
 /** ResolveWorkflowQuestion card (`Ocn`). */
 function WfResolveCard(props) {
@@ -630,6 +596,5 @@ WF_CARDS.render.ListSavedWorkflows = WfListSavedCard;
 WF_CARDS.render.SaveWorkflow = WfSaveCard;
 WF_CARDS.render.StopWorkflowRun = WfStopCard;
 WF_CARDS.render.ResumeWorkflowRun = WfResumeCard;
-WF_CARDS.render.Escalate = WfEscalateCard;
 WF_CARDS.render.ResolveWorkflowQuestion = WfResolveCard;
 WF_CARDS.render.default = WfDefaultCard;

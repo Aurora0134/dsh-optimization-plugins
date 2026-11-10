@@ -442,7 +442,12 @@ function WfHubBody(props) {
       WF_H('p', { className: 'zwf-page-sub' }, say('workflows.hub.description'))),
     WF_H('div', { className: 'zwf-page-actions' },
       typeof openSettings === 'function'
-        ? WF_H(WF_UI.Button, { variant: 'ghost', size: 'sm', onClick: openSettings }, say('workflows.hub.openSettings'))
+        ? WF_H(WF_UI.Button, {
+          variant: 'ghost',
+          size: 'sm',
+          'data-testid': 'workflow-settings',
+          onClick: openSettings,
+        }, say('workflows.hub.openSettings'))
         : null,
       WF_H(WF_UI.Button, {
         variant: 'subtle',
@@ -487,7 +492,9 @@ function WfHubBody(props) {
         },
         onDelete: (entry) => setDialog({ kind: 'delete', entry }),
         onCopyPath: async (entry) => {
-          if (await wfHubCopyText(entry.path)) announce(say('workflows.hub.copied'));
+          const copied = await wfHubCopyText(entry.path);
+          if (copied) announce(say('workflows.hub.copied'));
+          return copied;
         },
         onOpenRun: (run) => {
           const runId = wfHubRunId(run);
@@ -547,6 +554,7 @@ function WfHubBody(props) {
         key: 'project',
         t,
         testId: 'workflow-list',
+        countTestId: 'workflow-count',
         title: say('workflows.hub.group.current'),
         caption: projectLabel,
         emptyText: say('workflows.hub.empty.title'),
@@ -557,7 +565,9 @@ function WfHubBody(props) {
           if (typeof openChat === 'function') openChat(selected?.workspaceId, say('workflows.hub.prompt.revise', { name: entry.name }));
         },
         onCopyPath: async (entry) => {
-          if (await wfHubCopyText(entry.path)) announce(say('workflows.hub.copied'));
+          const copied = await wfHubCopyText(entry.path);
+          if (copied) announce(say('workflows.hub.copied'));
+          return copied;
         },
         onMove: (entry) => setDialog({ kind: 'move', entry }),
         onDelete: (entry) => setDialog({ kind: 'delete', entry }),
@@ -566,6 +576,7 @@ function WfHubBody(props) {
         key: 'global',
         t,
         testId: 'workflow-list-global',
+        countTestId: 'workflow-count-global',
         title: say('workflows.hub.global.title'),
         caption: globalGroup?.unsupported === true ? say('workflows.hub.global.unsupported') : say('workflows.hub.global.hint'),
         emptyText: say('workflows.hub.global.empty'),
@@ -576,7 +587,9 @@ function WfHubBody(props) {
           if (typeof openChat === 'function') openChat(selected?.workspaceId, say('workflows.hub.prompt.revise', { name: entry.name }));
         },
         onCopyPath: async (entry) => {
-          if (await wfHubCopyText(entry.path)) announce(say('workflows.hub.copied'));
+          const copied = await wfHubCopyText(entry.path);
+          if (copied) announce(say('workflows.hub.copied'));
+          return copied;
         },
         onMove: (entry) => setDialog({ kind: 'move', entry }),
         onDelete: (entry) => setDialog({ kind: 'delete', entry }),
@@ -633,6 +646,7 @@ function WfHubBody(props) {
     WF_H('div', { className: 'zwf-page-scroll' },
       WF_H('div', { className: 'zwf-page-inner' },
         header,
+        WF_H('div', { className: 'zwf-hub-rule', 'data-testid': 'workflow-rule', role: 'presentation' }),
         toolbar,
         invalid.length > 0
           ? WF_H('div', { className: 'zwf-hub-warn', role: 'status' },
@@ -664,11 +678,11 @@ function wfHubFailure(error) {
 /* --------------------------------- groups ---------------------------------- */
 
 function WfHubGroup(props) {
-  const { t, title, caption, emptyText, entries, testId } = props;
+  const { t, title, caption, emptyText, entries, testId, countTestId } = props;
   return WF_H(WF_FRAGMENT, null,
     WF_H(WF_UI.SectionHeader, {
       title,
-      count: entries.length > 0 ? String(entries.length) : undefined,
+      count: entries.length > 0 ? WF_H('span', { 'data-testid': countTestId }, String(entries.length)) : undefined,
       action: typeof caption === 'string' && caption !== '' ? WF_H('span', { className: 'zwf-caption' }, caption) : undefined,
     }),
     entries.length === 0
@@ -718,19 +732,41 @@ function WfHubCard(props) {
   const { t, entry } = props;
   const say = (key, params) => wfHubSay(t, key, params);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [failure, setFailure] = React.useState('');
   const anchorRef = React.useRef(null);
   const menuRef = React.useRef(null);
   const names = wfHubArgNames(entry);
   const shown = names.slice(0, WF_HUB_ARG_CHIPS);
   const rest = names.length - shown.length;
   const description = entry.description !== '' ? entry.description : entry.whenToUse;
+  const lastFailed = wfHubRunState(entry.lastRun) === 'errored';
+  const runAction = async (label, action) => {
+    try {
+      const result = await action();
+      if (result === false) setFailure(wfHubSay(t, 'chat.backgroundResult.workflow.errored'));
+    } catch (error) {
+      setFailure(wfHubFailure(error));
+    }
+  };
   const items = [
     { id: 'open', label: say('workflows.hub.card.open'), icon: WF_H(WF_ICON.file, { size: 14 }), onSelect: () => props.onOpen(entry) },
     { id: 'revise', label: say('workflows.hub.card.revise'), icon: WF_H(WF_ICON.spark, { size: 14 }), onSelect: () => props.onRevise(entry) },
-    { id: 'copy', label: say('workflows.hub.card.copyPath'), icon: WF_H(WF_ICON.copy, { size: 14 }), onSelect: () => props.onCopyPath(entry) },
+    {
+      id: 'copy',
+      label: say('workflows.hub.card.copyPath'),
+      icon: WF_H(WF_ICON.copy, { size: 14 }),
+      onSelect: () => {
+        void runAction('copy', () => props.onCopyPath(entry));
+      },
+    },
     entry.scope === 'global'
       ? { id: 'move', label: say('workflows.hub.card.moveToProject'), icon: WF_H(WF_ICON.folder, { size: 14 }), onSelect: () => props.onMove(entry) }
-      : { id: 'promote', label: say('workflows.hub.card.promoteToGlobal'), icon: WF_H(WF_ICON.globe, { size: 14 }), disabled: true },
+      : {
+        id: 'promote',
+        label: WF_H('span', { 'data-testid': 'workflow-promote' }, say('workflows.hub.card.promoteToGlobal')),
+        icon: WF_H(WF_ICON.globe, { size: 14 }),
+        disabled: true,
+      },
     null,
     { id: 'delete', label: say('workflows.hub.card.delete'), icon: WF_H(WF_ICON.close, { size: 14 }), danger: true, onSelect: () => props.onDelete(entry) },
   ];
@@ -750,10 +786,16 @@ function WfHubCard(props) {
   WF_H('span', { className: 'zwf-hub-card-name', 'data-testid': 'workflow-name', title: entry.name }, entry.name),
   WF_H('p', { className: 'zwf-hub-card-desc', title: description }, description === '' ? say('workflows.hub.empty.hint') : description),
   WF_H('div', { className: 'zwf-hub-card-foot' },
+    WF_H('span', { className: 'zwf-hub-scope', 'data-testid': 'workflow-scope-tag' },
+      say(entry.scope === 'global' ? 'workflows.hub.launch.scope.global' : 'workflows.hub.launch.scope.project')),
     WF_H(WfHubLastRunBadge, { t, run: entry.lastRun }),
     WF_H('div', { className: 'zwf-hub-args', 'data-testid': 'workflow-args' },
       shown.map((name) => WF_H('span', { className: 'zwf-hub-arg', key: name, title: name }, name)),
       rest > 0 ? WF_H('span', { className: 'zwf-hub-arg zwf-hub-arg-more', key: 'more' }, say('workflows.hub.card.argsMore', { count: rest })) : null)),
+  lastFailed || failure !== ''
+    ? WF_H('p', { className: 'zwf-hub-card-failed', 'data-testid': 'workflow-more-failed', role: 'status' },
+      failure !== '' ? failure : say('chat.backgroundResult.workflow.errored'))
+    : null,
   WF_H('div', { className: 'zwf-hub-card-actions', onClick: (event) => event.stopPropagation() },
     WF_H(WF_UI.Button, {
       variant: 'subtle',
@@ -763,19 +805,26 @@ function WfHubCard(props) {
       onClick: () => props.onRun(entry),
     }, say('workflows.hub.card.run')),
     WF_H('span', { className: 'zwf-anchor', ref: anchorRef },
-      WF_H(WF_UI.IconButton, {
-        icon: WF_H(WF_ICON.more, { size: 16 }),
-        label: say('workflows.hub.card.menu'),
+      WF_H('button', {
+        type: 'button',
+        className: 'zwf-btn zwf-btn-ghost zwf-btn-icon',
+        'data-testid': 'workflow-more-open',
+        'aria-label': say('workflows.hub.card.menu'),
+        'aria-haspopup': 'menu',
+        'aria-expanded': menuOpen ? 'true' : 'false',
         title: say('workflows.hub.card.menu'),
         onClick: () => setMenuOpen((value) => value !== true),
-      }),
-      WF_H(WF_UI.Menu, {
-        open: menuOpen,
-        onClose: () => setMenuOpen(false),
-        items,
-        anchorRef,
-        menuRef,
-      }))));
+      },
+      WF_H('span', { className: 'zwf-btn-glyph', 'data-testid': 'workflow-more-chevron' },
+        WF_H(WF_ICON.chevronDown, { size: 15 }))),
+      WF_H('div', { className: 'zwf-more-deck', 'data-testid': 'workflow-more-deck' },
+        WF_H(WF_UI.Menu, {
+          open: menuOpen,
+          onClose: () => setMenuOpen(false),
+          items,
+          anchorRef,
+          menuRef,
+        })))));
 }
 
 /* --------------------------------- detail ---------------------------------- */
@@ -979,17 +1028,23 @@ function WfHubDefinition(props) {
   return WF_H(WF_FRAGMENT, null,
     WF_H('div', { className: 'zwf-hub-section' },
       WF_H('h2', { className: 'zwf-hub-section-title' }, say('workflows.hub.detail.basics')),
-      WF_H(WF_UI.Field, { label: say('workflows.hub.detail.description') },
-        WF_H(WF_UI.Textarea, {
+      WF_H('label', { className: 'zwf-hub-field-block' },
+        WF_H('span', { className: 'zwf-hub-field-label' }, say('workflows.hub.detail.description')),
+        WF_H('textarea', {
+          className: 'zwf-hub-textarea',
           rows: 2,
           value: description,
-          onChange: (value) => setDescription(value),
+          'data-testid': 'workflow-meta-description',
+          onChange: (event) => setDescription(event.target.value),
         })),
       WF_H('label', { className: 'zwf-hub-field-block' },
         WF_H('span', { className: 'zwf-hub-field-label' }, say('workflows.hub.detail.whenToUse')),
-        WF_H(WF_UI.Input, {
+        WF_H('input', {
+          className: 'zwf-hub-input',
+          type: 'text',
           value: whenToUse,
-          onChange: (value) => setWhenToUse(value),
+          'data-testid': 'workflow-meta-when',
+          onChange: (event) => setWhenToUse(event.target.value),
         }),
         WF_H('span', { className: 'zwf-hub-field-hint' }, say('workflows.hub.detail.whenToUse.help'))),
       WF_H('p', { className: 'zwf-hub-note' }, say('workflows.hub.detail.meta.note')),
@@ -1540,6 +1595,10 @@ const WF_DIRECTORY_CSS = `
 .zwf-hub-card-foot{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin-top:auto;min-width:0;min-height:18px}
 .zwf-hub-card-actions{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:4px;opacity:0;transition:opacity .12s}
 .zwf-hub-card:hover .zwf-hub-card-actions,.zwf-hub-card:focus-within .zwf-hub-card-actions{opacity:1}
+.zwf-hub-scope{display:inline-flex;align-items:center;flex:none;height:18px;padding:0 5px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary)}
+.zwf-hub-card-failed{margin:0;font-size:11.5px;line-height:17px;color:var(--dsw-alias-state-error-primary);overflow-wrap:anywhere}
+.zwf-more-deck{display:contents}
+.zwf-hub-rule{height:1px;margin:10px 0 0;background:var(--dsw-alias-border-l1)}
 .zwf-hub-args{display:flex;align-items:center;flex-wrap:wrap;gap:4px;min-width:0}
 .zwf-hub-arg{display:inline-flex;align-items:center;max-width:120px;height:18px;padding:0 5px;border:1px solid var(--dsw-alias-border-l1);border-radius:5px;font-family:var(--ds-font-family-code,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11px;line-height:18px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .zwf-hub-arg-more{font-family:inherit;border-style:dashed}

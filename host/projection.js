@@ -10,6 +10,8 @@
  */
 
 /** 快照列表与文本上限（validation.js:8353-8378 的 `B`）。 */
+import { isResumable } from './resumability.js';
+
 export const PROJECTION_LIMITS = Object.freeze({
   maxRuns: 8,
   maxActors: 1024,
@@ -1359,6 +1361,7 @@ export function workflowRunSummary(run, meta = {}) {
     ...(run.resumedFrom === undefined ? {} : { resumedFrom: run.resumedFrom }),
     ...(run.supersededBy === undefined ? {} : { supersededBy: run.supersededBy }),
     ...(run.error === undefined ? {} : { failureMessage: run.error }),
-    resumable: run.resumable === true || run.status === 'stopped',
+    ...(run.failureCode === undefined ? {} : { failureCode: run.failureCode }),
+    resumable: isResumable(run.status, run.stopReason),
   };
 }
