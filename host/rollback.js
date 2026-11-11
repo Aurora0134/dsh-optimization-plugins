@@ -384,8 +384,8 @@ export async function prepareRollback({ ctx, session, store, recorder, request, 
  * Restore the files the target turn and later turns changed, after the browser
  * half created the child Session from `prepareRollback`'s cut.
  *
- * The child inherits the parent's turn records up to the target turn first, so
- * the continued session can restore those files again later.
+ * The child inherits the parent's turn records from before the target turn first,
+ * so the continued session can restore those files again later.
  *
  * @param {object} options
  * @param {object} options.ctx Cordis context

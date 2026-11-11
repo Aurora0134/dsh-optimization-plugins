@@ -400,14 +400,15 @@ export function createSnapshotStore({ root, config = {}, logger = console }) {
      * Copy the records of the turns a forked child continues, so a later rollback
      * inside the child can restore the files those turns changed.
      *
-     * Only turns up to and including `upToTurn` are inherited: later turns belong
-     * to the conversation the parent keeps and were rolled back away.
+     * Only turns before `beforeTurn` are inherited. The child's next turn reuses
+     * the number of the turn the fork cut away, so inheriting that record would
+     * make the child's new turn look already captured and silently skip it.
      * @param {string} fromSessionId parent Session
      * @param {string} toSessionId child Session
-     * @param {number} upToTurn last inherited turn
+     * @param {number} beforeTurn first turn the child does not inherit
      * @returns {Promise<boolean>} whether anything was inherited
      */
-    async inherit(fromSessionId, toSessionId, upToTurn) {
+    async inherit(fromSessionId, toSessionId, beforeTurn) {
       if (disposed || fromSessionId === toSessionId) return false
       const source = sessionState(fromSessionId)
       await ensureLoaded(source)
@@ -416,7 +417,7 @@ export function createSnapshotStore({ root, config = {}, logger = console }) {
       const hashes = new Set()
       let inherited = false
       for (const record of source.turns.values()) {
-        if (Number.isSafeInteger(upToTurn) && record.turn > upToTurn) continue
+        if (Number.isSafeInteger(beforeTurn) && record.turn >= beforeTurn) continue
         if (target.turns.has(record.turn)) continue
         const copy = {
           turn: record.turn,
