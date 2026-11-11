@@ -1,10 +1,14 @@
 /**
- * The two same-origin HTTP routes the browser half calls.
+ * The same-origin HTTP routes the browser half calls.
  *
  * The browser half is plain page JavaScript: it reaches the Host with `fetch` on
- * its own origin, so this module registers the pair of exact routes that
- * `client.js` posts to and hands each call to the same `sessionRollback` service
- * `ctx.provide` publishes.
+ * its own origin, so this module registers the exact routes that `client.js`
+ * posts to and hands each call to the same `sessionRollback` service `ctx.provide`
+ * publishes.
+ *
+ * A rollback is one `prepare` followed by one `restore`, with the browser half's
+ * native session fork in between; `state` answers whether a session can be rolled
+ * back right now and which user messages its surface holds.
  *
  * Security follows the composition, not this plugin: every request first asks
  * `connection.requestRejection(req)`, which applies the Host/Origin fence and the
@@ -16,7 +20,7 @@
  * an internal path never reaches the page.
  *
  * Registration is effect-owned: `webServer.register` returns the disposer that
- * removes the route, so unloading the plugin removes both routes.
+ * removes the route, so unloading the plugin removes every route.
  *
  * @module dsh-session-rollback/host/api
  */
@@ -27,8 +31,11 @@ const BASE = '/session-rollback'
 /** `POST` (and `GET`) whether a session can be rolled back, and what it holds. */
 export const STATE_PATH = `${BASE}/state`
 
-/** `POST` one rollback request. */
-export const ROLLBACK_PATH = `${BASE}/rollback`
+/** `POST` one rollback preparation: the fork cut and the composer write-back. */
+export const PREPARE_PATH = `${BASE}/prepare`
+
+/** `POST` the file restoration of the turns a fork rolled away. */
+export const RESTORE_PATH = `${BASE}/restore`
 
 /** Two small field objects are all these routes carry; anything larger is hostile. */
 const MAX_BODY_BYTES = 64 * 1024
@@ -229,9 +236,9 @@ function wrapRoute(route, connection, logger) {
  *
  * @param {object} options
  * @param {object} options.ctx Context carrying `webServer` and `connection`
- * @param {object} options.service the `sessionRollback` service (`state`, `rollback`)
+ * @param {object} options.service the `sessionRollback` service (`state`, `prepare`, `restore`)
  * @param {{ warn?: Function }} [options.logger]
- * @returns {boolean} whether both routes were registered
+ * @returns {boolean} whether every route was registered
  */
 export function registerRollbackApi({ ctx, service, logger = console }) {
   const webServer = ctx.get?.('webServer') ?? ctx.webServer
@@ -240,7 +247,10 @@ export function registerRollbackApi({ ctx, service, logger = console }) {
     logger.warn?.('session-rollback: webServer/connection are unavailable; the page cannot reach the rollback service')
     return false
   }
-  if (service === undefined || service === null || typeof service.state !== 'function' || typeof service.rollback !== 'function') {
+  if (service === undefined || service === null
+    || typeof service.state !== 'function'
+    || typeof service.prepare !== 'function'
+    || typeof service.restore !== 'function') {
     logger.warn?.('session-rollback: the rollback service is unavailable; the page cannot reach it')
     return false
   }
@@ -257,7 +267,7 @@ export function registerRollbackApi({ ctx, service, logger = console }) {
       },
     },
     {
-      path: ROLLBACK_PATH,
+      path: PREPARE_PATH,
       async POST(_req, res, _query, body) {
         /** Only the fields the service accepts; unknown keys never reach it. */
         const request = { sessionId: requiredString(body, 'sessionId') }
@@ -267,7 +277,18 @@ export function registerRollbackApi({ ctx, service, logger = console }) {
         if (seq !== undefined) request.seq = seq
         if (ordinal !== undefined) request.ordinal = ordinal
         if (index !== undefined) request.index = index
-        sendJson(res, 200, await service.rollback(request))
+        sendJson(res, 200, await service.prepare(request))
+      },
+    },
+    {
+      path: RESTORE_PATH,
+      async POST(_req, res, _query, body) {
+        const request = { sessionId: requiredString(body, 'sessionId') }
+        const childSessionId = stringField(body, 'childSessionId')
+        const turn = intField(body, 'turn', 0)
+        if (childSessionId !== undefined) request.childSessionId = childSessionId
+        if (turn !== undefined) request.turn = turn
+        sendJson(res, 200, await service.restore(request))
       },
     },
   ]

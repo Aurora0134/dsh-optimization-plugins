@@ -397,6 +397,66 @@ export function createSnapshotStore({ root, config = {}, logger = console }) {
     },
 
     /**
+     * Copy the records of the turns a forked child continues, so a later rollback
+     * inside the child can restore the files those turns changed.
+     *
+     * Only turns up to and including `upToTurn` are inherited: later turns belong
+     * to the conversation the parent keeps and were rolled back away.
+     * @param {string} fromSessionId parent Session
+     * @param {string} toSessionId child Session
+     * @param {number} upToTurn last inherited turn
+     * @returns {Promise<boolean>} whether anything was inherited
+     */
+    async inherit(fromSessionId, toSessionId, upToTurn) {
+      if (disposed || fromSessionId === toSessionId) return false
+      const source = sessionState(fromSessionId)
+      await ensureLoaded(source)
+      const target = sessionState(toSessionId)
+      await ensureLoaded(target)
+      const hashes = new Set()
+      let inherited = false
+      for (const record of source.turns.values()) {
+        if (Number.isSafeInteger(upToTurn) && record.turn > upToTurn) continue
+        if (target.turns.has(record.turn)) continue
+        const copy = {
+          turn: record.turn,
+          entries: new Map(record.entries),
+          bytes: record.bytes,
+          files: record.files,
+          complete: record.complete,
+          reasons: [...record.reasons],
+          dirty: true,
+        }
+        target.turns.set(copy.turn, copy)
+        target.bytes += copy.bytes
+        inherited = true
+        for (const entry of copy.entries.values()) {
+          if (entry.hash === null) continue
+          target.blobs.set(entry.hash, true)
+          hashes.add(entry.hash)
+        }
+      }
+      if (hashes.size === 0) return inherited
+      const blobDir = path.join(target.dir, 'blobs')
+      await fsp.mkdir(blobDir, { recursive: true })
+      for (const hash of hashes) {
+        const file = path.join(blobDir, hash)
+        try {
+          await fsp.access(file)
+        } catch {
+          try {
+            await fsp.copyFile(path.join(source.dir, 'blobs', hash), file)
+          } catch (error) {
+            // A missing blob only makes the inherited turn report itself as
+            // unreadable during a later restore; it never breaks this rollback.
+            logger.warn?.(`session-rollback: cannot inherit snapshot content "${hash}" for session "${toSessionId}": ${messageOf(error)}`)
+          }
+        }
+      }
+      return inherited
+    },
+
+    /**
      * Drop one Session's snapshots.
      * @param {string} sessionId
      * @returns {Promise<void>}

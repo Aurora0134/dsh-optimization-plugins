@@ -1,46 +1,36 @@
 # dsh-session-rollback
 
-把会话回退到任意一条用户消息：该消息及其之后的全部对话从界面与模型上下文中消失，这几轮被文件工具改过、创建、删除的文件恢复到当时的内容。原始会话记录不会被删除。
+把会话回退到任意一条用户消息：从这条消息之前分叉出一个新会话并切换过去，这条消息及它所属的整轮 agent 输出都不在新会话里；这几轮被文件工具改过、创建、删除的文件恢复到当时的内容。原会话进归档，原始会话记录不会被删除。
 
-本包由**宿主半**（`index.js` 与 `host/`，负责快照、会话替换与文件恢复）和**浏览器半**（`client.js`，负责按钮、二次确认与写回输入框）组成，`package.json` 同时声明 `dsh.bundle` 与 `dsh.client`。
+本包由**宿主半**（`index.js` 与 `host/`，负责快照、分叉边界与文件恢复）和**浏览器半**（`client.js`，负责按钮、二次确认、原生分叉、切换会话与写回输入框）组成，`package.json` 同时声明 `dsh.bundle` 与 `dsh.client`。
 
 ## 做什么
 
 - 每条用户消息的动作行里多一个"回退到此消息"按钮（客户端半）。
 - 点击后二次确认，确认文案写明三件事：会移除该消息及之后的全部对话；会把这轮及之后改过的文件恢复到当时的内容；原始会话记录保留。
-- 确认后由宿主半按固定顺序执行：先做会话替换，再按轮次从新到旧恢复文件。
+- 确认后由宿主半与浏览器半按固定顺序执行：宿主定位目标消息并算出分叉边界；浏览器半用 DSH 原生 `sessions.fork` 从边界开出新会话并切过去；宿主恢复文件；浏览器半把正文写回新会话的输入框，最后归档原会话。
 - 任何一步失败都随结果返回稳定原因码与明细，客户端负责展示；不存在静默失败。
 
 ## 回退的准确语义
 
-**会话侧。** 会话日志仍是 append-only，回退只追加一个事件：
+**会话侧。** 回退不改写日志，也不追加替换事件，而是用 DSH 原生的会话分叉：
 
 ```js
-session.append(
-  'system/message',
-  {
-    turn: <被点击消息所在轮次>,
-    step: 1,
-    message: {
-      id: <新生成的唯一 id>,
-      role: 'system',
-      content: [],
-      source: { kind: 'system-prompt' },
-    },
-  },
-  {
-    surfaceOp: { op: 'replace', startSeq: <被点击的用户消息 seq>, endSeq: <当前最后一个 surface 节点 seq> },
-    sourceEventSeqs: [...被覆盖的全部 surface 节点 seq],
-  },
-)
+const childId = await ctx.sessions.fork({
+  sessionId: <被点击消息所属的会话>,
+  atSeq: <分叉边界>,
+  increaseTitle: false,
+})
+await ctx.uiWorkspace.openSession(childId)
+await post('/session-rollback/restore', { sessionId, childSessionId: childId, turn })
+await ctx.workspaces.archiveSession(sessionId)
 ```
 
-- 被覆盖的节点从 `session.surface.nodes` 中消失，因此不再进入后续模型输入，也不再出现在会话界面上；它们的原始日志记录保持不变。
-- 替换节点本身是 content 为空、带 `id` 与 `source` 的 system 消息：持久化契约要求每条消息有身份，缺 `id`/`source` 的日志会在下次载入时被拒绝；空内容不投影成模型消息，会话界面不渲染 system-prompt 节点，轨迹界面只投影非空追加的系统提示，因此替换节点在对话和轨迹里都不产生独立的可见行（developer 节点会在轨迹里多出一条上下文记录，不能拿来当标记）。
-- `sourceEventSeqs` 必须覆盖被替换区间内的**全部 surface 节点**（日志 seq 之间的非 surface 事件不必列入）；框架逐项校验，缺一个即拒绝。
-- surface 节点 0 若是 `system/message`（系统提示）受框架保护，本插件在执行前就拒绝，不去触发框架异常。
-- 追加后本插件立即回读 `session.surface.nodes` 校验替换确实生效（目标 seq 消失、末尾是替换节点）；未生效则整体报失败，且**不**动文件。
-- 回退后新的消息追加在替换节点之后，模型看到的是"系统提示 + 之后的对话"。
+- `atSeq` 是分叉边界，取**目标消息所属轮次之前的最后一个事件**：通常是上一轮的 `turn/end`；首轮没有上一轮，取它的 `turn/start` 前一个事件。这样目标轮次自己的开场记录（`turn/start`、inbox 声明、`step/start`）不会进入新会话。
+- 新会话只继承到边界为止的事件。被点击的用户消息、它所属轮次的 agent 输出、以及之后所有轮次都不在继承范围内，因此对话界面、模型上下文和轨迹都不再包含它们。
+- 原会话保留并归档：会话列表里仍显示新会话（标题不变），原会话可在归档里找回；归档失败只影响列表，不影响回退结果。
+- 宿主在分叉前只做校验和边界计算，日志没有任何变化；分叉失败时会话保持原样。
+- 子会话继承父会话在目标轮次及之前的文件快照记录，之后在子会话里继续回退仍能恢复文件。
 
 **文件侧。**
 
@@ -49,7 +39,7 @@ session.append(
 - 归属由进程内发起链 `ctx.agents.currentInitiator()` 决定；若取不到，则回退到 `tools/pre-execute` 记下的 `ToolExecution` → Agent 映射（`fs/*-intent` 的 `actor` 通常正是该对象）。轮次取 `ctx.agents.turnBoundaryOf(session).lastTurn`。
 - 恢复按轮次从新到旧：每轮恢复的是该轮开始前的内容，倒序回放后最终内容正是被点击那一轮开始时的内容。因此这几轮里新建的文件被删除，被删除的文件按原内容重建，被修改的文件回到旧内容。
 - 恢复写入期间挂起抓取，避免本插件自己的写入被记进轮次记录。
-- 恢复失败的条目逐条报出，不影响已经提交的会话替换，也不阻断其余条目。
+- 恢复失败的条目逐条报出，不影响已经完成的分叉，也不阻断其余条目。
 
 ## 边界
 
@@ -60,19 +50,22 @@ session.append(
 - 二进制文件读不出文本，按不可完整回退处理。
 - 只回写正文：用户消息里的图片、附件等非文本部分无法写回输入框，结果里用 `writeBack.nonTextParts` 报告数量。
 - 输入框已有草稿时不覆盖是客户端半的责任：宿主只返回正文，是否写入由客户端判断并提示。
+- **回退后继续的是新会话**：会话 id 会变，标题与位置不变，原会话进归档；依赖旧会话 id 的东西（外部链接、导出、脚本）需要指向新会话。
+- 归档失败时原会话仍留在列表里，回退本身仍然有效。
 
 ## 宿主接口
 
-宿主服务键 `sessionRollback`，两个方法各对应一条与页面同源的 HTTP 路由（`host/api.js`）。浏览器半用 `fetch` 直接调它们，不带自定义头、不走 RPC 命名空间。
+宿主服务键 `sessionRollback`，三个方法各对应一条与页面同源的 HTTP 路由（`host/api.js`）。浏览器半用 `fetch` 直接调它们，不带自定义头、不走 RPC 命名空间。
 
 | 方法 | 路径 | 请求 |
 |---|---|---|
 | `POST` | `/session-rollback/state` | JSON 体 `{ sessionId }`；也接受 `GET ?sessionId=<id>` |
-| `POST` | `/session-rollback/rollback` | JSON 体 `{ sessionId, seq?, ordinal?, index? }` |
+| `POST` | `/session-rollback/prepare` | JSON 体 `{ sessionId, seq?, ordinal?, index? }` |
+| `POST` | `/session-rollback/restore` | JSON 体 `{ sessionId, childSessionId?, turn? }` |
 
 请求体必须是 `application/json`，上限 64 KiB。鉴权由组合的 `connection` 服务负责：路由先用 `requestRejection` 过 Host/Origin 围栏与浏览器登录态校验，通过后才处理请求；没有有效登录态一律拒绝。
 
-成功一律 `200` 加业务 JSON（下面两段就是响应体），业务层的"不能回退"也是 `200`：例如 `state.available` 为 `false` 并给出 `reason`。失败是下列状态码加统一 `{ code, message }`：
+成功一律 `200` 加业务 JSON（下面几段就是响应体），业务层的"不能回退"也是 `200`：例如 `state.available` 为 `false` 并给出 `reason`。失败是下列状态码加统一 `{ code, message }`：
 
 | 状态 | `code` | 含义 |
 |---|---|---|
@@ -105,14 +98,25 @@ session.append(
   limits: { maxFileBytes, maxTurnBytes, maxTurnFiles, maxSessionBytes }
 }
 
-// POST /session-rollback/rollback  { sessionId, seq?, ordinal?, index? }
+// POST /session-rollback/prepare  { sessionId, seq?, ordinal?, index? }
 {
-  ok: boolean                   // 会话替换完成且无文件失败
-  stage: 'precheck' | 'surface' | 'files' | 'done' | 'internal'
+  ok: boolean                   // 目标已定位，且分叉边界有效
+  stage: 'ready' | 'precheck'
+  reason: string                // ready | target-missing | target-not-user-prompt | no-fork-boundary | turn-open | session-not-live | rollback-in-progress | internal-error
+  detail: string | null
+  target: { seq, index, ordinal, turn, preview, nonTextParts } | null
+  forkAtSeq: number | null      // 交给 ctx.sessions.fork 的 atSeq
+  writeBack: { text: string, nonTextParts: number } | null
+  incompleteTurns: { turn, files, complete, reasons }[]
+  complete: boolean             // 文件侧可完整还原
+}
+
+// POST /session-rollback/restore  { sessionId, childSessionId?, turn? }
+{
+  ok: boolean                   // 文件恢复无失败
+  stage: 'done' | 'files' | 'precheck'
   reason: string                // rolled-back | partial-snapshot | file-restore-incomplete | 见上表
   detail: string | null
-  conversation: { startSeq, endSeq, shadowedNodes, replacementSeq, flushed } | null
-  target: { seq, index, ordinal, turn, preview, nonTextParts } | null
   files: {
     turns: number[]             // 参与恢复的轮次，新→旧
     restored: { path, turn }[]
@@ -123,13 +127,14 @@ session.append(
   } | null
   incompleteTurns: { turn, files, complete, reasons }[]
   complete: boolean             // 文件侧可完整还原且无失败
-  writeBack: { text: string, nonTextParts: number } | null
+  conversation: null            // 保留字段，分叉不在宿主执行
+  writeBack: null
 }
 ```
 
-`seq` 优先；拿不到（页面还没拿到事件序号）时传 `ordinal`（1 基）或 `index`（0 基），二者等价。`seq` 必须指向当前 surface 中一条 `source.kind` 为 `user` 的用户消息，注入的上下文不是用户提问，不能作为回退目标。
+`seq` 优先；拿不到（页面还没拿到事件序号）时传 `ordinal`（1 基）或 `index`（0 基），二者等价。`seq` 必须指向当前 surface 中一条 `source.kind` 为 `user` 的用户消息，注入的上下文不是用户提问，不能作为回退目标。`restore` 的 `childSessionId` 用来让子会话继承父会话的文件快照；省略时只恢复文件、不继承。
 
-路由注册在 `ctx.inject(['webServer', 'connection'], ...)` 的子上下文里，`webServer.register` 返回的 disposer 由 `ctx.effect` 持有，所以插件卸载时两条路由随之移除。服务实例只创建一次，`ctx.provide` 与路由收到的是同一个对象。
+路由注册在 `ctx.inject(['webServer', 'connection'], ...)` 的子上下文里，`webServer.register` 返回的 disposer 由 `ctx.effect` 持有，所以插件卸载时三条路由随之移除。服务实例只创建一次，`ctx.provide` 与路由收到的是同一个对象。
 
 ## 快照落点
 
@@ -144,12 +149,13 @@ session-rollback/
 ```
 
 - 目录不在任何用户工作区内。
+- 子会话继承父会话时，目标轮次及之前的 `turns/*.json` 与它们引用的 `blobs/*` 会复制到子会话目录；因此子会话第一次回退也能恢复这些轮次改过的文件。复制会额外占用磁盘。
 - 会话被释放（`session/disposed`）时删除该会话目录；插件卸载时删除整个 `<profile>` 目录，不碰其它 profile 的快照。
 - 插件重载后仍活着的会话会从 `turns/*.json` 重新装载索引，避免 HMR 把仍在用的快照变成孤儿。
 
 ## 安装与回滚
 
-本包是普通 bundle：`package.json` 声明 `dsh.bundle.patch` 与 `dsh.client`，`cordis.patch.yml` 插入一行。
+本包是普通 bundle：`package.json` 声明 `dsh.bundle` 与 `dsh.client`，`cordis.patch.yml` 插入一行。
 
 - 安装：用 Plugin Manager 的 `install_bundle` 指向本目录（宿主会读 `dsh.client` 并把 `client.js` 作为浏览器模块下发）。不要手改 profile 的 `package.json` 或 `cordis.patch.yml`。
 - 卸载：用 Plugin Manager 的 `remove_bundle` / `set_bundle` 移除或停用。卸载时 `apply` 注册的监听、服务与全部快照目录一并清理。
@@ -170,6 +176,8 @@ session-rollback/
 - 宿主重启后，重启前的轮次没有快照，只能做会话回退。
 - 抓取归属依赖进程内发起链；在发起链与 `tools/pre-execute` 都取不到 Agent 的写入（例如完全脱离 Agent 的宿主代码直接写文件）不会被记录。
 - 快照按内容哈希去重但不压缩；长会话会持续占用磁盘，直到会话结束或超过 `maxSessionBytes`。
-- 回退是破坏性的用户操作，本插件不提供撤销；原始日志仍在，但本插件不实现"从日志反向恢复"。
+- 回退是破坏性的用户操作，本插件不提供撤销；原会话仍在归档里，但本插件不实现"从归档反向恢复"。
+- 回退后继续的是新会话，旧会话 id 不再承载后续对话；归档失败时旧会话会留在列表里。
 - 与其它监听 `fs/*-intent` 的插件共存时，本插件只读内容、不消费判定，不抢判定权，但会串行地多一次读取。
 - 客户端按钮的插入位置依赖会话流的 DOM 结构（`[data-slot="conversation.chat.flow"]`），属于原生 DOM 注入；页面结构变化时需要跟随调整。
+- 分叉与归档依赖 DSH 的客户端服务（`sessions.fork`、`uiWorkspace.openSession`、`workspaces.archiveSession`）；宿主升级改名时客户端半需要跟随调整。

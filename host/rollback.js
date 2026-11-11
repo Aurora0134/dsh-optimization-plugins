@@ -1,20 +1,20 @@
 /**
- * Conversation truncation and file restoration for `dsh-session-rollback`.
+ * Conversation rollback and file restoration for `dsh-session-rollback`.
  *
- * Truncating is one surface replacement: an empty `developer/message` whose
- * `surfaceOp` replaces the clicked user message and every surface node after it.
- * Shadowed nodes disappear from future model input and from the conversation
- * view; their raw log records stay. Empty developer content projects to no
- * message, so the replacement node itself leaves no visible row.
+ * Rolling back is a native session fork: the conversation is cut at the end of
+ * the turn before the clicked message and continued in a child Session. The
+ * child's transcript and model input therefore start after that message, so the
+ * clicked message and its whole turn are absent from the conversation the user
+ * continues in, while the parent Session keeps the raw record.
  *
  * Files are restored newest turn first: a turn record holds the content each path
  * had when that turn began, so replaying the records newest to oldest ends at the
- * content the target turn started from.
+ * content the target turn started from. The child inherits the parent's records
+ * for the turns it continues, so a later rollback inside the child can still
+ * restore files.
  *
  * @module dsh-session-rollback/host/rollback
  */
-
-import { randomUUID } from 'node:crypto'
 
 import { messageOf } from './snapshots.js'
 
@@ -26,38 +26,11 @@ export const REASONS = Object.freeze({
   noUserMessage: 'no-user-message',
   targetMissing: 'target-missing',
   targetNotUserPrompt: 'target-not-user-prompt',
-  protectedHead: 'protected-system-head',
-  surfaceRejected: 'surface-rejected',
-  surfaceNoEffect: 'surface-no-effect',
+  noForkBoundary: 'no-fork-boundary',
   fileRestoreIncomplete: 'file-restore-incomplete',
   partialSnapshot: 'partial-snapshot',
   rolledBack: 'rolled-back',
 })
-
-/**
- * One invisible system message: the replacement payload the replace event
- * carries.
- *
- * The session contract identifies every persisted message (`id`, `source`), and
- * a stored log is revalidated on load; a marker without those fields would make
- * the rolled-back session unreadable. Empty content projects to no model message,
- * the Chat target excludes system-prompt nodes from transcript rows, and the
- * Trajectory target only projects nonempty appended prompts, so this node leaves
- * no visible record. A developer node would add a visible context record in the
- * trajectory. The fresh identity keeps two rollbacks of the same session from
- * sharing a message id.
- * @returns {object} the replacement message
- */
-function replacementMessage() {
-  return {
-    id: randomUUID(),
-    role: 'system',
-    content: [],
-    // The only source a system message admits; empty content is what keeps it
-    // out of the effective prompt.
-    source: { kind: 'system-prompt' },
-  }
-}
 
 /**
  * Current surface node sequences, copied so callers cannot mutate the fold.
@@ -197,9 +170,54 @@ export function resolveTarget(session, recorder, request) {
 }
 
 /**
+ * The event sequence a rollback forks from: the last event before the clicked
+ * message's turn.
+ *
+ * A fork copies an inclusive event prefix, so the cut is the previous turn's
+ * `turn/end`. That keeps the target turn's opening records (`turn/start`, inbox
+ * splices, `step/start`) out of the child, which would otherwise claim a message
+ * the child does not hold. A first turn has no earlier `turn/end`; the cut then
+ * falls back to the event immediately before its `turn/start`.
+ *
+ * @param {object} session live Session
+ * @param {number} targetSeq sequence of the clicked user message
+ * @returns {{ boundary: number, turnStartSeq: number } | undefined}
+ */
+export function forkBoundary(session, targetSeq) {
+  if (typeof targetSeq !== 'number' || !Number.isSafeInteger(targetSeq) || targetSeq < 0) return undefined
+  let events
+  try {
+    events = typeof session?.snapshotEvents === 'function' ? session.snapshotEvents() : undefined
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(events) || events.length === 0) return undefined
+  /** @type {Map<number, object>} */
+  const bySeq = new Map()
+  for (const event of events) {
+    if (Number.isSafeInteger(event?.seq)) bySeq.set(event.seq, event)
+  }
+  let turnStart
+  for (const event of bySeq.values()) {
+    if (event.seq >= targetSeq) continue
+    if (event.type === 'turn/start') turnStart = event
+  }
+  if (turnStart === undefined) return undefined
+  let boundary
+  for (const event of bySeq.values()) {
+    if (event.seq >= turnStart.seq) continue
+    if (event.type === 'turn/end') boundary = event.seq
+  }
+  if (boundary === undefined) boundary = turnStart.seq - 1
+  if (!Number.isSafeInteger(boundary) || boundary < 0) return undefined
+  if (!bySeq.has(boundary)) return undefined
+  return { boundary, turnStartSeq: turnStart.seq }
+}
+
+/**
  * Whether this session can be rolled back right now, and why not.
  * The gate is the log itself: an open turn means the agent is still running the
- * turn a replacement would truncate.
+ * turn a fork would cut away.
  * @param {object} ctx Cordis context carrying `agents`
  * @param {object} session live Session
  * @returns {{ available: boolean, reason: string, detail?: string }}
@@ -220,7 +238,7 @@ export function availability(ctx, session) {
 /**
  * Restore every path the given turn and every later turn changed, newest turn
  * first. A failed path is reported and the remaining paths still run: file
- * restoration never undoes a conversation truncation that already committed.
+ * restoration never undoes a conversation rollback that already committed.
  * @param {object} options
  * @param {object} options.ctx Cordis context carrying `fs`
  * @param {object} options.store snapshot store
@@ -292,136 +310,123 @@ export async function restoreFiles({ ctx, store, recorder, sessionId, fromTurn }
 }
 
 /**
- * Truncate the conversation at one user message and restore the files that turn
- * and the following turns changed.
+ * Resolve the clicked message and the fork cut that removes its whole turn.
+ *
+ * This is the first half of a rollback: the browser half creates the child
+ * Session from `forkAtSeq`, then calls `restore` for the files. Nothing in the
+ * log changes here, so a failed fork leaves the session exactly as it was.
+ *
  * @param {object} options
  * @param {object} options.ctx Cordis context
  * @param {object} options.session live Session
  * @param {object} options.store snapshot store
  * @param {object} options.recorder turn recorder
- * @param {object} options.request `{ sessionId, seq?, ordinal?, index? }`
+ * @param {object} options.request `{ seq?, ordinal?, index? }`
  * @param {{ warn?: Function }} [options.logger]
- * @returns {Promise<object>} the rollback report
+ * @returns {Promise<object>} the prepare report
  */
-export async function performRollback({ ctx, session, store, recorder, request, logger = console }) {
+export async function prepareRollback({ ctx, session, store, recorder, request, logger = console }) {
   const report = (fields) => ({
-    conversation: null,
+    ok: false,
+    stage: 'precheck',
+    reason: REASONS.targetMissing,
+    detail: null,
     target: null,
-    files: null,
+    forkAtSeq: null,
+    writeBack: null,
     incompleteTurns: [],
     complete: false,
-    writeBack: null,
     ...fields,
   })
 
   const gate = availability(ctx, session)
   if (!gate.available) {
-    return report({ ok: false, stage: 'precheck', reason: gate.reason, detail: gate.detail ?? null })
+    return report({ reason: gate.reason, detail: gate.detail ?? null })
   }
   const resolved = resolveTarget(session, recorder, request)
   if (!resolved.ok) {
-    return report({ ok: false, stage: 'precheck', reason: resolved.reason, detail: resolved.detail })
+    return report({ reason: resolved.reason, detail: resolved.detail })
   }
   const target = resolved.target
-  const nodes = surfaceNodes(session)
-  const startIdx = nodes.indexOf(target.seq)
-  const endSeq = nodes[nodes.length - 1]
-  if (startIdx === -1 || endSeq === undefined) {
+  const cut = forkBoundary(session, target.seq)
+  if (cut === undefined) {
     return report({
-      ok: false,
-      stage: 'precheck',
-      reason: REASONS.targetMissing,
-      detail: 'the clicked message is no longer part of the surface',
-    })
-  }
-  const shadowed = nodes.slice(startIdx)
-  // The framework protects a system/message at node 0 and would reject the append.
-  if (startIdx === 0 && eventAt(session, nodes[0])?.type === 'system/message') {
-    return report({
-      ok: false,
-      stage: 'precheck',
-      reason: REASONS.protectedHead,
-      detail: 'the first surface node holds the system prompt and cannot be replaced',
+      reason: REASONS.noForkBoundary,
+      detail: 'there is no earlier conversation to keep, so the turn cannot be forked away',
+      target: summarizeTarget(target),
     })
   }
 
-  const targetTurn = target.turn
   let inspected = { complete: true, turns: [] }
-  if (targetTurn !== undefined) {
+  if (target.turn !== undefined) {
     try {
-      inspected = await store.inspect(session.id, targetTurn)
+      inspected = await store.inspect(session.id, target.turn)
     } catch (error) {
       logger.warn?.(`session-rollback: snapshots of session "${session.id}" are unreadable: ${messageOf(error)}`)
       inspected = { complete: false, turns: [] }
     }
   }
 
-  let replacement
-  try {
-    replacement = session.append(
-      'system/message',
-      {
-        // The node projects to no message, so its turn/step only carry the
-        // position it closed; the target turn is the closest truthful value.
-        turn: target.turn ?? 0,
-        step: 1,
-        message: replacementMessage(),
-      },
-      {
-        surfaceOp: { op: 'replace', startSeq: target.seq, endSeq },
-        sourceEventSeqs: shadowed,
-      },
-    )
-  } catch (error) {
-    return report({
-      ok: false,
-      stage: 'surface',
-      reason: REASONS.surfaceRejected,
-      detail: messageOf(error),
-      conversation: { startSeq: target.seq, endSeq, shadowedNodes: shadowed.length, replacementSeq: null, flushed: false },
-      target: summarizeTarget(target),
-    })
+  return {
+    ok: true,
+    stage: 'ready',
+    reason: REASONS.ready,
+    detail: null,
+    target: summarizeTarget(target),
+    forkAtSeq: cut.boundary,
+    writeBack: { text: target.text, nonTextParts: target.nonTextParts },
+    incompleteTurns: inspected.turns.filter((turn) => turn.complete !== true),
+    complete: inspected.complete === true,
+  }
+}
+
+/**
+ * Restore the files the target turn and later turns changed, after the browser
+ * half created the child Session from `prepareRollback`'s cut.
+ *
+ * The child inherits the parent's turn records up to the target turn first, so
+ * the continued session can restore those files again later.
+ *
+ * @param {object} options
+ * @param {object} options.ctx Cordis context
+ * @param {object} options.store snapshot store
+ * @param {object} options.recorder turn recorder
+ * @param {object} options.request `{ sessionId, childSessionId?, turn? }`
+ * @param {{ warn?: Function }} [options.logger]
+ * @returns {Promise<object>} the restore report
+ */
+export async function restoreRollback({ ctx, store, recorder, request, logger = console }) {
+  const sessionId = typeof request?.sessionId === 'string' ? request.sessionId : ''
+  const childSessionId = typeof request?.childSessionId === 'string' ? request.childSessionId : ''
+  const turn = typeof request?.turn === 'number' && Number.isSafeInteger(request.turn) && request.turn >= 0
+    ? request.turn
+    : undefined
+
+  if (childSessionId !== '' && turn !== undefined) {
+    try {
+      await store.inherit(sessionId, childSessionId, turn)
+    } catch (error) {
+      logger.warn?.(`session-rollback: the child session could not inherit the snapshots of "${sessionId}": ${messageOf(error)}`)
+    }
   }
 
-  const after = surfaceNodes(session)
-  const effective = after.length > 0
-    && after[after.length - 1] === replacement.seq
-    && !after.includes(target.seq)
-  let flushed = true
-  try {
-    await ctx.sessions.flush(session)
-  } catch (error) {
-    flushed = false
-    logger.warn?.(`session-rollback: the replacement is committed but the checkpoint failed: ${messageOf(error)}`)
-  }
-  const conversation = {
-    startSeq: target.seq,
-    endSeq,
-    shadowedNodes: shadowed.length,
-    replacementSeq: replacement.seq,
-    flushed,
-  }
-  if (!effective) {
-    // The event was accepted by the log but did not shadow the range; restoring
-    // files now would leave the conversation intact and the workspace reverted.
-    return report({
-      ok: false,
-      stage: 'surface',
-      reason: REASONS.surfaceNoEffect,
-      detail: 'the appended replacement did not change the visible surface',
-      conversation,
-      target: summarizeTarget(target),
-    })
-  }
-
-  const files = targetTurn === undefined
+  const files = turn === undefined
     ? { turns: [], restored: [], deleted: [], skipped: [], failed: [], untracked: true }
-    : await restoreFiles({ ctx, store, recorder, sessionId: session.id, fromTurn: targetTurn })
+    : await restoreFiles({ ctx, store, recorder, sessionId, fromTurn: turn })
+
+  let inspected = { complete: true, turns: [] }
+  if (turn !== undefined) {
+    try {
+      inspected = await store.inspect(sessionId, turn)
+    } catch (error) {
+      logger.warn?.(`session-rollback: snapshots of session "${sessionId}" are unreadable: ${messageOf(error)}`)
+      inspected = { complete: false, turns: [] }
+    }
+  }
 
   const filesFailed = files.failed.length > 0
-  const incompleteTurns = inspected.turns.filter((turn) => turn.complete !== true)
   const complete = !filesFailed && inspected.complete === true
-  return report({
+  return {
     ok: !filesFailed,
     stage: filesFailed ? 'files' : 'done',
     reason: filesFailed
@@ -430,13 +435,12 @@ export async function performRollback({ ctx, session, store, recorder, request, 
     detail: filesFailed
       ? `${files.failed.length} file(s) could not be restored`
       : (complete ? null : 'some captured turns are incomplete, so those files may not be fully restored'),
-    conversation,
-    target: summarizeTarget(target),
     files,
-    incompleteTurns,
+    incompleteTurns: inspected.turns.filter((entry) => entry.complete !== true),
     complete,
-    writeBack: { text: target.text, nonTextParts: target.nonTextParts },
-  })
+    conversation: null,
+    writeBack: null,
+  }
 }
 
 /**

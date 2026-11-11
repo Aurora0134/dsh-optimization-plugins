@@ -6,8 +6,9 @@
  *    MutationObserver over the conversation flow (`[data-slot="conversation.chat.flow"]`);
  *  - one invisible `conversation.composer.dock` entry that carries the Session's
  *    `inputActions` to the button logic, so the composer is never guessed from the DOM;
- *  - the two same-origin calls the Host half registers, plus the confirm, the
- *    write-back and the failure report.
+ *  - the same-origin calls the Host half registers, plus the confirm, the native
+ *    Session fork, the switch to the child Session, the write-back and the
+ *    failure report.
  *
  * Every listener, timer, observer, style and open dialog is released by the
  * disposer `apply` returns, so unloading the plugin leaves nothing behind.
@@ -38,7 +39,8 @@ window.__ModuleLoader__.load({
     const BUSY_ATTRIBUTE = 'data-session-rollback-busy';
 
     const STATE_ROUTE = '/session-rollback/state';
-    const ROLLBACK_ROUTE = '/session-rollback/rollback';
+    const PREPARE_ROUTE = '/session-rollback/prepare';
+    const RESTORE_ROUTE = '/session-rollback/restore';
     const LABEL = '回退到此消息';
 
     const CSS = `
@@ -192,6 +194,43 @@ window.__ModuleLoader__.load({
      */
     function composerHandleOf(sessionId) {
       return composerHandles.get(sessionId);
+    }
+
+    /**
+     * Wait for a Session's dock entry: the composer of the session the rollback
+     * switched to mounts after the fork, so the write-back cannot happen at once.
+     * @param {string} sessionId
+     * @param {number} timeoutMs
+     * @returns {Promise<{ inputActions: object, read: () => { draft: string, attachments: number } } | undefined>}
+     */
+    async function waitForComposerHandle(sessionId, timeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const handle = composerHandleOf(sessionId);
+        if (handle !== undefined) return handle;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return composerHandleOf(sessionId);
+    }
+
+    /**
+     * One client service by name, without assuming the property exists.
+     * @param {object} ctx plugin Context
+     * @param {string} name service name
+     * @returns {object | undefined}
+     */
+    function serviceOf(ctx, name) {
+      try {
+        const direct = ctx?.[name];
+        if (direct !== undefined && direct !== null) return direct;
+      } catch {
+        // fall through to the registry lookup
+      }
+      try {
+        return typeof ctx?.get === 'function' ? ctx.get(name) : undefined;
+      } catch {
+        return undefined;
+      }
     }
 
     const selectDraft = (state) => state.draft;
@@ -462,9 +501,6 @@ window.__ModuleLoader__.load({
       'turn-open': '当前回合还在进行中，回退没有执行，等它结束后再试。',
       'agent-busy': '当前回合还在进行中，回退没有执行，等它结束后再试。',
       'target-missing': '在会话里找不到这条消息，页面可能已经变化，请刷新后再试。',
-      'no-shadowed-nodes': '这条消息已经不在当前会话里，回退没有执行。',
-      'protected-system-head': '这条消息之前是系统提示，不能从这里回退。',
-      'surface-rejected': '会话内容没有接受这次替换，回退已停止，对话与文件都没有变化。',
       'internal-error': '服务没有完成这次操作，回退没有执行。',
       'file-restore-incomplete': '文件没有全部恢复。',
       'partial-snapshot': '这几轮的文件记录不完整，恢复结果可能不完整。',
@@ -668,9 +704,10 @@ window.__ModuleLoader__.load({
     /**
      * Build one action button for a message row.
      * @param {Element} row
+     * @param {object} ctx plugin Context
      * @returns {HTMLButtonElement}
      */
-    function createActionButton(row) {
+    function createActionButton(row, ctx) {
       const button = document.createElement('button');
       button.type = 'button';
       button.setAttribute(ACTION_ATTRIBUTE, '');
@@ -680,7 +717,7 @@ window.__ModuleLoader__.load({
       button.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        void beginRollback(row, button);
+        void beginRollback(row, button, ctx);
       });
       return button;
     }
@@ -798,12 +835,14 @@ window.__ModuleLoader__.load({
     /* ---------------------------------- the flow --------------------------------- */
 
     /**
-     * One click: confirm, resolve the message, ask the Host, report.
+     * One click: confirm, resolve the message, prepare the fork cut, fork into a
+     * child Session, restore the files, then report.
      * @param {Element} row the message row the button belongs to
      * @param {HTMLButtonElement} button the clicked control
+     * @param {object} ctx plugin Context
      * @returns {Promise<void>}
      */
-    async function beginRollback(row, button) {
+    async function beginRollback(row, button, ctx) {
       if (rollbackInFlight) return;
       const confirmed = await openDialog({
         title: LABEL,
@@ -829,17 +868,6 @@ window.__ModuleLoader__.load({
         });
         return;
       }
-      const handle = composerHandleOf(sessionId);
-      if (handle === undefined) {
-        await openDialog({
-          alert: true,
-          title: '回退没有执行',
-          paragraphs: ['没有找到这个会话的输入框，无法把消息正文放回去。请先打开这个会话的对话页再试。'],
-          actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
-        });
-        return;
-      }
-
       rollbackInFlight = true;
       button.setAttribute(BUSY_ATTRIBUTE, '');
       try {
@@ -868,9 +896,90 @@ window.__ModuleLoader__.load({
         const request = { sessionId };
         if (typeof target.seq === 'number' && Number.isSafeInteger(target.seq)) request.seq = target.seq;
         else request.ordinal = target.ordinal;
-        const result = await postJson(ROLLBACK_ROUTE, request);
-        const writeBackState = await writeBack(handle, result.writeBack !== null && typeof result.writeBack === 'object' ? result.writeBack.text : '');
-        await reportOutcome(result, writeBackState);
+        const prepared = await postJson(PREPARE_ROUTE, request);
+        if (prepared.ok !== true) {
+          const reason = typeof prepared.reason === 'string' ? prepared.reason : '';
+          await openDialog({
+            alert: true,
+            title: '回退没有执行',
+            paragraphs: [ROLLBACK_TEXT[reason] ?? '服务没有完成这次操作，回退没有执行。'],
+            actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
+          });
+          return;
+        }
+
+        const sessions = serviceOf(ctx, 'sessions');
+        if (sessions === undefined || typeof sessions.fork !== 'function') {
+          await openDialog({
+            alert: true,
+            title: '回退没有执行',
+            paragraphs: ['当前页面不支持从这条消息继续会话，回退没有执行。请刷新页面后再试。'],
+            actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
+          });
+          return;
+        }
+        let childId;
+        try {
+          childId = await sessions.fork({ sessionId, atSeq: prepared.forkAtSeq, increaseTitle: false });
+        } catch (error) {
+          await openDialog({
+            alert: true,
+            title: '回退没有执行',
+            paragraphs: [failureText(error)],
+            actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
+          });
+          return;
+        }
+        if (typeof childId !== 'string' || childId.length === 0) {
+          await openDialog({
+            alert: true,
+            title: '回退没有执行',
+            paragraphs: ['没能开出新的会话，回退已停止。'],
+            actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
+          });
+          return;
+        }
+
+        const workspace = serviceOf(ctx, 'uiWorkspace');
+        try {
+          const opened = workspace?.openSession?.(childId);
+          if (opened !== undefined && opened !== null && typeof opened.then === 'function') await opened.catch(() => {});
+        } catch {
+          // The child exists; leaving the current view only costs a manual open.
+        }
+
+        const turn = prepared.target !== null && typeof prepared.target === 'object'
+          && typeof prepared.target.turn === 'number' && Number.isSafeInteger(prepared.target.turn)
+          ? prepared.target.turn
+          : undefined;
+        const restoreRequest = { sessionId, childSessionId: childId };
+        if (turn !== undefined) restoreRequest.turn = turn;
+        // The conversation is already rolled back here: a failed restore must not
+        // be reported as "回退没有执行". `files: null` makes the report say the
+        // file state is unknown instead.
+        let restored;
+        try {
+          restored = await postJson(RESTORE_ROUTE, restoreRequest);
+        } catch {
+          restored = { ok: false, stage: 'files', reason: 'file-restore-incomplete', files: null, incompleteTurns: [], complete: false };
+        }
+        if (restored.ok !== true && restored.stage === 'precheck') {
+          restored = { ...restored, stage: 'files', files: null };
+        }
+
+        // Archive only after the files are restored: archiving may release the
+        // parent while the restore still needs it.
+        const workspaces = serviceOf(ctx, 'workspaces');
+        try {
+          await workspaces?.archiveSession?.(sessionId);
+        } catch {
+          // The parent stays listed; the rollback itself already succeeded.
+        }
+
+        const handle = await waitForComposerHandle(childId, 8000);
+        const writeBackText = prepared.writeBack !== null && typeof prepared.writeBack === 'object' ? prepared.writeBack.text : '';
+        const writeBackState = handle === undefined ? 'failed' : await writeBack(handle, writeBackText);
+        await reportOutcome({ ...restored, writeBack: prepared.writeBack }, writeBackState);
       } catch (error) {
         await openDialog({
           alert: true,
@@ -887,9 +996,10 @@ window.__ModuleLoader__.load({
     /**
      * Keep one button in every user message's icon row, and only one.
      * Re-rendered rows lose the foreign node; the observer puts it back.
+     * @param {object} ctx plugin Context
      * @returns {() => void} teardown
      */
-    function installActionButtons() {
+    function installActionButtons(ctx) {
       /** Buttons this installer owns, so teardown can remove them. */
       const inserted = new Set();
       let observer = null;
@@ -908,7 +1018,7 @@ window.__ModuleLoader__.load({
           const actions = actionsRowOf(row);
           if (actions === null) continue;
           if (actions.querySelector(`[${ACTION_ATTRIBUTE}]`) !== null) continue;
-          const button = createActionButton(row);
+          const button = createActionButton(row, ctx);
           actions.append(button);
           inserted.add(button);
         }
@@ -959,7 +1069,7 @@ window.__ModuleLoader__.load({
           return () => style.remove();
         }, `${PLUGIN_ID}: styles`);
 
-        ctx.effect(installActionButtons, `${PLUGIN_ID}: message actions`);
+        ctx.effect(() => installActionButtons(ctx), `${PLUGIN_ID}: message actions`);
 
         ctx.effect(() => closeDialogs, `${PLUGIN_ID}: dialogs`);
 

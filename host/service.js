@@ -1,11 +1,12 @@
 /**
- * The Host service `sessionRollback`: the two operations the browser half uses.
+ * The Host service `sessionRollback`: the three operations the browser half uses.
  *
  * `state` answers whether a session can be rolled back right now and which user
- * messages the current surface holds; `rollback` performs the surface
- * replacement and the file restoration and returns what the composer gets back.
- * The browser reaches both through the same-origin HTTP routes `host/api.js`
- * registers; this module owns only the behaviour and the service identity.
+ * messages the current surface holds; `prepare` resolves the clicked message and
+ * the fork cut that removes its turn; `restore` brings back the files those
+ * turns changed after the browser half created the child Session. The browser
+ * reaches all three through the same-origin HTTP routes `host/api.js` registers;
+ * this module owns only the behaviour and the service identity.
  *
  * The instance also carries Typert Remote markers, which cost nothing and keep
  * any consumer of the Remote protocol able to read the same two operations. This
@@ -17,7 +18,7 @@
  * @module dsh-session-rollback/host/service
  */
 
-import { availability, listUserMessages, performRollback } from './rollback.js'
+import { availability, listUserMessages, prepareRollback, restoreRollback } from './rollback.js'
 
 /**
  * Prototype property the Typert protocol stores Remote markers under. The name is
@@ -96,8 +97,45 @@ function sessionOf(ctx, value) {
  * @returns {object} the service value to provide
  */
 export function createRollbackService({ ctx, store, recorder, logger = console }) {
-  /** Sessions with a rollback in flight, so two calls cannot interleave. */
-  const running = new Set()
+  /**
+   * Sessions whose browser half is between `prepare` and `restore`. A caller that
+   * never reaches `restore` (closed page, failed fork) stops blocking the session
+   * after this long instead of leaving it unusable until the plugin reloads.
+   */
+  const running = new Map()
+  const RUNNING_TTL_MS = 30_000
+
+  /**
+   * @param {string} sessionId
+   * @returns {boolean} whether a rollback of this session is in flight
+   */
+  const isRunning = (sessionId) => {
+    const started = running.get(sessionId)
+    if (started === undefined) return false
+    if (Date.now() - started > RUNNING_TTL_MS) {
+      running.delete(sessionId)
+      return false
+    }
+    return true
+  }
+
+  /**
+   * The uniform "cannot start here" report.
+   * @param {string} reason stable refusal code
+   * @param {string | null} detail developer-facing detail
+   * @returns {object}
+   */
+  const refusal = (reason, detail) => ({
+    ok: false,
+    stage: 'precheck',
+    reason,
+    detail,
+    target: null,
+    forkAtSeq: null,
+    writeBack: null,
+    incompleteTurns: [],
+    complete: false,
+  })
 
   class SessionRollback {
     /**
@@ -145,7 +183,7 @@ export function createRollbackService({ ctx, store, recorder, logger = console }
           snapshotTurns = inspected.turns
           snapshotComplete = inspected.complete
         }
-        const busy = running.has(session.id)
+        const busy = isRunning(session.id)
         const available = gate.available && !busy && userMessages.length > 0
         return {
           available,
@@ -167,7 +205,7 @@ export function createRollbackService({ ctx, store, recorder, logger = console }
           reason: 'internal-error',
           detail: error instanceof Error ? error.message : String(error),
           sessionId: session.id,
-          busy: running.has(session.id),
+          busy: isRunning(session.id),
           userMessages: [],
           snapshotTurns,
           snapshotComplete,
@@ -177,59 +215,61 @@ export function createRollbackService({ ctx, store, recorder, logger = console }
     }
 
     /**
-     * Truncate the conversation at one user message and restore the files that
-     * message's turn and every later turn changed.
+     * Resolve one user message and the fork cut that removes its whole turn.
+     * The browser half creates the child Session from the cut, then calls
+     * `restore`; nothing changes in the log here.
      * @param {object} request `{ sessionId, seq?, ordinal?, index? }`
-     * @returns {Promise<object>} the rollback report
+     * @returns {Promise<object>} the prepare report
      */
-    async rollback(request) {
+    async prepare(request) {
       const asked = request !== null && typeof request === 'object' ? request : {}
       const session = sessionOf(ctx, asked.sessionId)
       if (session === undefined) {
-        return {
-          ok: false,
-          stage: 'precheck',
-          reason: 'session-not-live',
-          detail: 'this session is not open in the running Host',
-          conversation: null,
-          target: null,
-          files: null,
-          incompleteTurns: [],
-          complete: false,
-          writeBack: null,
-        }
+        return refusal('session-not-live', 'this session is not open in the running Host')
       }
-      if (running.has(session.id)) {
-        return {
-          ok: false,
-          stage: 'precheck',
-          reason: 'rollback-in-progress',
-          detail: 'another rollback of this session is still finishing',
-          conversation: null,
-          target: null,
-          files: null,
-          incompleteTurns: [],
-          complete: false,
-          writeBack: null,
-        }
+      if (isRunning(session.id)) {
+        return refusal('rollback-in-progress', 'another rollback of this session is still finishing')
       }
-      running.add(session.id)
+      running.set(session.id, Date.now())
       try {
-        return await performRollback({ ctx, session, store, recorder, request: asked, logger })
+        const report = await prepareRollback({ ctx, session, store, recorder, request: asked, logger })
+        if (report.ok !== true) running.delete(session.id)
+        return report
+      } catch (error) {
+        running.delete(session.id)
+        const detail = error instanceof Error ? error.message : String(error)
+        logger.warn?.(`session-rollback: preparing a rollback of session "${session.id}" failed: ${detail}`)
+        return refusal('internal-error', detail)
+      }
+    }
+
+    /**
+     * Restore the files of the rolled-back turns, and let the child Session inherit
+     * the parent's records for the turns it continues. The conversation fork is
+     * already done by the browser half; this step never undoes it.
+     * @param {object} request `{ sessionId, childSessionId?, turn? }`
+     * @returns {Promise<object>} the restore report
+     */
+    async restore(request) {
+      const asked = request !== null && typeof request === 'object' ? request : {}
+      const session = sessionOf(ctx, asked.sessionId)
+      if (session === undefined) {
+        running.delete(typeof asked.sessionId === 'string' ? asked.sessionId : '')
+        return {
+          ...refusal('session-not-live', 'this session is not open in the running Host'),
+          files: null,
+          conversation: null,
+        }
+      }
+      try {
+        return await restoreRollback({ ctx, store, recorder, request: asked, logger })
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
-        logger.warn?.(`session-rollback: rollback of session "${session.id}" failed: ${detail}`)
+        logger.warn?.(`session-rollback: restoring the files of session "${session.id}" failed: ${detail}`)
         return {
-          ok: false,
-          stage: 'internal',
-          reason: 'internal-error',
-          detail,
-          conversation: null,
-          target: null,
+          ...refusal('internal-error', detail),
           files: null,
-          incompleteTurns: [],
-          complete: false,
-          writeBack: null,
+          conversation: null,
         }
       } finally {
         running.delete(session.id)
@@ -237,6 +277,6 @@ export function createRollbackService({ ctx, store, recorder, logger = console }
     }
   }
 
-  markRemoteMethods(SessionRollback.prototype, ['state', 'rollback'])
+  markRemoteMethods(SessionRollback.prototype, ['state', 'prepare', 'restore'])
   return new SessionRollback(ctx)
 }
