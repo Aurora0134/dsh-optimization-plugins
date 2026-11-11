@@ -248,16 +248,30 @@ window.__ModuleLoader__.load({
           return parent !== null && parent.closest(scopes) !== null
         }
         const patched = new Map()
-        const relabel = (node) => {
+        /**
+         * Rewrite an id to its mode name. The record keeps the id a node was
+         * renamed from; a node whose text changed to something else belongs to a
+         * new render, so the record is dropped and the new text judged afresh —
+         * otherwise the first name would stick for the session's whole life.
+         */
+        const relabel = (node, refresh = false) => {
           const held = patched.get(node)
           if (held !== undefined) {
             if (!node.isConnected) {
               patched.delete(node)
               return
             }
-            const name = nameOf(held)
-            if (node.nodeValue !== name) node.nodeValue = name
-            return
+            if (refresh) {
+              held.name = nameOf(held.id)
+              node.nodeValue = held.name
+              return
+            }
+            if (node.nodeValue === held.name) return
+            if (node.nodeValue === held.id) {
+              node.nodeValue = held.name
+              return
+            }
+            patched.delete(node)
           }
           const text = node.nodeValue
           if (typeof text !== 'string' || text.length > 24) return
@@ -265,7 +279,7 @@ window.__ModuleLoader__.load({
           const name = nameOf(id)
           if (name === undefined) return
           if (!inScope(node)) return
-          patched.set(node, id)
+          patched.set(node, { id, name })
           node.nodeValue = name
         }
         const scan = (root) => {
@@ -286,7 +300,7 @@ window.__ModuleLoader__.load({
         })
         observer.observe(document.body, { childList: true, subtree: true, characterData: true })
         const unsubscribe = ctx.locale.subscribe(() => {
-          for (const node of [...patched.keys()]) relabel(node)
+          for (const node of [...patched.keys()]) relabel(node, true)
         })
         /**
          * The label surfaces mount after the plugin applies, so watch for a
