@@ -30,6 +30,17 @@ window.__ModuleLoader__.load({
     }
     const BASE_IDS = new Set(['standard', 'ptc', 'minimal'])
 
+    /**
+     * Copy key of the mode name a composed preset must display. The composed
+     * presets stay out of the preset roster, so the shipped surfaces that
+     * resolve a mode name from it fall back to the raw id.
+     */
+    const BASE_NAME_KEY = {
+      cordis: 'modeStandard',
+      'ptc-creation': 'modePtc',
+      'minimal-creation': 'modeMinimal',
+    }
+
     /** The base a preset id belongs to, or undefined for unrelated custom presets. */
     function baseOf(preset) {
       if (typeof preset !== 'string') return undefined
@@ -175,11 +186,17 @@ window.__ModuleLoader__.load({
       switch: '创造',
       switchHint: '在当前基础模式上叠加创造能力，需在会话开始前设置',
       switchFailed: '切换失败，请重试',
+      modeStandard: '标准模式',
+      modePtc: 'PTC 模式',
+      modeMinimal: '极简模式',
     }
     const en = {
       switch: 'Creation',
       switchHint: 'Add the creation toolset on top of the selected base mode; set it before the session starts',
       switchFailed: 'Could not switch. Try again.',
+      modeStandard: 'Standard mode',
+      modePtc: 'PTC mode',
+      modeMinimal: 'Minimal mode',
     }
 
     const inject = ['slots', 'locale', 'remote', 'remote.agentPresets']
@@ -199,6 +216,73 @@ window.__ModuleLoader__.load({
           tag.remove()
         }
       }, 'creator-overlay: styles')
+
+      /**
+       * Keeps the mode name unchanged when creation is on. The New Session chip
+       * and the header label both resolve their text through the preset roster,
+       * which no longer lists the composed ids, so they print the raw id. The
+       * roster is the only seam those surfaces read, and it also feeds the mode
+       * menu, so the composed ids cannot simply stay in it: rewrite the two
+       * rendered strings instead, and leave every other node alone.
+       */
+      ctx.effect(() => {
+        if (typeof document === 'undefined' || document.body === null) return
+        const t = ctx.locale.bind(NS)
+        const scopes = '[data-slot="conversation.hero.agentPreset"],[data-slot="conversation.session.header.actions"]'
+        const nameOf = (id) => {
+          const key = BASE_NAME_KEY[id]
+          return key === undefined ? undefined : t(key)
+        }
+        const inScope = (node) => {
+          const parent = node.parentElement
+          return parent !== null && parent.closest(scopes) !== null
+        }
+        const patched = new Map()
+        const relabel = (node) => {
+          const held = patched.get(node)
+          if (held !== undefined) {
+            if (!node.isConnected) {
+              patched.delete(node)
+              return
+            }
+            const name = nameOf(held)
+            if (node.nodeValue !== name) node.nodeValue = name
+            return
+          }
+          const text = node.nodeValue
+          if (typeof text !== 'string' || text.length > 24) return
+          const id = text.trim()
+          const name = nameOf(id)
+          if (name === undefined || !inScope(node)) return
+          patched.set(node, id)
+          node.nodeValue = name
+        }
+        const scan = (root) => {
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+          for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) relabel(node)
+        }
+        scan(document.body)
+        const observer = new MutationObserver((records) => {
+          for (const record of records) {
+            if (record.type === 'characterData') {
+              relabel(record.target)
+              continue
+            }
+            for (const added of record.addedNodes) {
+              if (added.nodeType === Node.TEXT_NODE) relabel(added)
+            }
+          }
+        })
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+        const unsubscribe = ctx.locale.subscribe(() => {
+          for (const node of [...patched.keys()]) relabel(node)
+        })
+        return () => {
+          observer.disconnect()
+          unsubscribe()
+          patched.clear()
+        }
+      }, 'creator-overlay: mode names')
 
       /**
        * Applies `target` to the blank Session. Resolves to `undefined` when the
