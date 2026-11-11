@@ -272,30 +272,36 @@ window.__ModuleLoader__.load({
 
       /**
        * Labels the rendered mode name. A Session with creation on carries a
-       * composed preset, which the roster no longer lists, so the New Session
-       * chip and the header label would print the raw id. The roster is the only
-       * seam those surfaces read and it also feeds the mode menu, so the composed
-       * ids cannot simply stay in it: rewrite the rendered strings instead, and
-       * leave every other node alone. The label names the base mode and the
-       * creation layer stacked on it.
+       * composed preset, which the roster no longer lists, so the header label
+       * would print the raw id, and the New Session chip would print the id of
+       * the base it re-applies next. The roster is the only seam those surfaces
+       * read and it also feeds the mode menu, so the composed ids cannot simply
+       * stay in it: rewrite the rendered strings instead, and leave every other
+       * node alone.
        */
       ctx.effect(() => {
         if (typeof document === 'undefined' || document.body === null) return
         const t = ctx.locale.bind(NS)
         /**
-         * Surfaces that render the mode name: the two labelled slots, plus the
-         * chip's own label and a titled label span. The class suffixes keep the
-         * rewrite alive if a slot attribute ever changes name.
+         * Surfaces that render the mode name: the header label names the preset
+         * the Session runs on, and the New Session chip — with its own label and
+         * the titled label span — names the base mode the choice is made in. The
+         * class suffixes keep the rewrite alive if a slot attribute changes name.
          */
+        const headerScope = '[data-slot="conversation.session.header.actions"],[class*="_label"][title]'
         const scopes = [
           '[data-slot="conversation.hero.agentPreset"]',
-          '[data-slot="conversation.session.header.actions"]',
           '[class*="_seatLabel"]',
-          '[class*="_label"][title]',
+          headerScope,
         ].join(',')
         const inScope = (node) => {
           const parent = node.parentElement
           return parent !== null && parent.closest(scopes) !== null
+        }
+        /** Whether a label describes the running Session rather than the next one. */
+        const namesSession = (node) => {
+          const parent = node.parentElement
+          return parent !== null && parent.closest(headerScope) !== null
         }
         /**
          * Mode a rendered string belongs to, and whether creation is on in it.
@@ -309,12 +315,16 @@ window.__ModuleLoader__.load({
           const named = Object.keys(BASE_NAME_KEY).find((mode) => t(BASE_NAME_KEY[mode]) === text)
           return named === undefined ? undefined : { base: named, layer: creationOn }
         }
-        /** Text a mode label shows: the base mode name plus the creation layer. */
-        const labelOf = (text) => {
+        /**
+         * Text a mode label shows. The chip offers a base mode, so creation stays
+         * a switch beside it; the header reports what the Session carries, which
+         * includes the creation layer.
+         */
+        const labelOf = (text, session) => {
           const mode = resolve(text)
           if (mode === undefined) return undefined
           const name = t(BASE_NAME_KEY[mode.base])
-          return mode.layer ? `${name}--${t('creationSuffix')}` : name
+          return mode.layer && session ? `${name}--${t('creationSuffix')}` : name
         }
         const patched = new Map()
         /**
@@ -324,13 +334,14 @@ window.__ModuleLoader__.load({
          * otherwise the first name would stick for the session's whole life.
          */
         const relabel = (node, refresh = false) => {
+          const session = namesSession(node)
           const held = patched.get(node)
           if (held !== undefined) {
             if (!node.isConnected) {
               patched.delete(node)
               return
             }
-            const next = labelOf(held.source)
+            const next = labelOf(held.source, session)
             if (next === undefined) {
               patched.delete(node)
               return
@@ -352,7 +363,7 @@ window.__ModuleLoader__.load({
           if (typeof source !== 'string') return
           const text = source.trim()
           if (text.length === 0 || text.length > 32) return
-          const name = labelOf(text)
+          const name = labelOf(text, session)
           if (name === undefined || name === text) return
           if (!inScope(node)) return
           patched.set(node, { source: text, name })
