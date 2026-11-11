@@ -42,18 +42,50 @@ window.__ModuleLoader__.load({
       return typeof preset === 'string' ? BASE_FOR_CREATION[preset] : undefined
     }
 
+    /**
+     * Base mode used by a blank Session whose preset projection has not loaded
+     * yet. The Host roster marks the effective default; the switch falls back to
+     * it so a fresh new-session screen still offers "创造".
+     */
+    let defaultBase = 'standard'
+    const defaultListeners = new Set()
+    const defaultSource = {
+      getSnapshot: () => defaultBase,
+      subscribe: (listener) => {
+        defaultListeners.add(listener)
+        return () => {
+          defaultListeners.delete(listener)
+        }
+      },
+    }
+    async function loadDefaultBase(ctx) {
+      try {
+        const result = await ctx.remote.agentPresets.list()
+        if (result === undefined || result.ok !== true) return
+        const row = result.value?.presets?.find((preset) => preset.isDefault === true)
+        if (row === undefined || !BASE_IDS.has(row.id) || row.id === defaultBase) return
+        defaultBase = row.id
+        for (const listener of defaultListeners) listener()
+      } catch {
+        // Keep the last known default; the switch hides when no base is known.
+      }
+    }
+
     /** The "创造" switch above the composer card. */
-    function CreationSwitch({ session, useSessions, toggle, t }) {
-      const preset = useSessions((state) => {
-        const value = state.byId[session.id]?.projectionValues?.agentPreset
+    function CreationSwitch({ session, sessionId, useSessions, toggle, t }) {
+      const id = sessionId ?? session.id
+      const projected = useSessions((state) => {
+        const value = state.byId[id]?.projectionValues?.agentPreset
         return typeof value === 'string' ? value : undefined
       })
+      const fallbackBase = React.useSyncExternalStore(defaultSource.subscribe, defaultSource.getSnapshot)
+      const preset = projected
       const [busy, setBusy] = React.useState(false)
       const [error, setError] = React.useState(null)
       const lastPreset = React.useRef(preset)
       const suppressContinuity = React.useRef(false)
       const blank = session.blank === true
-      const base = baseOf(preset)
+      const base = preset === undefined ? fallbackBase : baseOf(preset)
       const on = creationOf(preset) !== undefined
 
       // Choosing another base mode while creation is on keeps creation on: the
@@ -74,14 +106,14 @@ window.__ModuleLoader__.load({
         suppressContinuity.current = true
         setBusy(true)
         setError(null)
-        Promise.resolve(toggle(session.id, target)).then((reason) => {
+        Promise.resolve(toggle(id, target)).then((refused) => {
           setBusy(false)
-          if (typeof reason === 'string' && reason.length > 0) {
+          if (refused === true) {
             suppressContinuity.current = false
-            setError(t('switchFailed', { reason }))
+            setError(t('switchFailed'))
           }
         })
-      }, [preset, blank, session.id, toggle, t])
+      }, [preset, blank, id, toggle, t])
 
       if (!blank || base === undefined) return null
 
@@ -92,16 +124,17 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setError(null)
         suppressContinuity.current = true
-        let reason
+        let refused
         try {
-          reason = await toggle(session.id, target)
+          refused = await toggle(id, target)
         } catch (failure) {
-          reason = failure instanceof Error ? failure.message : String(failure)
+          console.error('[creator-overlay] preset switch failed', failure)
+          refused = true
         }
         setBusy(false)
-        if (typeof reason === 'string' && reason.length > 0) {
+        if (refused === true) {
           suppressContinuity.current = false
-          setError(t('switchFailed', { reason }))
+          setError(t('switchFailed'))
         }
       }
 
@@ -143,15 +176,15 @@ window.__ModuleLoader__.load({
     const zh = {
       switch: '创造',
       switchHint: '在当前基础模式上叠加创造能力，需在会话开始前设置',
-      switchFailed: '切换失败：{reason}',
+      switchFailed: '切换失败，请重试',
     }
     const en = {
       switch: 'Creation',
       switchHint: 'Add the creation toolset on top of the selected base mode; set it before the session starts',
-      switchFailed: 'Could not switch: {reason}',
+      switchFailed: 'Could not switch. Try again.',
     }
 
-    const inject = ['slots', 'locale', 'remote.agentPresets']
+    const inject = ['slots', 'locale', 'remote', 'remote.agentPresets']
 
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'creator-overlay: dictionaries')
@@ -169,16 +202,20 @@ window.__ModuleLoader__.load({
         }
       }, 'creator-overlay: styles')
 
+      /**
+       * Applies `target` to the blank Session. Resolves to `undefined` when the
+       * Host applied exactly that preset, and to `true` when it refused, so the
+       * switch never claims a change the Session does not have.
+       */
       const toggle = async (sessionId, target) => {
         try {
           const result = await ctx.remote.agentPresets.select(sessionId, target)
-          if (result?.ok === true) return undefined
-          const error = result?.error
-          const detail = error?.details
-          return (detail !== null && typeof detail === 'object' && typeof detail.reason === 'string' ? detail.reason : undefined)
-            ?? (typeof error?.message === 'string' ? error.message : 'unknown error')
+          if (result?.ok === true && result.value === target) return undefined
+          console.error('[creator-overlay] preset switch refused', result)
+          return true
         } catch (failure) {
-          return failure instanceof Error ? failure.message : String(failure)
+          console.error('[creator-overlay] preset switch failed', failure)
+          return true
         }
       }
 
@@ -195,6 +232,11 @@ window.__ModuleLoader__.load({
           console.error('[creator-overlay] dock registration failed', error)
           return () => {}
         }
+      })
+
+      loadDefaultBase(ctx)
+      ctx.on('connection/reset', () => {
+        loadDefaultBase(ctx)
       })
     }
 

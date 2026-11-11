@@ -24,6 +24,7 @@ DSH 的预设是一份扁平插件列表，一次会话只绑定一个预设，�
 ## 行为细节
 
 - 打开开关会调用宿主的 `agentPresets/select`，只在空白会话上生效；已开始第一轮的会话不会出现开关。
+- 客户端半在 `package.json` 的 `dsh.client.inject` 里声明 `@deepseek-ai/dsh-api-remotes`，并且同时在插件里注入 `remote` 与 `remote.agentPresets` 两个服务；缺少任一项时 `ctx.remote` 不可用，开关会退化为「切换失败」。
 - 开关打开时切换基础模式，会自动为新底座重新叠加创造组合，不会静默关闭。
 - 如果保存的新任务默认预设仍指向被隐藏的创造 id，运行时回退为 `standard`，不写回 profile 配置；新会话因此默认关闭创造。
 - 组合预设通过包装预设注册表的 `remoteExportList` 从名单中隐藏。这是私有服务接口；包装失败时插件降级为「组合体可见」并在日志中说明，开关仍可使用。
@@ -49,7 +50,7 @@ plugin_manager install_bundle <本目录绝对路径>
 
 | 文件 | 职责 |
 | --- | --- |
-| `index.js` | 宿主半：注册组合预设、隐藏名单、迁移默认值 |
+| `index.js` | 宿主半：注册组合预设、折叠名单、守住默认值 |
 | `host/presets.js` | 复制自内置 PTC / 极简预设的插件列表 |
-| `client.js` | 浏览器半：输入卡上方的「创造」开关与会话标题标签 |
+| `client.js` | 浏览器半：输入卡上方的「创造」开关 |
 | `cordis.patch.yml` | bundle 插入的 Loader 行 |

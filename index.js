@@ -142,47 +142,48 @@ function withCreationIncrement(rows, skillsDir, options) {
 }
 
 /**
- * Find a raw method by walking the prototype chain, bypassing the traceable
- * service proxy so the wrapper can be installed as an own property.
+ * Find a property descriptor by walking the prototype chain.
  * @param {object} service
- * @param {string} method
- * @returns {Function | undefined}
+ * @param {string} property
+ * @returns {{ owner: object, descriptor: PropertyDescriptor } | undefined}
  */
-function rawMethod(service, method) {
-  let target = Object.getPrototypeOf(service)
-  while (target !== null) {
-    const descriptor = Object.getOwnPropertyDescriptor(target, method)
-    if (descriptor !== undefined) return descriptor.value
-    target = Object.getPrototypeOf(target)
+function findDescriptor(service, property) {
+  let owner = Object.getPrototypeOf(service)
+  while (owner !== null) {
+    const descriptor = Object.getOwnPropertyDescriptor(owner, property)
+    if (descriptor !== undefined) return { owner, descriptor }
+    owner = Object.getPrototypeOf(owner)
   }
   return undefined
 }
 
 /**
- * Keep a service method patched for the plugin lifetime and restore it on
- * unload. The gateway resolves remote methods through `Reflect.get` on the
- * service instance, so an own property shadows the prototype method.
+ * Keep a service method patched on its declaring prototype for the plugin
+ * lifetime and restore it on unload. Patching the prototype (rather than the
+ * instance) keeps the override alive when the service instance is recreated.
+ * The gateway resolves remote methods through `Reflect.get` on the instance, so
+ * the prototype method is what it calls.
  * @param {object} ctx
  * @param {object} service
  * @param {string} method
  * @param {(original: Function) => Function} wrap
  */
 function patchServiceMethod(ctx, service, method, wrap) {
-  const original = rawMethod(service, method)
-  if (typeof original !== 'function') {
+  const found = findDescriptor(service, method)
+  if (found === undefined || typeof found.descriptor.value !== 'function') {
     ctx.logger?.warn?.(`creator-overlay: service method "${method}" is unavailable; the creation presets stay visible`)
     return false
   }
-  const patched = wrap(original)
+  const patched = wrap(found.descriptor.value)
   try {
-    service[method] = patched
+    Object.defineProperty(found.owner, method, { ...found.descriptor, value: patched })
   } catch (error) {
     ctx.logger?.warn?.(`creator-overlay: cannot patch "${method}": ${messageOf(error)}`)
     return false
   }
   ctx.effect(() => () => {
     try {
-      delete service[method]
+      Object.defineProperty(found.owner, method, found.descriptor)
     } catch (error) {
       ctx.logger?.warn?.(`creator-overlay: cannot restore "${method}": ${messageOf(error)}`)
     }
@@ -199,25 +200,15 @@ function patchServiceMethod(ctx, service, method, wrap) {
  * @returns {boolean} whether the effective default is now guarded
  */
 function patchDefaultId(ctx, service) {
-  let target = Object.getPrototypeOf(service)
-  let descriptor
-  while (target !== null) {
-    const found = Object.getOwnPropertyDescriptor(target, 'defaultId')
-    if (found !== undefined) {
-      descriptor = found
-      break
-    }
-    target = Object.getPrototypeOf(target)
-  }
-  if (typeof descriptor?.get !== 'function') {
+  const found = findDescriptor(service, 'defaultId')
+  if (typeof found?.descriptor.get !== 'function') {
     ctx.logger?.warn?.('creator-overlay: default preset getter is unavailable; a saved hidden default stays effective')
     return false
   }
-  const getter = descriptor.get
+  const getter = found.descriptor.get
   try {
-    Object.defineProperty(service, 'defaultId', {
-      configurable: true,
-      enumerable: false,
+    Object.defineProperty(found.owner, 'defaultId', {
+      ...found.descriptor,
       get() {
         const id = getter.call(this)
         return typeof id === 'string' && HIDDEN_IDS.has(id) ? 'standard' : id
@@ -229,9 +220,9 @@ function patchDefaultId(ctx, service) {
   }
   ctx.effect(() => () => {
     try {
-      delete service.defaultId
+      Object.defineProperty(found.owner, 'defaultId', found.descriptor)
     } catch {
-      // The plugin is unloading; a failed restore leaves the built-in getter in place.
+      // The plugin is unloading; a failed restore leaves the guard in place.
     }
   })
   return true
