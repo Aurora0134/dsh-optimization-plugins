@@ -191,30 +191,50 @@ function patchServiceMethod(ctx, service, method, wrap) {
 }
 
 /**
- * Migrate a saved default that points at a now-hidden preset. A shipped profile
- * may still select Creator as the new-task default; with Creator hidden that
- * would create every new session in creation mode.
+ * Keep the effective new-task default off the hidden ids. A profile that still
+ * saves Creator as its default would otherwise start every new session in
+ * creation mode now that Creator is no longer a selectable mode.
  * @param {object} ctx
+ * @param {object} service
+ * @returns {boolean} whether the effective default is now guarded
  */
-async function migrateDefault(ctx) {
-  let current
-  try {
-    current = ctx.agentPresets.defaultId
-  } catch {
-    return
+function patchDefaultId(ctx, service) {
+  let target = Object.getPrototypeOf(service)
+  let descriptor
+  while (target !== null) {
+    const found = Object.getOwnPropertyDescriptor(target, 'defaultId')
+    if (found !== undefined) {
+      descriptor = found
+      break
+    }
+    target = Object.getPrototypeOf(target)
   }
-  if (typeof current !== 'string' || !HIDDEN_IDS.has(current)) return
-  const settings = ctx.get('settings')
-  if (settings === undefined) {
-    ctx.logger?.warn?.('creator-overlay: default preset points at a hidden id and no settings service is available')
-    return
+  if (typeof descriptor?.get !== 'function') {
+    ctx.logger?.warn?.('creator-overlay: default preset getter is unavailable; a saved hidden default stays effective')
+    return false
   }
+  const getter = descriptor.get
   try {
-    await settings.update('agent-preset-registry', { selectedDefault: 'standard' })
-    ctx.logger?.info?.(`creator-overlay: migrated default preset "${current}" to "standard"`)
+    Object.defineProperty(service, 'defaultId', {
+      configurable: true,
+      enumerable: false,
+      get() {
+        const id = getter.call(this)
+        return typeof id === 'string' && HIDDEN_IDS.has(id) ? 'standard' : id
+      },
+    })
   } catch (error) {
-    ctx.logger?.warn?.(`creator-overlay: default preset migration skipped: ${messageOf(error)}`)
+    ctx.logger?.warn?.(`creator-overlay: cannot guard the default preset: ${messageOf(error)}`)
+    return false
   }
+  ctx.effect(() => () => {
+    try {
+      delete service.defaultId
+    } catch {
+      // The plugin is unloading; a failed restore leaves the built-in getter in place.
+    }
+  })
+  return true
 }
 
 /**
@@ -289,5 +309,7 @@ export async function apply(ctx) {
     return { ...roster, presets: roster.presets.filter((row) => !HIDDEN_IDS.has(row?.id)) }
   })
 
-  await migrateDefault(ctx)
+  // A profile that still saves Creator as its new-task default must not start
+  // every session in creation mode now that Creator is no longer selectable.
+  patchDefaultId(ctx, ctx.agentPresets)
 }
