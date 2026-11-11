@@ -184,7 +184,7 @@ window.__ModuleLoader__.load({
 
     const zh = {
       switch: '创造模式',
-      switchHint: '为 DSH 增加新能力：编写插件添加工具、界面入口或服务连接，也可以创建适合特定任务的自定义模式。开启后叠加在当前基础模式上，需在新会话开始前设置。',
+      switchHint: '编写插件为 DSH 添加工具或界面，也可以创建自定义模式。需在新会话开始前设置。',
       switchFailed: '切换失败，请重试',
       modeStandard: '标准模式',
       modePtc: 'PTC 模式',
@@ -192,7 +192,7 @@ window.__ModuleLoader__.load({
     }
     const en = {
       switch: 'Creator mode',
-      switchHint: 'Add new capabilities to DSH: write plugins that add tools, UI entries, or service connections, or create a custom mode for a specific task. It stacks on the selected base mode and must be set before the session starts.',
+      switchHint: 'Write plugins that add tools or UI to DSH, or create a custom mode. Set it before the session starts.',
       switchFailed: 'Could not switch. Try again.',
       modeStandard: 'Standard mode',
       modePtc: 'PTC mode',
