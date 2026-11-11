@@ -1,9 +1,9 @@
 {
   "name": "dsh-creator-overlay",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
-  "description": "Creation switch beside the mode chip: keep the three base modes and add the creation toolset on top.",
+  "description": "Creator mode switch beside the mode chip: keep the three base modes and stack the creation toolset on top.",
   "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",

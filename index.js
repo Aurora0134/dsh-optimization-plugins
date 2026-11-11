@@ -14,7 +14,7 @@
  * The composed ids are hidden from the agent-preset roster by wrapping the
  * registry's `remoteExportList`; `cordis` is hidden too, so the Web surface no
  * longer offers Creator as a mode and its native creator entry points disappear.
- * The client half puts the "创造" switch above the composer and selects the
+ * The client half puts the "创造模式" switch beside the mode chip and selects the
  * composed id on the blank session.
  *
  * The copied ptc/minimal lists live in ./host/presets.js and must be re-synced

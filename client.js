@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
     /**
      * Base mode used by a blank Session whose preset projection has not loaded
      * yet. The Host roster marks the effective default; the switch falls back to
-     * it so a fresh new-session screen still offers "创造".
+     * it so a fresh new-session screen still offers "创造模式".
      */
     let defaultBase = 'standard'
     const defaultListeners = new Set()
@@ -82,7 +82,7 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** The "创造" switch beside the mode chip on the New Session row. */
+    /** The "创造模式" switch beside the mode chip on the New Session row. */
     function CreationSwitch({ sessionId, useSessions, toggle, t }) {
       const id = sessionId
       const projected = useSessions((state) => {
@@ -183,16 +183,16 @@ window.__ModuleLoader__.load({
 `
 
     const zh = {
-      switch: '创造',
-      switchHint: '在当前基础模式上叠加创造能力，需在会话开始前设置',
+      switch: '创造模式',
+      switchHint: '为 DSH 增加新能力：编写插件添加工具、界面入口或服务连接，也可以创建适合特定任务的自定义模式。开启后叠加在当前基础模式上，需在新会话开始前设置。',
       switchFailed: '切换失败，请重试',
       modeStandard: '标准模式',
       modePtc: 'PTC 模式',
       modeMinimal: '极简模式',
     }
     const en = {
-      switch: 'Creation',
-      switchHint: 'Add the creation toolset on top of the selected base mode; set it before the session starts',
+      switch: 'Creator mode',
+      switchHint: 'Add new capabilities to DSH: write plugins that add tools, UI entries, or service connections, or create a custom mode for a specific task. It stacks on the selected base mode and must be set before the session starts.',
       switchFailed: 'Could not switch. Try again.',
       modeStandard: 'Standard mode',
       modePtc: 'PTC mode',
