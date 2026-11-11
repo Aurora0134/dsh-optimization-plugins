@@ -913,7 +913,7 @@ window.__ModuleLoader__.load({
           await openDialog({
             alert: true,
             title: '回退没有执行',
-            paragraphs: ['当前页面不支持从这条消息继续会话，回退没有执行。请刷新页面后再试。'],
+            paragraphs: ['服务没有完成这次操作，回退没有执行。'],
             actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
           });
           return;
@@ -934,7 +934,7 @@ window.__ModuleLoader__.load({
           await openDialog({
             alert: true,
             title: '回退没有执行',
-            paragraphs: ['没能开出新的会话，回退已停止。'],
+            paragraphs: ['服务没有完成这次操作，回退没有执行。'],
             actions: [{ id: 'close', label: '知道了', tone: 'primary' }],
           });
           return;
