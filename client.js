@@ -31,14 +31,14 @@ window.__ModuleLoader__.load({
     const BASE_IDS = new Set(['standard', 'ptc', 'minimal'])
 
     /**
-     * Copy key of the mode name a composed preset must display. The composed
-     * presets stay out of the preset roster, so the shipped surfaces that
-     * resolve a mode name from it fall back to the raw id.
+     * Copy key of each base mode name. A composed preset is labelled from its
+     * base: the composed ids stay out of the preset roster, so the shipped
+     * surfaces that resolve a mode name from it would print the raw id.
      */
     const BASE_NAME_KEY = {
-      cordis: 'modeStandard',
-      'ptc-creation': 'modePtc',
-      'minimal-creation': 'modeMinimal',
+      standard: 'modeStandard',
+      ptc: 'modePtc',
+      minimal: 'modeMinimal',
     }
 
     /** The base a preset id belongs to, or undefined for unrelated custom presets. */
@@ -51,6 +51,24 @@ window.__ModuleLoader__.load({
     /** Whether a preset id is a creation composition, and which base it overlays. */
     function creationOf(preset) {
       return typeof preset === 'string' ? BASE_FOR_CREATION[preset] : undefined
+    }
+
+    /** Whether a rendered string is a raw preset id the mode label must rewrite. */
+    function isModeId(text) {
+      return creationOf(text) !== undefined || BASE_NAME_KEY[text] !== undefined
+    }
+
+    /**
+     * Whether the switch is on, including the round trip in which the Session
+     * still carries the base preset. The mode label reads it so the label does
+     * not lose the creation layer for that round trip.
+     */
+    let creationOn = false
+    const creationListeners = new Set()
+    function setCreationOn(next) {
+      if (creationOn === next) return
+      creationOn = next
+      for (const listener of creationListeners) listener()
     }
 
     /**
@@ -118,6 +136,13 @@ window.__ModuleLoader__.load({
         && base !== undefined
       ) bridging.current = true
       const on = creation || bridging.current
+
+      // The mode label shows the creation layer, so it has to know the switch is
+      // on before the Session carries the composition — not a paint later.
+      const useBeforePaint = React.useLayoutEffect ?? React.useEffect
+      useBeforePaint(() => {
+        setCreationOn(on)
+      }, [on])
 
       // Choosing another base mode while creation is on keeps creation on: the
       // shipped chip just switched the preset, so re-apply the new composition.
@@ -215,6 +240,7 @@ window.__ModuleLoader__.load({
       modeStandard: '标准模式',
       modePtc: 'PTC 模式',
       modeMinimal: '极简模式',
+      creationSuffix: '创造',
     }
     const en = {
       switch: 'Creator mode',
@@ -223,6 +249,7 @@ window.__ModuleLoader__.load({
       modeStandard: 'Standard mode',
       modePtc: 'PTC mode',
       modeMinimal: 'Minimal mode',
+      creationSuffix: 'Creator',
     }
 
     const inject = ['slots', 'locale', 'remote', 'remote.agentPresets']
@@ -244,12 +271,13 @@ window.__ModuleLoader__.load({
       }, 'creator-overlay: styles')
 
       /**
-       * Keeps the mode name unchanged when creation is on. The New Session chip
-       * and the header label both resolve their text through the preset roster,
-       * which no longer lists the composed ids, so they print the raw id. The
-       * roster is the only seam those surfaces read, and it also feeds the mode
-       * menu, so the composed ids cannot simply stay in it: rewrite the two
-       * rendered strings instead, and leave every other node alone.
+       * Labels the rendered mode name. A Session with creation on carries a
+       * composed preset, which the roster no longer lists, so the New Session
+       * chip and the header label would print the raw id. The roster is the only
+       * seam those surfaces read and it also feeds the mode menu, so the composed
+       * ids cannot simply stay in it: rewrite the rendered strings instead, and
+       * leave every other node alone. The label names the base mode and the
+       * creation layer stacked on it.
        */
       ctx.effect(() => {
         if (typeof document === 'undefined' || document.body === null) return
@@ -265,17 +293,32 @@ window.__ModuleLoader__.load({
           '[class*="_seatLabel"]',
           '[class*="_label"][title]',
         ].join(',')
-        const nameOf = (id) => {
-          const key = BASE_NAME_KEY[id]
-          return key === undefined ? undefined : t(key)
-        }
         const inScope = (node) => {
           const parent = node.parentElement
           return parent !== null && parent.closest(scopes) !== null
         }
+        /**
+         * Mode a rendered string belongs to, and whether creation is on in it.
+         * The roster may already have resolved a base name before the composed
+         * preset arrives, so a resolved name counts as its base id.
+         */
+        const resolve = (text) => {
+          const composite = creationOf(text)
+          if (composite !== undefined) return { base: composite, layer: true }
+          if (BASE_NAME_KEY[text] !== undefined) return { base: text, layer: creationOn }
+          const named = Object.keys(BASE_NAME_KEY).find((mode) => t(BASE_NAME_KEY[mode]) === text)
+          return named === undefined ? undefined : { base: named, layer: creationOn }
+        }
+        /** Text a mode label shows: the base mode name plus the creation layer. */
+        const labelOf = (text) => {
+          const mode = resolve(text)
+          if (mode === undefined) return undefined
+          const name = t(BASE_NAME_KEY[mode.base])
+          return mode.layer ? `${name}--${t('creationSuffix')}` : name
+        }
         const patched = new Map()
         /**
-         * Rewrite an id to its mode name. The record keeps the id a node was
+         * Rewrite a rendered mode id. The record keeps the text a node was
          * renamed from; a node whose text changed to something else belongs to a
          * new render, so the record is dropped and the new text judged afresh —
          * otherwise the first name would stick for the session's whole life.
@@ -287,25 +330,32 @@ window.__ModuleLoader__.load({
               patched.delete(node)
               return
             }
+            const next = labelOf(held.source)
+            if (next === undefined) {
+              patched.delete(node)
+              return
+            }
             if (refresh) {
-              held.name = nameOf(held.id)
-              node.nodeValue = held.name
+              held.name = next
+              node.nodeValue = next
               return
             }
             if (node.nodeValue === held.name) return
-            if (node.nodeValue === held.id) {
-              node.nodeValue = held.name
+            if (node.nodeValue === held.source) {
+              held.name = next
+              node.nodeValue = next
               return
             }
             patched.delete(node)
           }
-          const text = node.nodeValue
-          if (typeof text !== 'string' || text.length > 24) return
-          const id = text.trim()
-          const name = nameOf(id)
-          if (name === undefined) return
+          const source = node.nodeValue
+          if (typeof source !== 'string') return
+          const text = source.trim()
+          if (text.length === 0 || text.length > 32) return
+          const name = labelOf(text)
+          if (name === undefined || name === text) return
           if (!inScope(node)) return
-          patched.set(node, { id, name })
+          patched.set(node, { source: text, name })
           node.nodeValue = name
         }
         const scan = (root) => {
@@ -325,9 +375,11 @@ window.__ModuleLoader__.load({
           }
         })
         observer.observe(document.body, { childList: true, subtree: true, characterData: true })
-        const unsubscribe = ctx.locale.subscribe(() => {
+        const refreshAll = () => {
           for (const node of [...patched.keys()]) relabel(node, true)
-        })
+        }
+        const unsubscribe = ctx.locale.subscribe(refreshAll)
+        creationListeners.add(refreshAll)
         /**
          * The label surfaces mount after the plugin applies, so watch for a
          * while: a mode name still rendered as an id means the selectors above
@@ -337,7 +389,7 @@ window.__ModuleLoader__.load({
         const diagnose = window.setInterval(() => {
           checks += 1
           const left = [...document.querySelectorAll('[class*="_seatLabel"],[class*="_label"][title]')]
-            .find((element) => nameOf(element.textContent?.trim()) !== undefined)
+            .find((element) => isModeId(String(element.textContent ?? '').trim()))
           if (left === undefined && checks < 6) return
           window.clearInterval(diagnose)
           if (left === undefined) return
@@ -349,6 +401,7 @@ window.__ModuleLoader__.load({
         return () => {
           observer.disconnect()
           unsubscribe()
+          creationListeners.delete(refreshAll)
           window.clearInterval(diagnose)
           patched.clear()
         }

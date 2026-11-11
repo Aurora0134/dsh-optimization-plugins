@@ -263,8 +263,8 @@ export async function apply(ctx) {
   })
 
   const definitions = [
-    { id: PTC_CREATION, name: 'PTC 模式 + 创造', description: 'PTC mode with the creation toolset.', order: 30, plugins: ptcRows },
-    { id: MINIMAL_CREATION, name: '极简模式 + 创造', description: 'Minimal mode with the creation toolset.', order: 40, plugins: minimalRows },
+    { id: PTC_CREATION, name: 'PTC 模式--创造', description: 'PTC mode with the creation toolset.', order: 30, plugins: ptcRows },
+    { id: MINIMAL_CREATION, name: '极简模式--创造', description: 'Minimal mode with the creation toolset.', order: 40, plugins: minimalRows },
   ]
 
   const disposers = []
