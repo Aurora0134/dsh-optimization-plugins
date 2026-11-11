@@ -5,10 +5,10 @@
  *  - a pre-mutation file recorder on the filesystem intent waterfalls, so every
  *    path a file tool is about to change has its current content stored before
  *    the mutation, attributed to the Session and turn that produced it;
- *  - the `sessionRollback` service (`state`, `prepare`, `restore`) published
- *    through `ctx.provide`, plus the same-origin routes the browser half posts
- *    to (`POST /session-rollback/state`, `POST /session-rollback/prepare`,
- *    `POST /session-rollback/restore`);
+ *  - the `sessionRollback` service (`state`, `prepare`, `restore`, `release`)
+ *    published through `ctx.provide`, plus the same-origin routes the browser half
+ *    posts to (`POST /session-rollback/state`, `POST /session-rollback/prepare`,
+ *    `POST /session-rollback/restore`, `POST /session-rollback/release`);
  *  - per-Session cleanup of the captured content.
  *
  * Both the service and the routes are wired from one instance, and every

@@ -41,6 +41,7 @@ window.__ModuleLoader__.load({
     const STATE_ROUTE = '/session-rollback/state';
     const PREPARE_ROUTE = '/session-rollback/prepare';
     const RESTORE_ROUTE = '/session-rollback/restore';
+    const RELEASE_ROUTE = '/session-rollback/release';
     const LABEL = '回退到此消息';
 
     const CSS = `
@@ -870,6 +871,8 @@ window.__ModuleLoader__.load({
       }
       rollbackInFlight = true;
       button.setAttribute(BUSY_ATTRIBUTE, '');
+      /** Whether this attempt still holds the Host-side claim `prepare` took. */
+      let leaseHeld = false;
       try {
         const state = await postJson(STATE_ROUTE, { sessionId });
         if (state.available !== true) {
@@ -897,6 +900,7 @@ window.__ModuleLoader__.load({
         if (typeof target.seq === 'number' && Number.isSafeInteger(target.seq)) request.seq = target.seq;
         else request.ordinal = target.ordinal;
         const prepared = await postJson(PREPARE_ROUTE, request);
+        leaseHeld = prepared.ok === true;
         if (prepared.ok !== true) {
           const reason = typeof prepared.reason === 'string' ? prepared.reason : '';
           await openDialog({
@@ -960,6 +964,9 @@ window.__ModuleLoader__.load({
         let restored;
         try {
           restored = await postJson(RESTORE_ROUTE, restoreRequest);
+          // The Host drops the claim while restoring; a request that never arrived
+          // still needs the release below.
+          leaseHeld = false;
         } catch {
           restored = { ok: false, stage: 'files', reason: 'file-restore-incomplete', files: null, incompleteTurns: [], complete: false };
         }
@@ -990,6 +997,15 @@ window.__ModuleLoader__.load({
       } finally {
         rollbackInFlight = false;
         button.removeAttribute(BUSY_ATTRIBUTE);
+        if (leaseHeld) {
+          // The fork step failed, so nothing else will free the claim: release it
+          // instead of leaving the session unreachable for the next attempt.
+          try {
+            await postJson(RELEASE_ROUTE, { sessionId });
+          } catch {
+            // The claim expires on its own; the attempt already reported its failure.
+          }
+        }
       }
     }
 

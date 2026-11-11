@@ -177,7 +177,8 @@ export function resolveTarget(session, recorder, request) {
  * `turn/end`. That keeps the target turn's opening records (`turn/start`, inbox
  * splices, `step/start`) out of the child, which would otherwise claim a message
  * the child does not hold. A first turn has no earlier `turn/end`; the cut then
- * falls back to the event immediately before its `turn/start`.
+ * falls back to the event before the inbox splice that queues its prompt, so the
+ * clicked message is not inherited as pending input.
  *
  * @param {object} session live Session
  * @param {number} targetSeq sequence of the clicked user message
@@ -208,10 +209,32 @@ export function forkBoundary(session, targetSeq) {
     if (event.seq >= turnStart.seq) continue
     if (event.type === 'turn/end') boundary = event.seq
   }
-  if (boundary === undefined) boundary = turnStart.seq - 1
+  if (boundary === undefined) boundary = firstTurnCut(bySeq, turnStart)
   if (!Number.isSafeInteger(boundary) || boundary < 0) return undefined
   if (!bySeq.has(boundary)) return undefined
   return { boundary, turnStartSeq: turnStart.seq }
+}
+
+/**
+ * Where to cut when the target turn is the Session's first.
+ *
+ * A prompt reaches the agent through an `agent/inbox/spliced` insert before the
+ * turn that consumes it, so `turnStart - 1` is that insert and the child would
+ * inherit the clicked message as pending input. Cut before the inserts instead,
+ * keeping the session setup the prefix already holds.
+ *
+ * @param {Map<number, object>} bySeq events by sequence
+ * @param {{ seq: number }} turnStart first `turn/start`
+ * @returns {number} an existing sequence, or `turnStart - 1` when nothing precedes them
+ */
+function firstTurnCut(bySeq, turnStart) {
+  let queued
+  for (const event of bySeq.values()) {
+    if (event.seq >= turnStart.seq) continue
+    if (event.type === 'agent/inbox/spliced' && queued === undefined) queued = event.seq
+  }
+  const before = (queued ?? turnStart.seq) - 1
+  return bySeq.has(before) ? before : turnStart.seq - 1
 }
 
 /**
@@ -385,7 +408,8 @@ export async function prepareRollback({ ctx, session, store, recorder, request, 
  * half created the child Session from `prepareRollback`'s cut.
  *
  * The child inherits the parent's turn records from before the target turn first,
- * so the continued session can restore those files again later.
+ * so the continued session can restore those files again later. It also drops the
+ * input the cut left pending: those messages were queued for a removed turn.
  *
  * @param {object} options
  * @param {object} options.ctx Cordis context
@@ -409,6 +433,7 @@ export async function restoreRollback({ ctx, store, recorder, request, logger = 
       logger.warn?.(`session-rollback: the child session could not inherit the snapshots of "${sessionId}": ${messageOf(error)}`)
     }
   }
+  if (childSessionId !== '') dropInheritedInput(ctx, childSessionId, logger)
 
   const files = turn === undefined
     ? { turns: [], restored: [], deleted: [], skipped: [], failed: [], untracked: true }
@@ -440,6 +465,31 @@ export async function restoreRollback({ ctx, store, recorder, request, logger = 
     complete,
     conversation: null,
     writeBack: null,
+  }
+}
+
+/**
+ * Drop pending input the child inherited through the fork prefix.
+ *
+ * A user message is queued by an `agent/inbox/spliced` insert that the consuming
+ * turn claims afterwards; a cut between the two would leave that message pending
+ * in the child, where the next turn would claim and run it again.
+ *
+ * @param {object} ctx Cordis context carrying `agents`
+ * @param {string} childSessionId forked Session that inherited the prefix
+ * @param {{ warn?: Function }} logger
+ * @returns {void}
+ */
+function dropInheritedInput(ctx, childSessionId, logger) {
+  try {
+    const inbox = ctx?.agents?.get?.(childSessionId)?.inbox
+    if (inbox === undefined || inbox === null) return
+    if (inbox.nextTurn.length === 0 && inbox.nextStep.length === 0) return
+    inbox.clear()
+  } catch (error) {
+    logger.warn?.(
+      `session-rollback: the child session "${childSessionId}" could not drop inherited input: ${messageOf(error)}`,
+    )
   }
 }
 

@@ -26,8 +26,9 @@ await post('/session-rollback/restore', { sessionId, childSessionId: childId, tu
 await ctx.workspaces.archiveSession(sessionId)
 ```
 
-- `atSeq` 是分叉边界，取**目标消息所属轮次之前的最后一个事件**：通常是上一轮的 `turn/end`；首轮没有上一轮，取它的 `turn/start` 前一个事件。这样目标轮次自己的开场记录（`turn/start`、inbox 声明、`step/start`）不会进入新会话。
+- `atSeq` 是分叉边界，取**目标消息所属轮次之前的最后一个事件**：通常是上一轮的 `turn/end`；首轮没有上一轮，取它的 inbox 声明之前的事件（用户消息先进 `agent/inbox/spliced`，再由 `turn/start` 领取，切在声明之后会把待领取的消息带进新会话）。这样目标轮次自己的开场记录（`turn/start`、inbox 声明、`step/start`）不会进入新会话。
 - 新会话只继承到边界为止的事件。被点击的用户消息、它所属轮次的 agent 输出、以及之后所有轮次都不在继承范围内，因此对话界面、模型上下文和轨迹都不再包含它们。
+- 边界之后仍留在 inbox 里排队、还没被某一轮领取的用户消息，会在分叉后从新会话里清掉：它们都属于被回退掉的轮次，否则下一轮会把它们当成新的提问再跑一遍。
 - 原会话保留并归档：会话列表里仍显示新会话（标题不变），原会话可在归档里找回；归档失败只影响列表，不影响回退结果。
 - 宿主在分叉前只做校验和边界计算，日志没有任何变化；分叉失败时会话保持原样。
 - 子会话继承父会话在目标轮次之前的文件快照记录（目标轮次本身已被切掉），之后在子会话里继续回退仍能恢复这些文件。
@@ -55,13 +56,14 @@ await ctx.workspaces.archiveSession(sessionId)
 
 ## 宿主接口
 
-宿主服务键 `sessionRollback`，三个方法各对应一条与页面同源的 HTTP 路由（`host/api.js`）。浏览器半用 `fetch` 直接调它们，不带自定义头、不走 RPC 命名空间。
+宿主服务键 `sessionRollback`，四个方法各对应一条与页面同源的 HTTP 路由（`host/api.js`）。浏览器半用 `fetch` 直接调它们，不带自定义头、不走 RPC 命名空间。
 
 | 方法 | 路径 | 请求 |
 |---|---|---|
 | `POST` | `/session-rollback/state` | JSON 体 `{ sessionId }`；也接受 `GET ?sessionId=<id>` |
 | `POST` | `/session-rollback/prepare` | JSON 体 `{ sessionId, seq?, ordinal?, index? }` |
 | `POST` | `/session-rollback/restore` | JSON 体 `{ sessionId, childSessionId?, turn? }` |
+| `POST` | `/session-rollback/release` | JSON 体 `{ sessionId }`；`prepare` 之后没能开出新会话时调用 |
 
 请求体必须是 `application/json`，上限 64 KiB。鉴权由组合的 `connection` 服务负责：路由先用 `requestRejection` 过 Host/Origin 围栏与浏览器登录态校验，通过后才处理请求；没有有效登录态一律拒绝。
 
@@ -130,11 +132,19 @@ await ctx.workspaces.archiveSession(sessionId)
   conversation: null            // 保留字段，分叉不在宿主执行
   writeBack: null
 }
+
+// POST /session-rollback/release  { sessionId }
+{
+  ok: true
+  sessionId: string
+}
 ```
 
-`seq` 优先；拿不到（页面还没拿到事件序号）时传 `ordinal`（1 基）或 `index`（0 基），二者等价。`seq` 必须指向当前 surface 中一条 `source.kind` 为 `user` 的用户消息，注入的上下文不是用户提问，不能作为回退目标。`restore` 的 `childSessionId` 用来让子会话继承父会话的文件快照；省略时只恢复文件、不继承。
+`seq` 优先；拿不到（页面还没拿到事件序号）时传 `ordinal`（1 基）或 `index`（0 基），二者等价。`seq` 必须指向当前 surface 中一条 `source.kind` 为 `user` 的用户消息，注入的上下文不是用户提问，不能作为回退目标。`restore` 的 `childSessionId` 用来让子会话继承父会话的文件快照、并清掉它继承到的排队输入；省略时只恢复文件、不继承。
 
-路由注册在 `ctx.inject(['webServer', 'connection'], ...)` 的子上下文里，`webServer.register` 返回的 disposer 由 `ctx.effect` 持有，所以插件卸载时三条路由随之移除。服务实例只创建一次，`ctx.provide` 与路由收到的是同一个对象。
+`prepare` 会在宿主侧占住这个会话，`restore` 结束时释放。浏览器半在 `prepare` 之后没能开出新会话（分叉报错或没拿到子会话 id）时必须调 `release`，否则这次回退要等占用过期才能重试；页面已在 `finally` 里兜住这条路径。
+
+路由注册在 `ctx.inject(['webServer', 'connection'], ...)` 的子上下文里，`webServer.register` 返回的 disposer 由 `ctx.effect` 持有，所以插件卸载时四条路由随之移除。服务实例只创建一次，`ctx.provide` 与路由收到的是同一个对象。
 
 ## 快照落点
 

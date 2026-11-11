@@ -275,8 +275,22 @@ export function createRollbackService({ ctx, store, recorder, logger = console }
         running.delete(session.id)
       }
     }
+
+    /**
+     * Drop the claim `prepare` took, without touching the conversation or the files.
+     * The browser half calls this when the fork step failed, so the next attempt is
+     * not refused by a rollback that never started.
+     * @param {object} request `{ sessionId }`
+     * @returns {{ ok: boolean, sessionId: string }} the released identity
+     */
+    release(request) {
+      const asked = request !== null && typeof request === 'object' ? request : {}
+      const sessionId = typeof asked.sessionId === 'string' ? asked.sessionId : ''
+      if (sessionId !== '') running.delete(sessionId)
+      return { ok: true, sessionId }
+    }
   }
 
-  markRemoteMethods(SessionRollback.prototype, ['state', 'prepare', 'restore'])
+  markRemoteMethods(SessionRollback.prototype, ['state', 'prepare', 'restore', 'release'])
   return new SessionRollback(ctx)
 }

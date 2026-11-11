@@ -37,6 +37,9 @@ export const PREPARE_PATH = `${BASE}/prepare`
 /** `POST` the file restoration of the turns a fork rolled away. */
 export const RESTORE_PATH = `${BASE}/restore`
 
+/** `POST` the release of a preparation whose fork step failed. */
+export const RELEASE_PATH = `${BASE}/release`
+
 /** Two small field objects are all these routes carry; anything larger is hostile. */
 const MAX_BODY_BYTES = 64 * 1024
 
@@ -250,7 +253,8 @@ export function registerRollbackApi({ ctx, service, logger = console }) {
   if (service === undefined || service === null
     || typeof service.state !== 'function'
     || typeof service.prepare !== 'function'
-    || typeof service.restore !== 'function') {
+    || typeof service.restore !== 'function'
+    || typeof service.release !== 'function') {
     logger.warn?.('session-rollback: the rollback service is unavailable; the page cannot reach it')
     return false
   }
@@ -289,6 +293,12 @@ export function registerRollbackApi({ ctx, service, logger = console }) {
         if (childSessionId !== undefined) request.childSessionId = childSessionId
         if (turn !== undefined) request.turn = turn
         sendJson(res, 200, await service.restore(request))
+      },
+    },
+    {
+      path: RELEASE_PATH,
+      async POST(_req, res, _query, body) {
+        sendJson(res, 200, service.release({ sessionId: requiredString(body, 'sessionId') }))
       },
     },
   ]
