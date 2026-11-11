@@ -95,9 +95,29 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [error, setError] = React.useState(null)
       const lastPreset = React.useRef(preset)
+      const seenPreset = React.useRef(preset)
+      const bridging = React.useRef(false)
+      const inflight = React.useRef(undefined)
       const suppressContinuity = React.useRef(false)
       const base = preset === undefined ? fallbackBase : baseOf(preset)
-      const on = creationOf(preset) !== undefined
+      const creation = creationOf(preset) !== undefined
+      /**
+       * A base picked while creation is on is only the first half of the
+       * switch: the Session turns into that base's creation composition one
+       * round trip later. Keep reporting creation as on across that gap, or the
+       * switch slides off and back on for every base change.
+       */
+      const seen = seenPreset.current
+      seenPreset.current = preset
+      if (creation) bridging.current = false
+      else if (
+        bridging.current === false
+        && creationOf(seen) !== undefined
+        && suppressContinuity.current === false
+        && blank
+        && base !== undefined
+      ) bridging.current = true
+      const on = creation || bridging.current
 
       // Choosing another base mode while creation is on keeps creation on: the
       // shipped chip just switched the preset, so re-apply the new composition.
@@ -108,19 +128,25 @@ window.__ModuleLoader__.load({
           suppressContinuity.current = false
           return
         }
-        if (creationOf(previous) === undefined) return
-        if (creationOf(preset) !== undefined) return
+        if (creationOf(preset) !== undefined) {
+          bridging.current = false
+          inflight.current = undefined
+          return
+        }
+        if (creationOf(previous) === undefined && bridging.current !== true) return
         const nextBase = baseOf(preset)
         if (nextBase === undefined || !blank) return
         const target = CREATION_FOR_BASE[nextBase]
-        if (target === undefined) return
+        if (target === undefined || inflight.current === target) return
+        inflight.current = target
         suppressContinuity.current = true
-        setBusy(true)
+        bridging.current = true
         setError(null)
         Promise.resolve(toggle(id, target)).then((refused) => {
-          setBusy(false)
+          if (inflight.current === target) inflight.current = undefined
           if (refused === true) {
             suppressContinuity.current = false
+            bridging.current = false
             setError(t('switchFailed'))
           }
         })
@@ -129,7 +155,7 @@ window.__ModuleLoader__.load({
       if (id === undefined || !blank || base === undefined) return null
 
       const onClick = async () => {
-        if (busy) return
+        if (busy || bridging.current) return
         const target = on ? base : CREATION_FOR_BASE[base]
         if (target === undefined) return
         setBusy(true)
