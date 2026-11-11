@@ -228,7 +228,17 @@ window.__ModuleLoader__.load({
       ctx.effect(() => {
         if (typeof document === 'undefined' || document.body === null) return
         const t = ctx.locale.bind(NS)
-        const scopes = '[data-slot="conversation.hero.agentPreset"],[data-slot="conversation.session.header.actions"]'
+        /**
+         * Surfaces that render the mode name: the two labelled slots, plus the
+         * chip's own label and a titled label span. The class suffixes keep the
+         * rewrite alive if a slot attribute ever changes name.
+         */
+        const scopes = [
+          '[data-slot="conversation.hero.agentPreset"]',
+          '[data-slot="conversation.session.header.actions"]',
+          '[class*="_seatLabel"]',
+          '[class*="_label"][title]',
+        ].join(',')
         const nameOf = (id) => {
           const key = BASE_NAME_KEY[id]
           return key === undefined ? undefined : t(key)
@@ -253,7 +263,8 @@ window.__ModuleLoader__.load({
           if (typeof text !== 'string' || text.length > 24) return
           const id = text.trim()
           const name = nameOf(id)
-          if (name === undefined || !inScope(node)) return
+          if (name === undefined) return
+          if (!inScope(node)) return
           patched.set(node, id)
           node.nodeValue = name
         }
@@ -277,9 +288,28 @@ window.__ModuleLoader__.load({
         const unsubscribe = ctx.locale.subscribe(() => {
           for (const node of [...patched.keys()]) relabel(node)
         })
+        /**
+         * The label surfaces mount after the plugin applies, so watch for a
+         * while: a mode name still rendered as an id means the selectors above
+         * no longer match, and this reports where it was found.
+         */
+        let checks = 0
+        const diagnose = window.setInterval(() => {
+          checks += 1
+          const left = [...document.querySelectorAll('[class*="_seatLabel"],[class*="_label"][title]')]
+            .find((element) => nameOf(element.textContent?.trim()) !== undefined)
+          if (left === undefined && checks < 6) return
+          window.clearInterval(diagnose)
+          if (left === undefined) return
+          console.warn('[creator-overlay] mode name left as an id', {
+            slot: left.closest('[data-slot]')?.getAttribute('data-slot') ?? null,
+            html: left.outerHTML.slice(0, 200),
+          })
+        }, 5000)
         return () => {
           observer.disconnect()
           unsubscribe()
+          window.clearInterval(diagnose)
           patched.clear()
         }
       }, 'creator-overlay: mode names')
