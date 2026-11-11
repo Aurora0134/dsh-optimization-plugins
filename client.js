@@ -1,12 +1,12 @@
 /**
  * Browser half of `dsh-creator-overlay`.
  *
- * One switch in `conversation.input.dock` — the full-width strip above the
- * composer card. The switch is offered only while the Session is still blank:
- * the Host binds one preset composition before the first turn and refuses to
- * swap it afterwards. Flipping the switch selects the composed creation preset
- * on the blank Session; choosing another base mode while it is on re-applies
- * the creation composition for the new base.
+ * One switch in `conversation.hero.options` — the cluster the New Session row
+ * keeps to the right of the mode chip. The switch is offered only while the
+ * Session is still blank: the Host binds one preset composition before the
+ * first turn and refuses to swap it afterwards. Flipping the switch selects the
+ * composed creation preset on the blank Session; choosing another base mode
+ * while it is on re-applies the creation composition for the new base.
  */
 window.__ModuleLoader__.load({
   id: 'dsh-creator-overlay',
@@ -71,20 +71,20 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** The "创造" switch above the composer card. */
-    function CreationSwitch({ session, sessionId, useSessions, toggle, t }) {
-      const id = sessionId ?? session.id
+    /** The "创造" switch beside the mode chip on the New Session row. */
+    function CreationSwitch({ sessionId, useSessions, toggle, t }) {
+      const id = sessionId
       const projected = useSessions((state) => {
         const value = state.byId[id]?.projectionValues?.agentPreset
         return typeof value === 'string' ? value : undefined
       })
+      const blank = useSessions((state) => state.byId[id]?.blank === true)
       const fallbackBase = React.useSyncExternalStore(defaultSource.subscribe, defaultSource.getSnapshot)
       const preset = projected
       const [busy, setBusy] = React.useState(false)
       const [error, setError] = React.useState(null)
       const lastPreset = React.useRef(preset)
       const suppressContinuity = React.useRef(false)
-      const blank = session.blank === true
       const base = preset === undefined ? fallbackBase : baseOf(preset)
       const on = creationOf(preset) !== undefined
 
@@ -115,7 +115,7 @@ window.__ModuleLoader__.load({
         })
       }, [preset, blank, id, toggle, t])
 
-      if (!blank || base === undefined) return null
+      if (id === undefined || !blank || base === undefined) return null
 
       const onClick = async () => {
         if (busy) return
@@ -138,29 +138,27 @@ window.__ModuleLoader__.load({
         }
       }
 
-      return h('div', { className: 'dsh-creator-dock' },
-        h('div', { className: 'dsh-creator-row' },
-          error === null ? null : h('span', { className: 'dsh-creator-error', role: 'alert' }, error),
-          h('button', {
-            type: 'button',
-            role: 'switch',
-            className: 'dsh-creator-switch',
-            'aria-checked': on,
-            'aria-label': t('switch'),
-            title: t('switchHint'),
-            disabled: busy,
-            onClick,
-          },
-            h('span', { className: 'dsh-creator-track', 'data-on': on ? 'true' : 'false' },
-              h('span', { className: 'dsh-creator-thumb' })),
-            h('span', { className: 'dsh-creator-text' }, t('switch')),
-          )),
-      )
+      return h('div', { className: 'dsh-creator-inline' },
+        error === null ? null : h('span', { className: 'dsh-creator-error', role: 'alert' }, error),
+        h('button', {
+          type: 'button',
+          role: 'switch',
+          className: 'dsh-creator-switch',
+          'aria-checked': on,
+          'aria-label': t('switch'),
+          title: t('switchHint'),
+          disabled: busy,
+          onClick,
+        },
+          h('span', { className: 'dsh-creator-track', 'data-on': on ? 'true' : 'false' },
+            h('span', { className: 'dsh-creator-thumb' })),
+          h('span', { className: 'dsh-creator-text' }, t('switch')),
+        ))
     }
 
     const CSS = `
-.dsh-creator-dock{box-sizing:border-box;width:calc(100% - var(--dsh-composer-side-clearance,0px) - var(--dsh-composer-side-clearance,0px) - var(--dsh-composer-dock-inset,0px) - var(--dsh-composer-dock-inset,0px) - var(--dsh-composer-dock-inset,0px) - var(--dsh-composer-dock-inset,0px));margin:0 auto}
-.dsh-creator-row{box-sizing:border-box;width:100%;max-width:calc(var(--dsh-composer-card-max-width,100%) - 4 * var(--dsh-composer-dock-inset,0px));margin:0 auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:26px}
+.dsh-creator-inline{display:flex;align-items:center;gap:8px;min-width:0;margin-left:6px}
+[class*="_heroOptions"]:has(.dsh-creator-inline){margin-left:0}
 .dsh-creator-switch{box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px 0 7px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);background:0 0;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:22px;cursor:pointer;transition:color .15s ease,border-color .15s ease,background-color .15s ease}
 .dsh-creator-switch:hover{background:var(--dsw-alias-bg-layer-2)}
 .dsh-creator-switch:disabled{opacity:.5;cursor:default}
@@ -219,17 +217,17 @@ window.__ModuleLoader__.load({
         }
       }
 
-      ctx.slots.inject('conversation.input.dock', () => {
+      ctx.slots.inject('conversation.hero.options', () => {
         try {
           return ctx.slots.register({
-            name: 'conversation.input.dock',
+            name: 'conversation.hero.options',
             id: 'creation-overlay',
-            order: 30,
+            order: 0,
             locale: NS,
             inject: () => ({ toggle }),
           }, CreationSwitch)
         } catch (error) {
-          console.error('[creator-overlay] dock registration failed', error)
+          console.error('[creator-overlay] switch registration failed', error)
           return () => {}
         }
       })
