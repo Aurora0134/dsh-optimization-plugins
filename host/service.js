@@ -1,15 +1,17 @@
 /**
- * The Host service `sessionRollback`: the three operations the browser half uses.
+ * The Host service `sessionRollback`: the operations the browser half uses.
  *
  * `state` answers whether a session can be rolled back right now and which user
  * messages the current surface holds; `prepare` resolves the clicked message and
  * the fork cut that removes its turn; `restore` brings back the files those
- * turns changed after the browser half created the child Session. The browser
- * reaches all three through the same-origin HTTP routes `host/api.js` registers;
- * this module owns only the behaviour and the service identity.
+ * turns changed and clears the input the child inherited, after the browser half
+ * created the child Session; `release` drops a preparation whose fork never
+ * happened. The browser reaches all four through the same-origin HTTP routes
+ * `host/api.js` registers; this module owns only the behaviour and the service
+ * identity.
  *
  * The instance also carries Typert Remote markers, which cost nothing and keep
- * any consumer of the Remote protocol able to read the same two operations. This
+ * any consumer of the Remote protocol able to read the same operations. This
  * package ships no generated `./typert` artifact, so it declares the same class
  * metadata that the protocol decorators write: a versioned descriptor on the
  * class prototype, and the `typertRemote` binding a Cordis Service constructor

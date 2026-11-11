@@ -230,7 +230,7 @@ function wrapRoute(route, connection, logger) {
 }
 
 /**
- * Register both routes on the composition's `webServer`.
+ * Register every route on the composition's `webServer`.
  *
  * `ctx` must be the Context that carries `webServer` and `connection` (the child
  * Context `ctx.inject(['webServer', 'connection'], ...)` provides), and `service`
@@ -239,7 +239,7 @@ function wrapRoute(route, connection, logger) {
  *
  * @param {object} options
  * @param {object} options.ctx Context carrying `webServer` and `connection`
- * @param {object} options.service the `sessionRollback` service (`state`, `prepare`, `restore`)
+ * @param {object} options.service the `sessionRollback` service (`state`, `prepare`, `restore`, `release`)
  * @param {{ warn?: Function }} [options.logger]
  * @returns {boolean} whether every route was registered
  */
