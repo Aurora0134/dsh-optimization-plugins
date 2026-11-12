@@ -19,7 +19,7 @@ part 的职责：
 | `10-api.js` | 同源 JSON 请求封装 `WF_API`（运行态、产物、保存的工作流、策略） |
 | `15-styles.js` | 基础控件样式 `WF_UI_CSS` 与样式收集器 |
 | `20-ui.js` | 共享控件、图标、格式化与轮询 hook `WF_UI` |
-| `30-cards.js` | 工具卡片外壳、字典绑定、`WF_CARDS` 注册、展开记忆 |
+| `30-cards.js` | 工具卡片外壳、字典绑定、`WF_CARDS` 注册、展开记忆；卡片按 `toolCallId` 认出本次调用的 run（不解析结果文案） |
 | `31-cache.js` | 会话级 run 缓存：单定时器合并轮询、页面隐藏暂停 |
 | `32-run-card.js` | 会话内联运行卡 |
 | `33-snippet.js` | `EvalWorkflowSnippet` 片段卡 |
@@ -32,13 +32,13 @@ part 的职责：
 | `43-detail-phases.js` | 阶段折叠行与子代理 pill |
 | `44-detail-artifacts.js` | 产物区（版本、预览、字节读取） |
 | `45-detail-roster.js` | 子代理花名册 |
-| `45-permission.js` | 启动确认：卡片内确认块 `WF_PERMISSION.Block` 与对话框 `WF_PERMISSION.open` |
+| `45-permission.js` | 启动确认：卡片内确认块 `WF_PERMISSION.Block` 与对话框 `WF_PERMISSION.open`，两者对同一个 run 互斥（卡片在会话里挂载时不自动弹对话框） |
 | `46-workspace.js` | 脚本步骤（world 操作台账）工作区 |
 | `47-detail-styles.js` | 详情相关样式 |
 | `50-directory.js` | 工作流库主面板与侧栏入口 `WF_DIRECTORY` |
 | `55-save.js` | 保存 / 从运行另存 `WF_SAVE` |
 | `60-settings.js` | 设置页策略行 `WF_SETTINGS` |
-| `70-status.js` | 会话标题栏运行入口与后台结果 `WF_STATUS` |
+| `70-status.js` | 会话标题栏运行入口与后台结果 `WF_STATUS`；会话身份取座位 standard props，目录跳转经 `layout.selectPanel` |
 | `90-apply.js` | 注册字典、样式、槽位 |
 
 每个 part 暴露的对象提供 `register(ctx, effect)`；`90-apply.js` 负责按顺序调用，用了存在性守卫，缺哪个 part 就跳过哪个面。

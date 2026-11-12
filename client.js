@@ -3065,12 +3065,18 @@ function wfCardFailed(props, phase) {
 
 /** Tool-call identity, used to correlate a card with the run it launched. */
 function wfCardToolCallId(props) {
+  const block = wfCardRecord(props.block) ? props.block : undefined;
   return wfCardFirstText(
+    // The Harness delivers the wire call id as `callId` on the slot owner and on the block; the
+    // broker shape spells the same fact `toolId` / `toolCallId`. A run row carries it as
+    // `toolCallId`, so every spelling has to land on one value for the card to claim its run.
+    props.callId,
     props.toolId,
     props.toolCallId,
     props.id,
-    wfCardRecord(props.block) ? props.block.toolCallId : undefined,
-    wfCardRecord(props.block) ? props.block.id : undefined,
+    block === undefined ? undefined : block.callId,
+    block === undefined ? undefined : block.toolCallId,
+    block === undefined ? undefined : block.id,
   ) || undefined;
 }
 
@@ -3292,8 +3298,21 @@ function wfCardArgRunId(model) {
   return wfCardFirstText(model.args('run_id'), model.args('runId'), model.args('run')) || undefined;
 }
 
-/** The run id a settled result names for the given tool. */
+/** Tools that launch a run: their run is claimed through the tool call, never through arguments. */
+const WF_CARD_LAUNCH_TOOLS = new Set(['CreateWorkflow', 'AmendWorkflow', 'FillWorkflowHole']);
+
+/**
+ * The run id a card's own tool works on, for the tools that name one.
+ *
+ * A launch is deliberately absent: it names no run of its own (an Amend names the run it replaces,
+ * a Create names none until it starts), so a launch card subscribes to nothing here and claims its
+ * run by tool call id instead.
+ *
+ * @param {object} model card model
+ * @returns {string | undefined}
+ */
 function wfCardResultRunId(model) {
+  if (WF_CARD_LAUNCH_TOOLS.has(model.key)) return undefined;
   if (model.failed) return wfCardArgRunId(model);
   const text = model.resultText;
   const structured = model.structured;
@@ -3302,13 +3321,10 @@ function wfCardResultRunId(model) {
     : wfCardFirstText(structured.runId, structured.run_id, wfCardRecord(structured.run) ? structured.run.id : undefined, structured.id);
   if (fromValue !== '') return fromValue;
   const patterns = {
-    CreateWorkflow: /^Run ID:\s*(\S+)/m,
-    AmendWorkflow: /^Started revised run\s+(\S+)/m,
     GetWorkflowRun: /^Run\s+(\S+)\s/m,
     TaskOutput: /^Run\s+(\S+)\s/m,
     StopWorkflowRun: /^Stopped run\s+(\S+?)\./m,
     ResumeWorkflowRun: /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m,
-    FillWorkflowHole: /on run\s+(\S+?);/m,
   };
   const pattern = patterns[model.key];
   if (pattern !== undefined) {
@@ -4001,6 +4017,11 @@ function wfCardPendingRun(model, live) {
  *      token, round and artifact tallies plus the resume action);
  *   3. no run yet — the draft states (writing / revising / draft / awaiting confirmation /
  *      validating), where the card keeps the source row, the script disclosure and the output.
+ *
+ * Which run a card shows is decided by the tool call, not by its result text: the Session's run
+ * catalogue carries the `toolCallId` of the call that launched each run, and the card takes the row
+ * that names its own `callId`. A launch still waiting for its answer has no journal yet and is
+ * claimed by the confirmation block instead.
  */
 
 /** Status keys of the card header kind, in the order the run card resolves them. */
@@ -4552,13 +4573,40 @@ WF_STYLE_PARTS.push(WF_CARDS_RUN_CSS);
 
 /* ---------------------------------- glyph --------------------------------- */
 
+/**
+ * The run row this card owns.
+ *
+ * ZCode pairs a transcript card with its run through the tool call that launched it: the Session's
+ * run catalogue is reduced to a `toolCallId → run` map and the card reads its own entry. A launch
+ * still waiting for its answer is not a run yet — the confirmation block owns that row — so only
+ * rows that already have a journal are returned here.
+ *
+ * The catalogue is a Session-level listing: a snapshot keyed by run id never carries `runs`, so the
+ * card reads the Session snapshot to claim its row and only afterwards subscribes to that run.
+ *
+ * @param {object} model card model
+ * @param {object | undefined} sessionLive the Session-level snapshot (its `runs` listing)
+ * @returns {object | undefined}
+ */
+function wfRunCardOwnRow(model, sessionLive) {
+  if (model === undefined || model.toolId === undefined) return undefined;
+  const runs = Array.isArray(sessionLive?.runs) ? sessionLive.runs : [];
+  for (const row of runs) {
+    if (wfRunStatus(row) === 'pending') continue;
+    if (wfRunToolCallId(row) === model.toolId) return row;
+  }
+  return undefined;
+}
+
 /** CreateWorkflow / AmendWorkflow / FillWorkflowHole card. */
 function WfRunCard(props) {
   const model = props.model;
-  const live = props.live;
+  // The run catalogue is a Session-level listing, so the claim reads the Session snapshot itself;
+  // a run-keyed snapshot only ever carries that run, never the catalogue.
+  const sessionLive = useWfCardRunById(model.sessionId, undefined);
   // A launch waiting for a decision may not be this card's result run yet, so it gets its own
   // subscription; the hook is always called, with nothing to watch when no launch is pending.
-  const pendingGuess = wfCardPendingRun(model, live);
+  const pendingGuess = wfCardPendingRun(model, sessionLive);
   const pendingId = pendingGuess === undefined ? undefined : wfRunId(pendingGuess.run);
   const pendingLive = useWfCardRunById(model.sessionId, pendingId);
   const pendingDetail = pendingLive === undefined ? undefined : pendingLive.run;
@@ -4566,9 +4614,20 @@ function WfRunCard(props) {
     ? undefined
     : { sessionId: pendingGuess.sessionId, run: wfRunId(pendingDetail) === pendingId ? pendingDetail : pendingGuess.run };
 
-  const run = permission !== undefined ? undefined : (live?.run ?? live?.summary);
+  // The run this call launched, claimed by tool call the way the product pairs the two, and read
+  // from its own subscription so the card keeps updating after the result text scrolls away.
+  const ownedRow = wfRunCardOwnRow(model, sessionLive);
+  const ownedId = ownedRow === undefined ? undefined : wfRunId(ownedRow);
+  const ownedLive = useWfCardRunById(model.sessionId, ownedId);
+  const ownedRun = wfRunId(ownedLive === undefined ? undefined : ownedLive.run) === ownedId && ownedId !== undefined
+    ? ownedLive.run
+    : ownedRow;
+
+  // Only the claimed row speaks for this card: a launch names no run of its own (an Amend names
+  // the run it replaces), so nothing may stand in for a claim that has not arrived yet.
+  const run = permission !== undefined ? undefined : ownedRun;
   const status = run === undefined ? '' : wfRunStatus(run);
-  const runId = wfRunId(run) || wfCardResultRunId(model);
+  const runId = run === undefined ? '' : wfRunId(run);
   const kind = wfRunCardKind(model, run, status);
   const liveKind = status === 'running' || (run === undefined && model.phase !== 'result');
   const name = wfRunCardName(model);
@@ -9645,6 +9704,10 @@ function WfRosterRoll(props) {
  * tool input (`input`) and its prepared display (`display.causalityGraph`). Field names are read
  * tolerantly in both spellings, because a run arrives either as the host's camelCase projection or
  * as the tool's snake_case input.
+ *
+ * The two surfaces never show the same run at once: while a tool card renders the block, the launch
+ * watcher leaves the question to that card and only puts the dialog up once no card is on it. A click
+ * from the status panel opens the dialog regardless — there the user asked for it.
  */
 
 const WF_PERMISSION = {};
@@ -10122,7 +10185,7 @@ function WfPermissionSettings(props) {
 
   const boundValue = wfPermLimit(bound);
   const boundChanged = boundValue !== initial.bound && !(boundValue === undefined && initial.bound === undefined);
-  const modelChanged = model !== '' && model !== initial.model;
+  const modelChanged = model !== initial.model;
   const concurrency = boundValue;
   const modelRow = view.modelEditable === true && view.catalog.length > 0
     ? WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-settings-model' },
@@ -10133,11 +10196,10 @@ function WfPermissionSettings(props) {
         value: model,
         onChange: (event) => setModel(event.target.value),
       },
-      model === ''
-        ? WF_H('option', { value: '', key: 'none' }, say('chat.permission.workflow.settings.model.noCatalog'))
-        : null,
+      // 首项永远是「沿用会话模型」：空值就是不给本次 run 指定模型（ZCode 的 session 项）。
+      WF_H('option', { value: '', key: 'session' }, say('chat.permission.workflow.settings.model.noCatalog')),
       view.catalog.map((entry) => WF_H('option', { key: entry.id, value: entry.id }, entry.label))),
-      view.catalog.some((entry) => entry.id === model)
+      model === '' || view.catalog.some((entry) => entry.id === model)
         ? null
         : WF_H('span', { className: 'zwf-perm-badge', 'data-testid': 'workflow-permission-settings-model-unavailable' }, say('chat.permission.workflow.settings.model.unavailable')))
     : WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-subagent-model', title: say('chat.permission.workflow.settings.model.noCatalogReason') },
@@ -10382,13 +10444,14 @@ function WfPermissionSheet(props) {
   const canSubmit = runId !== '' && sessionId !== '' && busy !== true && (selected !== 'workflowRefine' || refine.trim() !== '');
 
   const boundDraft = wfPermLimit(draft.bound);
-  const modelChanged = draft.model !== '' && draft.model !== initial.model;
+  const modelChanged = draft.model !== initial.model;
   const boundChanged = boundDraft !== initial.bound && !(boundDraft === undefined && initial.bound === undefined);
   const changed = modelChanged || boundChanged;
   const adjustments = (() => {
     if (!changed) return undefined;
     const payload = {};
-    if (view.modelEditable === true && modelChanged) payload.subagentModel = draft.model;
+    // 选「沿用会话模型」时带 null：宿主据此清掉本次 run 的 subagent_model（ZCode 的 session 项同理）。
+    if (view.modelEditable === true && modelChanged) payload.subagentModel = draft.model === '' ? null : draft.model;
     if (boundChanged && boundDraft !== undefined) payload.maxConcurrency = boundDraft;
     return Object.keys(payload).length === 0 ? undefined : payload;
   })();
@@ -10585,12 +10648,73 @@ function WfPermissionSheet(props) {
   return WF_H('div', { className: `zwf-perm-sheet zwf-perm-sheet-${props.variant}` }, header, body);
 }
 
+/* ------------------------------ card presence ------------------------------ */
+
+/**
+ * Runs whose confirmation block is mounted in a tool card right now.
+ *
+ * The block is the confirmation the user already has in front of them, so the launch watcher must
+ * not ask the same question a second time as the dialog. Presence is ref-counted, because one run
+ * can be rendered by more than one card; the dialog takes over only once the last of them is gone,
+ * which is what keeps the question visible when the transcript drops or collapses the card.
+ */
+const WF_PERMISSION_BLOCKS = (() => {
+  /** @type {Map<string, number>} runId -> number of mounted blocks */
+  const counts = new Map();
+  const listeners = new Set();
+  const publish = () => {
+    for (const listener of listeners) listener();
+  };
+  return {
+    onPage: (runId) => counts.has(runId),
+    show(runId) {
+      if (runId === '') return;
+      const next = (counts.get(runId) ?? 0) + 1;
+      counts.set(runId, next);
+      if (next === 1) publish();
+    },
+    hide(runId) {
+      const count = counts.get(runId) ?? 0;
+      if (count === 0) return;
+      if (count > 1) {
+        counts.set(runId, count - 1);
+        return;
+      }
+      counts.delete(runId);
+      publish();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+})();
+
+/**
+ * Re-render a watcher whenever a card appears or disappears, so a run that is still pending when its
+ * card goes away gets the dialog without waiting for the next poll.
+ * @returns {number} a version that changes with every block transition
+ */
+function useWfPermissionBlockVersion() {
+  const [version, setVersion] = React.useState(0);
+  React.useEffect(() => WF_PERMISSION_BLOCKS.subscribe(() => setVersion((value) => value + 1)), []);
+  return version;
+}
+
 /**
  * The compact confirmation inside a workflow tool card.
  * @param {{ sessionId?: string, run?: unknown, t?: Function, onDecided?: Function }} props
  */
 function WfPermissionBlock(props) {
   const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+  const runId = wfRunId(props?.run);
+  React.useLayoutEffect(() => {
+    if (runId === '') return undefined;
+    WF_PERMISSION_BLOCKS.show(runId);
+    return () => WF_PERMISSION_BLOCKS.hide(runId);
+  }, [runId]);
   return WF_H('div', { className: 'zwf-perm-block', 'data-testid': 'workflow-permission-block', 'data-workflow-permission-block': 'true' },
     WF_H('div', { className: 'zwf-perm-block-label' },
       WF_H('span', { className: 'zwf-perm-block-glyph' }, WF_H(WF_ICON.alert, { size: 14 })),
@@ -10773,12 +10897,17 @@ const WF_PERMISSION_SHOWN = new Set();
  * list; watching it means the dialog arrives even when the transcript is scrolled away from the tool
  * call that asked — which is what a blocking confirmation has to do.
  *
+ * A card that renders the block already asks the question, so that run is left to its card and is
+ * not marked as shown: when the card goes away the dialog still arrives for it.
+ *
  * @param {{ sessionId?: string }} props slot props
  */
 function WfLaunchWatcher(props) {
   const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
   const live = useWfCardRunById(sessionId, undefined);
   const runs = Array.isArray(live?.runs) ? live.runs : [];
+  // A card leaving the page changes no run data, so its transitions drive this check too.
+  const blockVersion = useWfPermissionBlockVersion();
   React.useEffect(() => {
     if (sessionId === '') return;
     const waiting = runs.filter((row) => wfRunStatus(row) === 'pending' && wfRunId(row) !== '');
@@ -10789,12 +10918,13 @@ function WfLaunchWatcher(props) {
     }
     for (const row of waiting) {
       const runId = wfRunId(row);
+      if (WF_PERMISSION_BLOCKS.onPage(runId)) continue;
       if (WF_PERMISSION_SHOWN.has(runId)) continue;
       WF_PERMISSION_SHOWN.add(runId);
       WF_PERMISSION.open({ sessionId, runId, run: row });
       return;
     }
-  }, [sessionId, runs]);
+  }, [sessionId, runs, blockVersion]);
   return null;
 }
 
@@ -14806,14 +14936,16 @@ function WfStatusDirectory(props) {
 
 /**
  * The session header entry.
- * @param {object} props slot standard props: `sessionId`, `t`, and the injected `openDirectory`
+ * @param {object} props slot standard props: `sessionId` and the dictionary translator `t`
  */
 function WfStatusEntry(props) {
   const safe = wfStatusRun(props) !== undefined;
   const sessionId = safe && typeof props.sessionId === 'string' ? props.sessionId : '';
   const t = safe && typeof props.t === 'function' ? props.t : undefined;
   const say = (key, params) => wfStatusSay(t, key, params);
-  const openDirectory = safe && typeof props.openDirectory === 'function' ? props.openDirectory : undefined;
+  // The directory link is this entry's own capability, bound by the registration below; the
+  // Session itself needs no binding because the seat is session-scoped.
+  const openDirectory = safe && typeof WF_STATUS.openDirectory === 'function' ? WF_STATUS.openDirectory : undefined;
 
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState('live');
@@ -15058,22 +15190,21 @@ WF_STATUS.register = function register(ctx, effect) {
       return undefined;
     }
   };
+  // 目录入口是右侧栏的一个面板；它经注册期绑定的布局服务打开，不走 inject。
+  WF_STATUS.openDirectory = () => {
+    const service = layout();
+    if (service === undefined || service === null || typeof service.selectPanel !== 'function') return;
+    try {
+      service.selectPanel(WF_DIRECTORY_PANEL_ID);
+    } catch (error) {
+      wfStatusWarn('open workflow directory', error);
+    }
+  };
   slots.inject('conversation.session.header.utilities', () => slots.register({
     name: 'conversation.session.header.utilities',
     id: 'workflow-status',
     order: -4,
     locale: UI_NS,
-    inject: () => ({
-      openDirectory: () => {
-        const service = layout();
-        if (service === undefined || service === null || typeof service.selectPanel !== 'function') return;
-        try {
-          service.selectPanel(WF_DIRECTORY_PANEL_ID);
-        } catch (error) {
-          wfStatusWarn('open workflow directory', error);
-        }
-      },
-    }),
   }, WfStatusEntry));
 };
 
@@ -15243,7 +15374,13 @@ function apply(ctx) {
 
   ctx.slots.inject('tool.call.toolview', function* workflowToolCards() {
     for (const key of TOOL_NAMES) {
-      yield ctx.slots.register({ name: 'tool.call.toolview', key, locale: NS }, WorkflowCard);
+      // The seat is a Session-scoped slot: the Session id arrives in the standard props every
+      // session seat receives, and the wire call id arrives on the owner payload.
+      yield ctx.slots.register({
+        name: 'tool.call.toolview',
+        key,
+        locale: NS,
+      }, WorkflowCard);
     }
   });
 
