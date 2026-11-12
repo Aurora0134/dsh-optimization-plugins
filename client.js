@@ -4,7 +4,7 @@
  * Three jobs, all owned by `apply`:
  *  - one action button inside every user message's icon row, added through a
  *    MutationObserver over the conversation flow (`[data-slot="conversation.chat.flow"]`);
- *  - one invisible `conversation.composer.dock` entry that carries the Session's
+ *  - one invisible `conversation.input.dock` entry that carries the Session's
  *    `inputActions` to the button logic, so the composer is never guessed from the DOM;
  *  - the same-origin calls the Host half registers, plus the confirm, the native
  *    Session fork, the switch to the child Session, the write-back and the
@@ -19,7 +19,17 @@ window.__ModuleLoader__.load({
     const React = require('react');
 
     const PLUGIN_ID = 'dsh-session-rollback';
-    const DOCK_SLOT = 'conversation.composer.dock';
+    /**
+     * Session-scoped dock both composer forms render.
+     *
+     * The composer dock (`conversation.composer.dock`) is rendered only by the
+     * composer form a Session with conversation content shows. Rolling back a
+     * Session's first message forks a child with no content, whose empty-Session
+     * composer renders `conversation.input.dock` alone; a bridge mounted on the
+     * composer dock would never publish that child's `inputActions`, and the
+     * clicked message's text would have nowhere to go.
+     */
+    const DOCK_SLOT = 'conversation.input.dock';
 
     /** Flow outlet the Chat target renders every transcript row through. */
     const FLOW_SELECTOR = '[data-slot="conversation.chat.flow"]';
