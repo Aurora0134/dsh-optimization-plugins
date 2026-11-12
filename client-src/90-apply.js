@@ -65,7 +65,13 @@ function apply(ctx) {
 
   ctx.slots.inject('tool.call.toolview', function* workflowToolCards() {
     for (const key of TOOL_NAMES) {
-      yield ctx.slots.register({ name: 'tool.call.toolview', key, locale: NS }, WorkflowCard);
+      // The seat is a Session-scoped slot: the Session id arrives in the standard props every
+      // session seat receives, and the wire call id arrives on the owner payload.
+      yield ctx.slots.register({
+        name: 'tool.call.toolview',
+        key,
+        locale: NS,
+      }, WorkflowCard);
     }
   });
 

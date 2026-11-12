@@ -11,6 +11,11 @@
  *      token, round and artifact tallies plus the resume action);
  *   3. no run yet — the draft states (writing / revising / draft / awaiting confirmation /
  *      validating), where the card keeps the source row, the script disclosure and the output.
+ *
+ * Which run a card shows is decided by the tool call, not by its result text: the Session's run
+ * catalogue carries the `toolCallId` of the call that launched each run, and the card takes the row
+ * that names its own `callId`. A launch still waiting for its answer has no journal yet and is
+ * claimed by the confirmation block instead.
  */
 
 /** Status keys of the card header kind, in the order the run card resolves them. */
@@ -562,13 +567,40 @@ WF_STYLE_PARTS.push(WF_CARDS_RUN_CSS);
 
 /* ---------------------------------- glyph --------------------------------- */
 
+/**
+ * The run row this card owns.
+ *
+ * ZCode pairs a transcript card with its run through the tool call that launched it: the Session's
+ * run catalogue is reduced to a `toolCallId → run` map and the card reads its own entry. A launch
+ * still waiting for its answer is not a run yet — the confirmation block owns that row — so only
+ * rows that already have a journal are returned here.
+ *
+ * The catalogue is a Session-level listing: a snapshot keyed by run id never carries `runs`, so the
+ * card reads the Session snapshot to claim its row and only afterwards subscribes to that run.
+ *
+ * @param {object} model card model
+ * @param {object | undefined} sessionLive the Session-level snapshot (its `runs` listing)
+ * @returns {object | undefined}
+ */
+function wfRunCardOwnRow(model, sessionLive) {
+  if (model === undefined || model.toolId === undefined) return undefined;
+  const runs = Array.isArray(sessionLive?.runs) ? sessionLive.runs : [];
+  for (const row of runs) {
+    if (wfRunStatus(row) === 'pending') continue;
+    if (wfRunToolCallId(row) === model.toolId) return row;
+  }
+  return undefined;
+}
+
 /** CreateWorkflow / AmendWorkflow / FillWorkflowHole card. */
 function WfRunCard(props) {
   const model = props.model;
-  const live = props.live;
+  // The run catalogue is a Session-level listing, so the claim reads the Session snapshot itself;
+  // a run-keyed snapshot only ever carries that run, never the catalogue.
+  const sessionLive = useWfCardRunById(model.sessionId, undefined);
   // A launch waiting for a decision may not be this card's result run yet, so it gets its own
   // subscription; the hook is always called, with nothing to watch when no launch is pending.
-  const pendingGuess = wfCardPendingRun(model, live);
+  const pendingGuess = wfCardPendingRun(model, sessionLive);
   const pendingId = pendingGuess === undefined ? undefined : wfRunId(pendingGuess.run);
   const pendingLive = useWfCardRunById(model.sessionId, pendingId);
   const pendingDetail = pendingLive === undefined ? undefined : pendingLive.run;
@@ -576,9 +608,20 @@ function WfRunCard(props) {
     ? undefined
     : { sessionId: pendingGuess.sessionId, run: wfRunId(pendingDetail) === pendingId ? pendingDetail : pendingGuess.run };
 
-  const run = permission !== undefined ? undefined : (live?.run ?? live?.summary);
+  // The run this call launched, claimed by tool call the way the product pairs the two, and read
+  // from its own subscription so the card keeps updating after the result text scrolls away.
+  const ownedRow = wfRunCardOwnRow(model, sessionLive);
+  const ownedId = ownedRow === undefined ? undefined : wfRunId(ownedRow);
+  const ownedLive = useWfCardRunById(model.sessionId, ownedId);
+  const ownedRun = wfRunId(ownedLive === undefined ? undefined : ownedLive.run) === ownedId && ownedId !== undefined
+    ? ownedLive.run
+    : ownedRow;
+
+  // Only the claimed row speaks for this card: a launch names no run of its own (an Amend names
+  // the run it replaces), so nothing may stand in for a claim that has not arrived yet.
+  const run = permission !== undefined ? undefined : ownedRun;
   const status = run === undefined ? '' : wfRunStatus(run);
-  const runId = wfRunId(run) || wfCardResultRunId(model);
+  const runId = run === undefined ? '' : wfRunId(run);
   const kind = wfRunCardKind(model, run, status);
   const liveKind = status === 'running' || (run === undefined && model.phase !== 'result');
   const name = wfRunCardName(model);

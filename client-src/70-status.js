@@ -552,14 +552,16 @@ function WfStatusDirectory(props) {
 
 /**
  * The session header entry.
- * @param {object} props slot standard props: `sessionId`, `t`, and the injected `openDirectory`
+ * @param {object} props slot standard props: `sessionId` and the dictionary translator `t`
  */
 function WfStatusEntry(props) {
   const safe = wfStatusRun(props) !== undefined;
   const sessionId = safe && typeof props.sessionId === 'string' ? props.sessionId : '';
   const t = safe && typeof props.t === 'function' ? props.t : undefined;
   const say = (key, params) => wfStatusSay(t, key, params);
-  const openDirectory = safe && typeof props.openDirectory === 'function' ? props.openDirectory : undefined;
+  // The directory link is this entry's own capability, bound by the registration below; the
+  // Session itself needs no binding because the seat is session-scoped.
+  const openDirectory = safe && typeof WF_STATUS.openDirectory === 'function' ? WF_STATUS.openDirectory : undefined;
 
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState('live');
@@ -804,22 +806,21 @@ WF_STATUS.register = function register(ctx, effect) {
       return undefined;
     }
   };
+  // 目录入口是右侧栏的一个面板；它经注册期绑定的布局服务打开，不走 inject。
+  WF_STATUS.openDirectory = () => {
+    const service = layout();
+    if (service === undefined || service === null || typeof service.selectPanel !== 'function') return;
+    try {
+      service.selectPanel(WF_DIRECTORY_PANEL_ID);
+    } catch (error) {
+      wfStatusWarn('open workflow directory', error);
+    }
+  };
   slots.inject('conversation.session.header.utilities', () => slots.register({
     name: 'conversation.session.header.utilities',
     id: 'workflow-status',
     order: -4,
     locale: UI_NS,
-    inject: () => ({
-      openDirectory: () => {
-        const service = layout();
-        if (service === undefined || service === null || typeof service.selectPanel !== 'function') return;
-        try {
-          service.selectPanel(WF_DIRECTORY_PANEL_ID);
-        } catch (error) {
-          wfStatusWarn('open workflow directory', error);
-        }
-      },
-    }),
   }, WfStatusEntry));
 };
 

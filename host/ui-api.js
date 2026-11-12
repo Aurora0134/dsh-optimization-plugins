@@ -218,9 +218,12 @@ function canonicalMode(raw) {
  */
 function runSummary(row) {
   const runId = row.runId ?? row.id;
+  // A card claims its run by the tool call that launched it (ZCode's `toolCallId → run` map), so
+  // this one field decides whether the transcript card can show a run at all.
+  const toolCallId = row.toolCallId ?? row.tool_call_id;
   return {
     runId,
-    ...(row.toolCallId === undefined ? {} : { toolCallId: row.toolCallId }),
+    ...(toolCallId === undefined || toolCallId === null || toolCallId === '' ? {} : { toolCallId }),
     label: row.label ?? row.name ?? runId,
     ...(row.updatedAt === undefined ? {} : { updatedAt: row.updatedAt }),
     status: row.status,
@@ -762,6 +765,12 @@ export function registerWorkflowUiApi({
       summary.phases = derivePhaseStates(snapshot);
       summary.agentsWorking = (snapshot.actors ?? []).filter((actor) => actor.status === 'running').length;
       if (typeof snapshot.currentPhase === 'string') summary.currentPhase = snapshot.currentPhase;
+      // The run row is created before the launch is announced, so its stored `tool_call_id` may be
+      // absent even though the run already knows which call launched it. The projected run carries
+      // it, and the card claims by it, so take it from there rather than dropping the linkage.
+      if (summary.toolCallId === undefined && typeof snapshot.toolCallId === 'string' && snapshot.toolCallId !== '') {
+        summary.toolCallId = snapshot.toolCallId;
+      }
       // 留白只对活跃 run 有意义：已结束的 run 里残留的 waiting 留白不再算待答。
       if (isRunActive(snapshot.status)) {
         const waitingHole = (snapshot.holes ?? []).find((hole) => hole.state === 'waiting');
