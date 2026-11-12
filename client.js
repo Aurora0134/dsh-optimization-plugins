@@ -374,6 +374,13 @@ window.__ModuleLoader__.load({
           for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) relabel(node)
         }
         scan(document.body)
+        /**
+         * A label arrives as one committed subtree: the text node is created
+         * while the span is still detached, so inserting the span yields a
+         * childList record whose added node is the span itself, never the text
+         * inside it. Text nodes therefore cannot be the only thing observed.
+         */
+        const holdsLabel = (element) => element.matches(scopes) || element.querySelector(scopes) !== null
         const observer = new MutationObserver((records) => {
           for (const record of records) {
             if (record.type === 'characterData') {
@@ -382,6 +389,7 @@ window.__ModuleLoader__.load({
             }
             for (const added of record.addedNodes) {
               if (added.nodeType === Node.TEXT_NODE) relabel(added)
+              else if (added.nodeType === Node.ELEMENT_NODE && holdsLabel(added)) scan(added)
             }
           }
         })
@@ -392,22 +400,23 @@ window.__ModuleLoader__.load({
         const unsubscribe = ctx.locale.subscribe(refreshAll)
         creationListeners.add(refreshAll)
         /**
-         * The label surfaces mount after the plugin applies, so watch for a
-         * while: a mode name still rendered as an id means the selectors above
-         * no longer match, and this reports where it was found.
+         * The selectors are the only link to the shipped labels, so a renamed
+         * slot or class turns the rewrite off without raising anything and the
+         * label falls back to the raw id. Watch for that for the whole session,
+         * not just at startup: a session usually opens long after the plugin
+         * applies. Each distinct leftover is reported once.
          */
-        let checks = 0
+        const reported = new Set()
         const diagnose = window.setInterval(() => {
-          checks += 1
-          const left = [...document.querySelectorAll('[class*="_seatLabel"],[class*="_label"][title]')]
-            .find((element) => isModeId(String(element.textContent ?? '').trim()))
-          if (left === undefined && checks < 6) return
-          window.clearInterval(diagnose)
-          if (left === undefined) return
-          console.warn('[creator-overlay] mode name left as an id', {
-            slot: left.closest('[data-slot]')?.getAttribute('data-slot') ?? null,
-            html: left.outerHTML.slice(0, 200),
-          })
+          for (const element of document.querySelectorAll('[class*="_seatLabel"],[class*="_label"][title]')) {
+            const text = String(element.textContent ?? '').trim()
+            if (!isModeId(text)) continue
+            const slot = element.closest('[data-slot]')?.getAttribute('data-slot') ?? null
+            const signature = `${slot}|${text}`
+            if (reported.has(signature)) continue
+            reported.add(signature)
+            console.warn('[creator-overlay] mode name left as an id', { slot, text })
+          }
         }, 5000)
         return () => {
           observer.disconnect()
