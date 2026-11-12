@@ -578,16 +578,28 @@ WF_STYLE_PARTS.push(WF_CARDS_RUN_CSS);
  * The catalogue is a Session-level listing: a snapshot keyed by run id never carries `runs`, so the
  * card reads the Session snapshot to claim its row and only afterwards subscribes to that run.
  *
+ * A Fill is the one exception, and it is still a lookup rather than a fallback: the hole belongs to
+ * the CreateWorkflow call that started the run, so no row ever carries the Fill's own tool call id,
+ * and its `run_id` argument is the run the card shows. Every other tool claims by tool call only.
+ *
  * @param {object} model card model
  * @param {object | undefined} sessionLive the Session-level snapshot (its `runs` listing)
  * @returns {object | undefined}
  */
 function wfRunCardOwnRow(model, sessionLive) {
-  if (model === undefined || model.toolId === undefined) return undefined;
+  if (model === undefined) return undefined;
   const runs = Array.isArray(sessionLive?.runs) ? sessionLive.runs : [];
+  if (model.toolId !== undefined) {
+    for (const row of runs) {
+      if (wfRunStatus(row) === 'pending') continue;
+      if (wfRunToolCallId(row) === model.toolId) return row;
+    }
+  }
+  const target = wfCardArgRunTarget(model); // eslint-disable-line no-undef -- 30-cards.js
+  if (target === undefined) return undefined;
   for (const row of runs) {
     if (wfRunStatus(row) === 'pending') continue;
-    if (wfRunToolCallId(row) === model.toolId) return row;
+    if (wfRunId(row) === target) return row;
   }
   return undefined;
 }

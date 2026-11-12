@@ -363,6 +363,91 @@ test('a CreateWorkflow result text alone does not tie the card to a run', async 
     client.dispose();
   }
 });
+test('a Fill card opens the run its run_id argument names, which its own tool call never launched', async () => {
+  const client = startClient((url) => {
+    if (url.startsWith('/zcode-workflow/runs')) {
+      return { runs: [runRow({ runId: 'run-target', id: 'run-target', toolCallId: 'call-create-1', label: 'target-run' })] };
+    }
+    return { run: runRow({ runId: 'run-target', id: 'run-target', toolCallId: 'call-create-1', label: 'target-run' }) };
+  });
+  try {
+    const card = client.cardFor('FillWorkflowHole');
+    assert.ok(card !== undefined, 'the FillWorkflowHole card is registered');
+    const props = launchProps({
+      toolName: 'FillWorkflowHole',
+      callId: 'call-fill-1',
+      block: {
+        args: { run_id: 'run-target', hole_id: 'hole-1', hole_target: { name: 'reviewer' } },
+        content: [{ type: 'text', text: 'Filled hole hole-1 on run run-target.' }],
+      },
+    });
+    client.render(client.React.createElement(card.component, props));
+    await settle();
+    const rendered = client.render(client.React.createElement(card.component, props));
+
+    assert.equal(
+      byTestId(rendered, 'workflow-card').props['data-workflow-run-id'],
+      'run-target',
+      'the run the argument names is the run the card shows',
+    );
+    const details = byTestId(rendered, 'workflow-card-open-details');
+    assert.ok(details !== undefined, 'the filled run keeps its details entry');
+    details.props.onClick();
+    assert.equal(client.openedTabs.length, 1, 'the details button opens one run tab');
+    assert.equal(client.openedTabs[0].params.runId, 'run-target');
+    assert.equal(client.openedTabs[0].params.sessionId, 'session-1');
+
+    await settle();
+    assert.ok(
+      client.requests.some((url) => url.includes('runId=run-target')),
+      `the card reads the run it filled: ${client.requests.join(', ')}`,
+    );
+  } finally {
+    client.dispose();
+  }
+});
+
+test('Create and Amend still claim by tool call only, even when their run_id argument names a listed run', async () => {
+  const client = startClient((url) => {
+    if (url.startsWith('/zcode-workflow/runs')) {
+      return { runs: [runRow({ runId: 'run-old', id: 'run-old', toolCallId: 'call-0', label: 'predecessor-run' })] };
+    }
+    return { run: runRow({ runId: 'run-old', id: 'run-old', toolCallId: 'call-0', label: 'predecessor-run' }) };
+  });
+  try {
+    for (const key of ['CreateWorkflow', 'AmendWorkflow']) {
+      const card = client.cardFor(key);
+      assert.ok(card !== undefined, `the ${key} card is registered`);
+      const props = launchProps({
+        toolName: key,
+        callId: `call-${key}`,
+        block: { args: { run_id: 'run-old' }, content: [{ type: 'text', text: 'Started revised run run-old' }] },
+      });
+      client.render(client.React.createElement(card.component, props));
+      await settle();
+      const rendered = client.render(client.React.createElement(card.component, props));
+
+      assert.equal(
+        byTestId(rendered, 'workflow-card-open-details'),
+        undefined,
+        `${key} without its own tool call row offers no details entry`,
+      );
+      assert.equal(
+        byTestId(rendered, 'workflow-card').props['data-workflow-run-id'],
+        undefined,
+        `${key} shows no run without its own tool call row`,
+      );
+    }
+    await settle();
+    assert.ok(
+      !client.requests.some((url) => url.includes('run-old')),
+      `a launch never reads the run its argument names: ${client.requests.join(', ')}`,
+    );
+  } finally {
+    client.dispose();
+  }
+});
+
 test('the Session-scoped seats hand the Session to the card and the status entry as standard props', async () => {
   const client = startClient((url) => {
     if (url.startsWith('/zcode-workflow/runs')) {
