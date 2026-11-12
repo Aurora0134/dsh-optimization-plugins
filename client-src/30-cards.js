@@ -619,8 +619,21 @@ function wfCardArgRunId(model) {
   return wfCardFirstText(model.args('run_id'), model.args('runId'), model.args('run')) || undefined;
 }
 
-/** The run id a settled result names for the given tool. */
+/** Tools that launch a run: their run is claimed through the tool call, never through arguments. */
+const WF_CARD_LAUNCH_TOOLS = new Set(['CreateWorkflow', 'AmendWorkflow', 'FillWorkflowHole']);
+
+/**
+ * The run id a card's own tool works on, for the tools that name one.
+ *
+ * A launch is deliberately absent: it names no run of its own (an Amend names the run it replaces,
+ * a Create names none until it starts), so a launch card subscribes to nothing here and claims its
+ * run by tool call id instead.
+ *
+ * @param {object} model card model
+ * @returns {string | undefined}
+ */
 function wfCardResultRunId(model) {
+  if (WF_CARD_LAUNCH_TOOLS.has(model.key)) return undefined;
   if (model.failed) return wfCardArgRunId(model);
   const text = model.resultText;
   const structured = model.structured;
@@ -629,13 +642,10 @@ function wfCardResultRunId(model) {
     : wfCardFirstText(structured.runId, structured.run_id, wfCardRecord(structured.run) ? structured.run.id : undefined, structured.id);
   if (fromValue !== '') return fromValue;
   const patterns = {
-    CreateWorkflow: /^Run ID:\s*(\S+)/m,
-    AmendWorkflow: /^Started revised run\s+(\S+)/m,
     GetWorkflowRun: /^Run\s+(\S+)\s/m,
     TaskOutput: /^Run\s+(\S+)\s/m,
     StopWorkflowRun: /^Stopped run\s+(\S+?)\./m,
     ResumeWorkflowRun: /^Resumed run\s+\S+\s+as\s+([^\s(]+)/m,
-    FillWorkflowHole: /on run\s+(\S+?);/m,
   };
   const pattern = patterns[model.key];
   if (pattern !== undefined) {
