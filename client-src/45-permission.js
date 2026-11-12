@@ -11,6 +11,10 @@
  * tool input (`input`) and its prepared display (`display.causalityGraph`). Field names are read
  * tolerantly in both spellings, because a run arrives either as the host's camelCase projection or
  * as the tool's snake_case input.
+ *
+ * The two surfaces never show the same run at once: while a tool card renders the block, the launch
+ * watcher leaves the question to that card and only puts the dialog up once no card is on it. A click
+ * from the status panel opens the dialog regardless — there the user asked for it.
  */
 
 const WF_PERMISSION = {};
@@ -951,12 +955,73 @@ function WfPermissionSheet(props) {
   return WF_H('div', { className: `zwf-perm-sheet zwf-perm-sheet-${props.variant}` }, header, body);
 }
 
+/* ------------------------------ card presence ------------------------------ */
+
+/**
+ * Runs whose confirmation block is mounted in a tool card right now.
+ *
+ * The block is the confirmation the user already has in front of them, so the launch watcher must
+ * not ask the same question a second time as the dialog. Presence is ref-counted, because one run
+ * can be rendered by more than one card; the dialog takes over only once the last of them is gone,
+ * which is what keeps the question visible when the transcript drops or collapses the card.
+ */
+const WF_PERMISSION_BLOCKS = (() => {
+  /** @type {Map<string, number>} runId -> number of mounted blocks */
+  const counts = new Map();
+  const listeners = new Set();
+  const publish = () => {
+    for (const listener of listeners) listener();
+  };
+  return {
+    onPage: (runId) => counts.has(runId),
+    show(runId) {
+      if (runId === '') return;
+      const next = (counts.get(runId) ?? 0) + 1;
+      counts.set(runId, next);
+      if (next === 1) publish();
+    },
+    hide(runId) {
+      const count = counts.get(runId) ?? 0;
+      if (count === 0) return;
+      if (count > 1) {
+        counts.set(runId, count - 1);
+        return;
+      }
+      counts.delete(runId);
+      publish();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+})();
+
+/**
+ * Re-render a watcher whenever a card appears or disappears, so a run that is still pending when its
+ * card goes away gets the dialog without waiting for the next poll.
+ * @returns {number} a version that changes with every block transition
+ */
+function useWfPermissionBlockVersion() {
+  const [version, setVersion] = React.useState(0);
+  React.useEffect(() => WF_PERMISSION_BLOCKS.subscribe(() => setVersion((value) => value + 1)), []);
+  return version;
+}
+
 /**
  * The compact confirmation inside a workflow tool card.
  * @param {{ sessionId?: string, run?: unknown, t?: Function, onDecided?: Function }} props
  */
 function WfPermissionBlock(props) {
   const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
+  const runId = wfRunId(props?.run);
+  React.useLayoutEffect(() => {
+    if (runId === '') return undefined;
+    WF_PERMISSION_BLOCKS.show(runId);
+    return () => WF_PERMISSION_BLOCKS.hide(runId);
+  }, [runId]);
   return WF_H('div', { className: 'zwf-perm-block', 'data-testid': 'workflow-permission-block', 'data-workflow-permission-block': 'true' },
     WF_H('div', { className: 'zwf-perm-block-label' },
       WF_H('span', { className: 'zwf-perm-block-glyph' }, WF_H(WF_ICON.alert, { size: 14 })),
@@ -1139,12 +1204,17 @@ const WF_PERMISSION_SHOWN = new Set();
  * list; watching it means the dialog arrives even when the transcript is scrolled away from the tool
  * call that asked — which is what a blocking confirmation has to do.
  *
+ * A card that renders the block already asks the question, so that run is left to its card and is
+ * not marked as shown: when the card goes away the dialog still arrives for it.
+ *
  * @param {{ sessionId?: string }} props slot props
  */
 function WfLaunchWatcher(props) {
   const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : '';
   const live = useWfCardRunById(sessionId, undefined);
   const runs = Array.isArray(live?.runs) ? live.runs : [];
+  // A card leaving the page changes no run data, so its transitions drive this check too.
+  const blockVersion = useWfPermissionBlockVersion();
   React.useEffect(() => {
     if (sessionId === '') return;
     const waiting = runs.filter((row) => wfRunStatus(row) === 'pending' && wfRunId(row) !== '');
@@ -1155,12 +1225,13 @@ function WfLaunchWatcher(props) {
     }
     for (const row of waiting) {
       const runId = wfRunId(row);
+      if (WF_PERMISSION_BLOCKS.onPage(runId)) continue;
       if (WF_PERMISSION_SHOWN.has(runId)) continue;
       WF_PERMISSION_SHOWN.add(runId);
       WF_PERMISSION.open({ sessionId, runId, run: row });
       return;
     }
-  }, [sessionId, runs]);
+  }, [sessionId, runs, blockVersion]);
   return null;
 }
 
