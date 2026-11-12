@@ -363,3 +363,33 @@ test('a CreateWorkflow result text alone does not tie the card to a run', async 
     client.dispose();
   }
 });
+test('the Session-scoped seats hand the Session to the card and the status entry as standard props', async () => {
+  const client = startClient((url) => {
+    if (url.startsWith('/zcode-workflow/runs')) {
+      return { runs: [runRow({ runId: 'run-1', id: 'run-1', toolCallId: 'call-1', label: 'run-one' })] };
+    }
+    return { run: runRow({ runId: 'run-1', id: 'run-1', toolCallId: 'call-1', label: 'run-one' }) };
+  });
+  try {
+    for (const key of ['CreateWorkflow', 'AmendWorkflow', 'FillWorkflowHole']) {
+      const card = client.cardFor(key);
+      assert.ok(card !== undefined, `the ${key} card is registered`);
+      assert.equal('inject' in card.spec, false, `the ${key} card declares no inject; its seat is Session-scoped`);
+    }
+    const status = client.registrations.find((entry) => entry.spec.name === 'conversation.session.header.utilities' && entry.spec.id === 'workflow-status');
+    assert.ok(status !== undefined, 'the status entry is registered');
+    assert.equal('inject' in status.spec, false, 'the status entry declares no inject');
+
+    // A Session-scoped seat renders with the standard props only; the entry still reads its runs.
+    const entryProps = { sessionId: 'session-9', t: (key) => key };
+    client.render(client.React.createElement(status.component, entryProps));
+    await settle();
+    client.render(client.React.createElement(status.component, entryProps));
+    assert.ok(
+      client.requests.some((url) => url.includes('sessionId=session-9')),
+      `the status entry read the Session from standard props: ${client.requests.join(', ')}`,
+    );
+  } finally {
+    client.dispose();
+  }
+});
