@@ -22,6 +22,21 @@ test('client.js is built from client-src and locale files', () => {
   execFileSync(process.execPath, ['--check', clientPath]);
 });
 
+test('the built client keeps the run card wired to its Session and its tool call', () => {
+  const client = readFileSync(clientPath, 'utf8');
+  // The keyed tool seat hands the Session to the registration's inject hook, never to the owner
+  // payload; without this line a card has no Session and the run channel never asks for anything.
+  assert.ok(
+    client.includes('inject: (sessionId) => ({ sessionId })'),
+    'the tool card registration must inject the Session id',
+  );
+  // A card claims its run through the tool call that launched it: the owner spells it `callId`,
+  // the run catalogue spells it `toolCallId`, and the card model has to read both.
+  assert.ok(client.includes('props.callId'), 'the card model must read the owner callId');
+  assert.ok(client.includes('wfRunCardOwnRow'), 'the run card must claim its row by tool call id');
+  assert.ok(client.includes('wfRunToolCallId(row) === model.toolId'), 'the claim must compare the run row toolCallId');
+});
+
 test('client.js carries both dictionaries and every tool card key', () => {
   const client = readFileSync(clientPath, 'utf8');
   const en = JSON.parse(readFileSync(path.join(root, 'locale', 'en.json'), 'utf8'));

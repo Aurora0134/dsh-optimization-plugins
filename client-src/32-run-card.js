@@ -11,6 +11,11 @@
  *      token, round and artifact tallies plus the resume action);
  *   3. no run yet — the draft states (writing / revising / draft / awaiting confirmation /
  *      validating), where the card keeps the source row, the script disclosure and the output.
+ *
+ * Which run a card shows is decided by the tool call, not by its result text: the Session's run
+ * catalogue carries the `toolCallId` of the call that launched each run, and the card takes the row
+ * that names its own `callId`. A launch still waiting for its answer has no journal yet and is
+ * claimed by the confirmation block instead.
  */
 
 /** Status keys of the card header kind, in the order the run card resolves them. */
@@ -562,6 +567,28 @@ WF_STYLE_PARTS.push(WF_CARDS_RUN_CSS);
 
 /* ---------------------------------- glyph --------------------------------- */
 
+/**
+ * The run row this card owns.
+ *
+ * ZCode pairs a transcript card with its run through the tool call that launched it: the Session's
+ * run catalogue is reduced to a `toolCallId → run` map and the card reads its own entry. A launch
+ * still waiting for its answer is not a run yet — the confirmation block owns that row — so only
+ * rows that already have a journal are returned here.
+ *
+ * @param {object} model card model
+ * @param {object | undefined} live the Session-level snapshot (its `runs` listing)
+ * @returns {object | undefined}
+ */
+function wfRunCardOwnRow(model, live) {
+  if (model === undefined || model.toolId === undefined) return undefined;
+  const runs = Array.isArray(live?.runs) ? live.runs : [];
+  for (const row of runs) {
+    if (wfRunStatus(row) === 'pending') continue;
+    if (wfRunToolCallId(row) === model.toolId) return row;
+  }
+  return undefined;
+}
+
 /** CreateWorkflow / AmendWorkflow / FillWorkflowHole card. */
 function WfRunCard(props) {
   const model = props.model;
@@ -576,7 +603,16 @@ function WfRunCard(props) {
     ? undefined
     : { sessionId: pendingGuess.sessionId, run: wfRunId(pendingDetail) === pendingId ? pendingDetail : pendingGuess.run };
 
-  const run = permission !== undefined ? undefined : (live?.run ?? live?.summary);
+  // The run this call launched, claimed by tool call the way the product pairs the two, and read
+  // from its own subscription so the card keeps updating after the result text scrolls away.
+  const ownedRow = wfRunCardOwnRow(model, live);
+  const ownedId = ownedRow === undefined ? undefined : wfRunId(ownedRow);
+  const ownedLive = useWfCardRunById(model.sessionId, ownedId);
+  const ownedRun = wfRunId(ownedLive === undefined ? undefined : ownedLive.run) === ownedId && ownedId !== undefined
+    ? ownedLive.run
+    : ownedRow;
+
+  const run = permission !== undefined ? undefined : (ownedRun ?? live?.run ?? live?.summary);
   const status = run === undefined ? '' : wfRunStatus(run);
   const runId = wfRunId(run) || wfCardResultRunId(model);
   const kind = wfRunCardKind(model, run, status);

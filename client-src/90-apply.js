@@ -65,7 +65,15 @@ function apply(ctx) {
 
   ctx.slots.inject('tool.call.toolview', function* workflowToolCards() {
     for (const key of TOOL_NAMES) {
-      yield ctx.slots.register({ name: 'tool.call.toolview', key, locale: NS }, WorkflowCard);
+      // A run card looks its run up in the Session's run catalogue, so it needs the Session the
+      // call belongs to; the keyed tool seat hands it to the registration's inject hook and does
+      // not put it on the owner payload.
+      yield ctx.slots.register({
+        name: 'tool.call.toolview',
+        key,
+        locale: NS,
+        inject: (sessionId) => ({ sessionId }),
+      }, WorkflowCard);
     }
   });
 

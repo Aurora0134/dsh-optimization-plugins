@@ -386,12 +386,18 @@ function wfCardFailed(props, phase) {
 
 /** Tool-call identity, used to correlate a card with the run it launched. */
 function wfCardToolCallId(props) {
+  const block = wfCardRecord(props.block) ? props.block : undefined;
   return wfCardFirstText(
+    // The Harness delivers the wire call id as `callId` on the slot owner and on the block; the
+    // broker shape spells the same fact `toolId` / `toolCallId`. A run row carries it as
+    // `toolCallId`, so every spelling has to land on one value for the card to claim its run.
+    props.callId,
     props.toolId,
     props.toolCallId,
     props.id,
-    wfCardRecord(props.block) ? props.block.toolCallId : undefined,
-    wfCardRecord(props.block) ? props.block.id : undefined,
+    block === undefined ? undefined : block.callId,
+    block === undefined ? undefined : block.toolCallId,
+    block === undefined ? undefined : block.id,
   ) || undefined;
 }
 

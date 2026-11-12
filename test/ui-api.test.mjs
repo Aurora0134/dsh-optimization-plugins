@@ -251,7 +251,7 @@ function createFixture(options = {}) {
     },
     async listRunsForSession(request) {
       calls.push(['listRunsForSession', request]);
-      return [run, { ...run, id: 'run-2' }, { ...run, id: 'run-3' }];
+      return runRows;
     },
     async projectRun(runId) {
       calls.push(['projectRun', runId]);
@@ -264,6 +264,7 @@ function createFixture(options = {}) {
         actors: [{ siteId: 'actor-a', ordinal: 0, status: 'running' }],
         nodes: [],
         holes: [{ siteId: 'site-a', ordinal: 0, name: 'target', state: 'waiting' }],
+        ...(options.projectedRun ?? {}),
       };
     },
   };
@@ -286,10 +287,15 @@ function createFixture(options = {}) {
     scriptPath: path.join(WORKSPACE, '.dsh', 'workflow-drafts', 'review-changes.dwf.ts'),
     steps: { started: 0, settled: 0, failed: 0, running: 0 },
   };
+  // The rows `/runs` lists; a row may deliberately drop `toolCallId` to prove the summary takes it
+  // from the projected run instead.
+  const runRows = typeof options.runRows === 'function'
+    ? options.runRows(run)
+    : options.runRows ?? [run, { ...run, id: 'run-2' }, { ...run, id: 'run-3' }];
   const runtime = {
     async listRuns(request) {
       calls.push(['listRuns', request]);
-      return [run, { ...run, id: 'run-2' }, { ...run, id: 'run-3' }];
+      return runRows;
     },
     async getRun(id) {
       calls.push(['getRun', id]);
@@ -513,6 +519,36 @@ test('GET /runs puts a launch waiting for an answer first, shaped the way the di
   assert.equal(detail.status, 200);
   assert.equal(detail.json.run.status, 'pending');
   assert.equal(detail.json.run.input.name, 'nightly-report');
+  // 卡片按 toolCallId 认领自己的启动：pending 详情行必须带着它，否则对话框与卡片都对不上这次调用。
+  assert.equal(detail.json.run.toolCallId, 'tool-9');
+});
+
+test('a run summary keeps the tool call that launched it, even when its stored row lost it', async () => {
+  // runtime 建 run 行时不写 tool_call_id（那是 launch 事件带的），投影快照里有；摘要必须从快照补，
+  // 否则浏览器里的运行卡永远认领不到这次 run。
+  const fixture = createFixture({
+    runRows: (row) => [{ ...row, id: 'run-1', toolCallId: undefined }],
+    projectedRun: { toolCallId: 'call-42' },
+  });
+  const listed = await call(fixture, 'GET', `${BASE}/runs`, { query: { sessionId: 'session-1' } });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.runs.length, 1);
+  assert.equal(listed.json.runs[0].toolCallId, 'call-42');
+
+  // 存储行自己带着时原样透出，且兼容下划线的存储命名。
+  const stored = createFixture({ runRows: (row) => [{ ...row, toolCallId: 'call-7' }] });
+  const kept = await call(stored, 'GET', `${BASE}/runs`, { query: { sessionId: 'session-1' } });
+  assert.equal(kept.json.runs[0].toolCallId, 'call-7');
+  const underscored = createFixture({ runRows: (row) => [{ ...row, toolCallId: undefined, tool_call_id: 'call-8' }] });
+  const mapped = await call(underscored, 'GET', `${BASE}/runs`, { query: { sessionId: 'session-1' } });
+  assert.equal(mapped.json.runs[0].toolCallId, 'call-8');
+});
+
+test('GET /run keeps the tool call id the card claims by', async () => {
+  const fixture = createFixture();
+  const detail = await call(fixture, 'GET', `${BASE}/run`, { query: { sessionId: 'session-1', runId: 'run-1' } });
+  assert.equal(detail.status, 200);
+  assert.equal(detail.json.run.toolCallId, 'tool-1');
 });
 
 test('a launch counts as pending only in the Session that is waiting for the answer', async () => {
