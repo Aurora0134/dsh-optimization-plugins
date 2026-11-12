@@ -1423,14 +1423,15 @@ export function registerWorkflowUiApi({
 
     /* --------------------------------- policy (§6) ------------------------------------------ */
     {
+      // 策略是 profile 级开关：一个 profile 只有一份策略，不按项目或会话分区。所以这两个方法不
+      // 走 `cwdFrom`——设置行注册在 `settings.general.item`（root 作用域），本来就拿不到项目或
+      // 会话定位，要求定位只会把唯一的使用方挡在 400 上。
       path: `${BASE}/policy`,
-      async GET(req, res, query) {
-        const cwd = await cwdFrom(query);
-        const policy = await readPolicyValue(cwd);
+      async GET(req, res) {
+        const policy = await readPolicyValue();
         sendJson(res, 200, policy);
       },
       async POST(req, res, query, body) {
-        const cwd = await cwdFrom(body);
         if (typeof body.enabled !== 'boolean') {
           throw new ApiError(400, 'bad-parameter', '"enabled" must be a boolean');
         }
@@ -1438,10 +1439,10 @@ export function registerWorkflowUiApi({
         if (body.mode !== undefined && requested === undefined) {
           throw new ApiError(400, 'invalid-mode', 'mode must be disabled, onDemand or alwaysOn');
         }
-        const current = await readPolicyValue(cwd);
+        const current = await readPolicyValue();
         const nextMode = body.enabled === false ? 'disabled' : (requested ?? (current.mode !== 'disabled' ? current.mode : 'alwaysOn'));
         if (typeof writePolicy === 'function') {
-          const saved = await writePolicy({ projectRoot: cwd, enabled: body.enabled, ...(requested === undefined ? {} : { mode: requested }) });
+          const saved = await writePolicy({ enabled: body.enabled, ...(requested === undefined ? {} : { mode: requested }) });
           sendJson(res, 200, normalizePolicy(saved, nextMode));
           return;
         }
@@ -1620,12 +1621,11 @@ export function registerWorkflowUiApi({
    * Read the workspace policy, preferring the injected policy channel but staying usable with the
    * older mode-only wiring (`index.js` passes both while profiles upgrade).
    *
-   * @param {string} cwd
    * @returns {Promise<{ enabled: boolean, mode: string }>}
    */
-  const readPolicyValue = async (cwd) => {
+  const readPolicyValue = async () => {
     if (typeof readPolicy === 'function') {
-      const raw = await readPolicy({ projectRoot: cwd });
+      const raw = await readPolicy({});
       const normalized = normalizePolicy(raw);
       return {
         ...normalized,

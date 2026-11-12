@@ -960,28 +960,37 @@ test('POST /workflows/delete, /move, /updateMeta, GET /runs and /forRun use the 
   assert.deepEqual(forRun.json.runArgs, { target: 'src' });
 });
 
-test('GET/POST /policy read and write through the injected policy channel', async () => {
+test('GET/POST /policy read and write through the injected policy channel without a location', async () => {
   const fixture = createFixture({ policyMode: 'onDemand', policyEnabled: true });
-  const snapshot = await call(fixture, 'GET', `${BASE}/policy`, { query: { projectRoot: WORKSPACE } });
+  // The settings row lives in the root-scoped General section and receives no project or session
+  // location, so the policy pair must answer without one.
+  const snapshot = await call(fixture, 'GET', `${BASE}/policy`);
   assert.equal(snapshot.status, 200);
   assert.equal(snapshot.json.enabled, true);
   assert.equal(snapshot.json.mode, 'onDemand');
   assert.equal(snapshot.json.writable, true);
-  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'readPolicy'), ['readPolicy', { projectRoot: WORKSPACE }]);
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'readPolicy'), ['readPolicy', {}]);
 
   const disabled = await call(fixture, 'POST', `${BASE}/policy`, {
-    body: { projectRoot: WORKSPACE, enabled: false },
+    body: { enabled: false },
   });
   assert.equal(disabled.status, 200);
   assert.equal(disabled.json.enabled, false);
   assert.equal(disabled.json.mode, 'disabled');
-  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'writePolicy'), ['writePolicy', { projectRoot: WORKSPACE, enabled: false }]);
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'writePolicy'), ['writePolicy', { enabled: false }]);
 
   const badMode = await call(fixture, 'POST', `${BASE}/policy`, {
-    body: { projectRoot: WORKSPACE, enabled: true, mode: 'sometimes' },
+    body: { enabled: true, mode: 'sometimes' },
   });
   assert.equal(badMode.status, 400);
   assert.equal(badMode.json.code, 'invalid-mode');
+});
+
+test('GET /policy ignores a project root: the policy is profile-wide', async () => {
+  const fixture = createFixture();
+  const scoped = await call(fixture, 'GET', `${BASE}/policy`, { query: { projectRoot: WORKSPACE } });
+  assert.equal(scoped.status, 200);
+  assert.deepEqual(fixture.calls.find((entry) => entry[0] === 'readPolicy'), ['readPolicy', {}]);
 });
 
 test('GET/POST /mode keep the compatibility shape', async () => {

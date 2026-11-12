@@ -2000,12 +2000,13 @@ const WF_API = (() => {
 
   /* --------------------------------- policy ---------------------------------- */
 
-  function policy(scope) {
-    return get('/policy', { projectRoot: scope.projectRoot });
+  /** The policy is profile-wide, so neither call takes a project or session location. */
+  function policy() {
+    return get('/policy');
   }
 
   function setPolicy(scope) {
-    return post('/policy', { projectRoot: scope.projectRoot, enabled: scope.enabled, mode: scope.mode });
+    return post('/policy', { enabled: scope.enabled, mode: scope.mode });
   }
 
   return {
@@ -14098,13 +14099,13 @@ function wfSettingsMode(payload) {
 }
 
 /**
- * @param {object} props slot props: `t`, and optionally `projectRoot`
+ * @param {object} props slot props: `t` only — the General section passes no location, and the
+ * policy is profile-wide anyway.
  */
 function WfSettingsRow(props) {
   const t = typeof props?.t === 'function' ? props.t : undefined;
   const say = (key, params) => wfSettingsSay(t, key, params);
-  const projectRoot = typeof props?.projectRoot === 'string' && props.projectRoot !== '' ? props.projectRoot : undefined;
-  const loaded = useWfAsync(() => WF_API.policy({ projectRoot }), [projectRoot]);
+  const loaded = useWfAsync(() => WF_API.policy(), []);
   const [saved, setSaved] = React.useState(null);
   const [pending, setPending] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
@@ -14136,10 +14137,10 @@ function WfSettingsRow(props) {
     setSaving(true);
     setFailure(null);
     try {
-      const result = await WF_API.setPolicy({ projectRoot, ...wfSettingsPolicy(next) });
+      const result = await WF_API.setPolicy(wfSettingsPolicy(next));
       const record = result !== null && typeof result === 'object' ? result : {};
-      // The save response reports the workspace and whether the choice needs a restart; the mode
-      // itself is the one that was just accepted, so the selector keeps the user's choice.
+      // The save response reports whether the choice needs a restart; the mode itself is the one
+      // that was just accepted, so the selector keeps the user's choice.
       setSaved({
         mode: next,
         defaultMode,

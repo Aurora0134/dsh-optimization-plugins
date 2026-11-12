@@ -213,12 +213,13 @@ const WF_API = (() => {
 
   /* --------------------------------- policy ---------------------------------- */
 
-  function policy(scope) {
-    return get('/policy', { projectRoot: scope.projectRoot });
+  /** The policy is profile-wide, so neither call takes a project or session location. */
+  function policy() {
+    return get('/policy');
   }
 
   function setPolicy(scope) {
-    return post('/policy', { projectRoot: scope.projectRoot, enabled: scope.enabled, mode: scope.mode });
+    return post('/policy', { enabled: scope.enabled, mode: scope.mode });
   }
 
   return {
