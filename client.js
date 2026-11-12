@@ -3299,20 +3299,45 @@ function wfCardArgRunId(model) {
 }
 
 /** Tools that launch a run: their run is claimed through the tool call, never through arguments. */
-const WF_CARD_LAUNCH_TOOLS = new Set(['CreateWorkflow', 'AmendWorkflow', 'FillWorkflowHole']);
+const WF_CARD_LAUNCH_TOOLS = new Set(['CreateWorkflow', 'AmendWorkflow']);
+
+/**
+ * Tools whose `run_id` argument names the run the call works on.
+ *
+ * A Fill closes a hole of a run that already exists, so its `run_id` argument is that run; the card
+ * can locate it there because the hole belongs to the CreateWorkflow call that started it, never to
+ * the Fill call, so no run row carries the Fill's own tool call id.
+ *
+ * An Amend also carries a `run_id`, but it names the run being amended — the predecessor, not the
+ * run this call starts — so it stays out; a Create names no run until it starts.
+ */
+const WF_CARD_ARG_RUN_TOOLS = new Set(['FillWorkflowHole']);
+
+/**
+ * The run a card may locate through its own arguments, for the tools listed above.
+ * @param {object} model card model
+ * @returns {string | undefined}
+ */
+function wfCardArgRunTarget(model) {
+  if (model === undefined || !WF_CARD_ARG_RUN_TOOLS.has(model.key)) return undefined;
+  return wfCardArgRunId(model);
+}
 
 /**
  * The run id a card's own tool works on, for the tools that name one.
  *
  * A launch is deliberately absent: it names no run of its own (an Amend names the run it replaces,
  * a Create names none until it starts), so a launch card subscribes to nothing here and claims its
- * run by tool call id instead.
+ * run by tool call id instead. A Fill is not a launch in this sense: the run it works on is the one
+ * its argument names, and that is the run the card shows.
  *
  * @param {object} model card model
  * @returns {string | undefined}
  */
 function wfCardResultRunId(model) {
   if (WF_CARD_LAUNCH_TOOLS.has(model.key)) return undefined;
+  const target = wfCardArgRunTarget(model);
+  if (target !== undefined) return target;
   if (model.failed) return wfCardArgRunId(model);
   const text = model.resultText;
   const structured = model.structured;
@@ -4584,16 +4609,28 @@ WF_STYLE_PARTS.push(WF_CARDS_RUN_CSS);
  * The catalogue is a Session-level listing: a snapshot keyed by run id never carries `runs`, so the
  * card reads the Session snapshot to claim its row and only afterwards subscribes to that run.
  *
+ * A Fill is the one exception, and it is still a lookup rather than a fallback: the hole belongs to
+ * the CreateWorkflow call that started the run, so no row ever carries the Fill's own tool call id,
+ * and its `run_id` argument is the run the card shows. Every other tool claims by tool call only.
+ *
  * @param {object} model card model
  * @param {object | undefined} sessionLive the Session-level snapshot (its `runs` listing)
  * @returns {object | undefined}
  */
 function wfRunCardOwnRow(model, sessionLive) {
-  if (model === undefined || model.toolId === undefined) return undefined;
+  if (model === undefined) return undefined;
   const runs = Array.isArray(sessionLive?.runs) ? sessionLive.runs : [];
+  if (model.toolId !== undefined) {
+    for (const row of runs) {
+      if (wfRunStatus(row) === 'pending') continue;
+      if (wfRunToolCallId(row) === model.toolId) return row;
+    }
+  }
+  const target = wfCardArgRunTarget(model); // eslint-disable-line no-undef -- 30-cards.js
+  if (target === undefined) return undefined;
   for (const row of runs) {
     if (wfRunStatus(row) === 'pending') continue;
-    if (wfRunToolCallId(row) === model.toolId) return row;
+    if (wfRunId(row) === target) return row;
   }
   return undefined;
 }
