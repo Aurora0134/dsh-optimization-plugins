@@ -35,6 +35,12 @@ test('the built client keeps the run card wired to its Session and its tool call
   assert.ok(client.includes('props.callId'), 'the card model must read the owner callId');
   assert.ok(client.includes('wfRunCardOwnRow'), 'the run card must claim its row by tool call id');
   assert.ok(client.includes('wfRunToolCallId(row) === model.toolId'), 'the claim must compare the run row toolCallId');
+  // The session header seat renders its children with an empty owner payload, so the status entry
+  // reads the Session from its own inject hook; without it the entry lists nothing.
+  assert.ok(
+    client.includes('inject: (sessionId) => ({\n      sessionId,'),
+    'the workflow status entry must inject the Session id',
+  );
 });
 
 test('client.js carries both dictionaries and every tool card key', () => {

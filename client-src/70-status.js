@@ -809,7 +809,10 @@ WF_STATUS.register = function register(ctx, effect) {
     id: 'workflow-status',
     order: -4,
     locale: UI_NS,
-    inject: () => ({
+    // 会话作用域的 header 座位把 owner 载荷留空，会话身份只经注册的 inject 钩子下发；
+    // 没有它，这个入口永远不会去读本会话的 run，面板就是空的。
+    inject: (sessionId) => ({
+      sessionId,
       openDirectory: () => {
         const service = layout();
         if (service === undefined || service === null || typeof service.selectPanel !== 'function') return;
