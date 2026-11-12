@@ -68,6 +68,48 @@ test('edited settings ride along with an allow', async () => {
   });
 });
 
+test('a null setting means "back to the default", not "keep the old value"', async () => {
+  const { created } = broker();
+  const pending = created.request({ runId: 'run-16', sessionId: 'sess-1' });
+  created.settle({
+    runId: 'run-16',
+    optionId: 'allow_once',
+    adjustments: { subagentModel: null, maxConcurrency: null },
+  });
+  assert.deepEqual((await pending).adjustments, { subagentModel: null, maxConcurrency: null });
+});
+
+test('a concurrency outside the engine range is clamped instead of rejected', () => {
+  const { created } = broker();
+  void created.request({ runId: 'run-17', sessionId: 'sess-1' });
+  assert.deepEqual(
+    created.settle({ runId: 'run-17', optionId: 'allow_once', adjustments: { maxConcurrency: 0 } })?.adjustments,
+    { maxConcurrency: 1 },
+  );
+
+  void created.request({ runId: 'run-18', sessionId: 'sess-1' });
+  assert.deepEqual(
+    created.settle({ runId: 'run-18', optionId: 'allow_once', adjustments: { maxConcurrency: 99_999 } })?.adjustments,
+    { maxConcurrency: 1024 },
+  );
+
+  void created.request({ runId: 'run-19', sessionId: 'sess-1' });
+  assert.deepEqual(
+    created.settle({ runId: 'run-19', optionId: 'allow_once', adjustments: { maxConcurrency: '4' } })?.adjustments,
+    undefined,
+    'a non-number is not a setting at all',
+  );
+});
+
+test('the snake_case spellings ZCode writes are accepted too', () => {
+  const { created } = broker();
+  void created.request({ runId: 'run-20', sessionId: 'sess-1' });
+  assert.deepEqual(
+    created.settle({ runId: 'run-20', optionId: 'allow_once', adjustments: { subagent_model: ' pool/max ', max_concurrency: 2.9 } })?.adjustments,
+    { subagentModel: 'pool/max', maxConcurrency: 2 },
+  );
+});
+
 test('an unanswered request settles as a rejection and says so', async () => {
   const { created, warnings } = broker(10);
   const decision = await created.request({ runId: 'run-6', sessionId: 'sess-1' });

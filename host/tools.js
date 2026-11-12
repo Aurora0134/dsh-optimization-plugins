@@ -18,7 +18,7 @@ import { userMessage } from './messages.js';
 import { MAX_LOG_TAIL_MESSAGE, summarizeRun } from './runtime.js';
 import { RUNTIME_CAPS } from './concurrency.js';
 import { TOOL_DESCRIPTIONS } from './prompt.js';
-import { createSubagentRunner } from './subagent.js';
+import { createSubagentRunner, resolveModelRoute } from './subagent.js';
 import {
   AMEND_BOTH_SCRIPTS,
   ARGS_WITHOUT_PATH,
@@ -392,6 +392,122 @@ function sessionIdOf(exec) {
     if (typeof candidate === 'string' && candidate.length > 0) return candidate;
   }
   return '';
+}
+
+/**
+ * DSH 的"本会话允许的子代理路由"投影定义，与 `dsh-tool-subagent` 里的那份同名同版本：
+ * key `subagentModelSelectionPolicy`、stateVersion 1、状态为 `{provider, model}[] | null`。
+ * 注册表按 key 引用计数共享一个单元，多方注册读的是同一份状态；`parse` 只用于读回校验。
+ */
+const MODEL_SELECTION_POLICY_KEY = 'subagentModelSelectionPolicy';
+
+/** 一个精确路由。 */
+const modelRouteSchema = {
+  parse(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('a subagent model route must be an object with provider and model');
+    }
+    const provider = typeof value.provider === 'string' ? value.provider.trim() : '';
+    const model = typeof value.model === 'string' ? value.model.trim() : '';
+    if (provider === '' || model === '') throw new Error('a subagent model route needs non-empty provider and model');
+    return { provider, model };
+  },
+};
+
+/** 策略状态：至少一条精确路由，或 null（会话没有记录策略）。 */
+const modelSelectionPolicySchema = {
+  parse(value) {
+    if (value === null) return null;
+    if (!Array.isArray(value) || value.length === 0) throw new Error('a subagent model policy is a non-empty route list or null');
+    return value.map((route) => modelRouteSchema.parse(route));
+  },
+};
+
+/**
+ * 注册（或取回）本插件上下文上的策略投影句柄，进程内按上下文缓存一份。
+ * 注册不可用（没有该服务，或宿主拒绝）时返回 undefined，调用方退回读原始事件。
+ *
+ * @param {object} ctx 插件上下文
+ * @returns {Promise<{stateOf: (session: unknown) => {provider: string, model: string}[] | null | undefined} | undefined>}
+ */
+const modelSelectionPolicyHandles = new WeakMap();
+function modelSelectionPolicyHandle(ctx) {
+  if (ctx === undefined || ctx === null || typeof ctx !== 'object') return Promise.resolve(undefined);
+  const cached = modelSelectionPolicyHandles.get(ctx);
+  if (cached !== undefined) return cached;
+  const created = (async () => {
+    const projections = ctx.get?.('sessionProjections');
+    if (projections === undefined || projections === null || typeof projections.register !== 'function') return undefined;
+    const handle = await projections.register({
+      key: MODEL_SELECTION_POLICY_KEY,
+      stateVersion: 1,
+      stateSchema: modelSelectionPolicySchema,
+      init: () => null,
+      apply: (state, event) => {
+        if (state !== null || event?.type !== 'subagent/model-selection-policy') return state;
+        const allowed = event?.data?.allowedModels;
+        if (!Array.isArray(allowed)) return state;
+        try {
+          return modelSelectionPolicySchema.parse(allowed);
+        } catch {
+          return state;
+        }
+      },
+    });
+    if (handle === undefined || handle === null || typeof handle.stateOf !== 'function') return undefined;
+    return { stateOf: (session) => handle.stateOf(session) };
+  })();
+  modelSelectionPolicyHandles.set(ctx, created);
+  return created;
+}
+
+/**
+ * 读一条会话里记录的子代理路由策略（DSH 的 `subagent/model-selection-policy` 事件）。
+ *
+ * 策略是 host-only 会话投影的原始事件，插件读同一份数据即可，不必自己注册投影。
+ * 两个读口都是 best-effort：拿不到就当会话没有记录策略。
+ *
+ * @param {object | undefined} query `sessionQuery` 服务
+ * @param {string} sessionId
+ * @returns {Promise<{provider: string, model: string}[] | undefined>}
+ */
+async function readPolicyRoutes(query, sessionId) {
+  if (query === undefined || query === null || typeof query !== 'object') return undefined;
+  const routesOf = (event) => {
+    if (event?.type !== 'subagent/model-selection-policy') return undefined;
+    const allowed = event?.data?.allowedModels;
+    if (!Array.isArray(allowed)) return undefined;
+    const routes = [];
+    for (const entry of allowed) {
+      const provider = typeof entry?.provider === 'string' ? entry.provider.trim() : '';
+      const model = typeof entry?.model === 'string' ? entry.model.trim() : '';
+      if (provider !== '' && model !== '') routes.push({ provider, model });
+    }
+    return routes.length === 0 ? undefined : routes;
+  };
+  if (typeof query.listEvents === 'function') {
+    const records = await query.listEvents(sessionId);
+    if (Array.isArray(records)) {
+      for (let index = records.length - 1; index >= 0; index -= 1) {
+        const record = records[index];
+        if (record?.type !== 'subagent/model-selection-policy' || record?.surface === 'shadowed') continue;
+        if (record.seq === undefined || typeof query.readEvent !== 'function') break;
+        const window = await query.readEvent({ sessionId, seq: record.seq });
+        const routes = routesOf(window?.target);
+        if (routes !== undefined) return routes;
+        break;
+      }
+    }
+  }
+  if (typeof query.readSession === 'function') {
+    const snapshot = await query.readSession(sessionId);
+    const events = Array.isArray(snapshot?.events) ? snapshot.events : [];
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const routes = routesOf(events[index]);
+      if (routes !== undefined) return routes;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -838,60 +954,181 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
   const has = (name) => runtime !== undefined && runtime !== null && typeof runtime[name] === 'function';
 
   /**
-   * 子代理模型目录，按启动确认弹窗需要的形状给出。
+   * 本会话允许派子代理的路由。
    *
-   * ZCode 的弹窗读渲染进程自己的模型选择视图；本移植没有等价的浏览器侧服务，所以由宿主把
-   * LLM 注册表里已公布的模型随启动 payload 下发。id 用 `provider/model`，和脚本里 model()
-   * 的写法、host/subagent.js 的 resolveModelRoute 保持同一套坐标。
+   * DSH 把它记成一个 host-only 会话投影（key `subagentModelSelectionPolicy`，状态是精确的
+   * `{provider, model}[] | null`）。工具侧派子代理时按同一份状态放行：有策略时必须命中其中
+   * 一条，没有策略时只放行父会话路由。所以确认框的目录必须是这份名单，而不是 provider 的
+   * 全量模型——全量目录里既有本会话用不了的路由（选中即被拒），又缺本会话真正在用的模型。
+   *
+   * 投影的官方共读方式是注册同一份定义（注册表按引用计数共享一个单元，见
+   * dsh-tool-subagent 的同名定义）。注册不可用时退回读会话日志里的原始事件，数据同源。
+   *
+   * @param {string} sessionId
+   * @returns {Promise<{provider: string, model: string}[] | undefined>} undefined 表示会话没有记录策略
    */
-  const modelCatalog = (() => {
-    /** @type {{id: string, label: string}[] | undefined} */
+  const sessionPolicyRoutes = (() => {
+    /** @type {Map<string, {at: number, routes: {provider: string, model: string}[] | undefined}>} */
+    const cache = new Map();
+    return async function loadPolicyRoutes(sessionId, session) {
+      if (typeof sessionId !== 'string' || sessionId.length === 0) return undefined;
+      const cached = cache.get(sessionId);
+      if (cached !== undefined && Date.now() - cached.at < 30000) return cached.routes;
+      let routes;
+      try {
+        const handle = await modelSelectionPolicyHandle(ctx);
+        routes = handle === undefined ? undefined : handle.stateOf(session) ?? undefined;
+      } catch (error) {
+        logger.warn?.(`zcode-workflow: registering the subagent model policy projection failed: ${error instanceof Error ? error.message : String(error)}`);
+        routes = undefined;
+      }
+      if (routes === undefined) {
+        try {
+          routes = await readPolicyRoutes(ctx?.get?.('sessionQuery'), sessionId);
+        } catch (error) {
+          logger.warn?.(`zcode-workflow: reading this Session's subagent model policy failed: ${error instanceof Error ? error.message : String(error)}`);
+          routes = undefined;
+        }
+      }
+      cache.set(sessionId, { at: Date.now(), routes });
+      return routes;
+    };
+  })();
+
+  /**
+   * provider 目录（只用来给允许的路由配显示名）：模型 id 是 `provider/model` 里的 model，
+   * 名字取 LLM 注册表公布的模型名，取不到就退回 id。
+   */
+  const llmDirectory = (() => {
+    /** @type {{at: number, providers: Map<string, string>, models: Map<string, Map<string, string>>, available: boolean} | undefined} */
     let cached;
-    let cachedAt = 0;
-    /** @type {Promise<{id: string, label: string}[]> | undefined} */
+    /** @type {Promise<typeof cached> | undefined} */
     let pending;
-    return async function loadModelCatalog() {
-      if (cached !== undefined && Date.now() - cachedAt < 30000) return cached;
+    return async function loadDirectory() {
+      if (cached !== undefined && Date.now() - cached.at < 30000) return cached;
       if (pending !== undefined) return pending;
       pending = (async () => {
-        try {
-          const llm = ctx?.get?.('llm');
-          if (llm === undefined || llm === null
-            || typeof llm.listProviders !== 'function' || typeof llm.listModels !== 'function') return [];
-          const rows = [];
-          for (const provider of llm.listProviders()) {
-            const providerId = typeof provider?.id === 'string' ? provider.id : '';
-            if (providerId === '') continue;
-            let models;
-            try {
-              models = await llm.listModels(providerId);
-            } catch {
-              // 一个 provider 的目录拉不到，不影响其他 provider 可供选择。
-              continue;
-            }
-            if (!Array.isArray(models)) continue;
-            for (const model of models) {
-              const modelId = typeof model?.id === 'string' ? model.id : '';
-              if (modelId === '') continue;
-              const name = typeof model.name === 'string' && model.name.trim() !== '' ? model.name.trim() : modelId;
-              rows.push({ id: `${providerId}/${modelId}`, label: name });
-            }
-          }
-          return rows;
-        } catch {
-          return [];
+        /** @type {Map<string, string>} */
+        const providers = new Map();
+        /** @type {Map<string, Map<string, string>>} */
+        const models = new Map();
+        const llm = ctx?.get?.('llm');
+        if (llm === undefined || llm === null
+          || typeof llm.listProviders !== 'function' || typeof llm.listModels !== 'function') {
+          return { at: Date.now(), providers, models, available: false };
         }
+        let listed;
+        try {
+          listed = llm.listProviders();
+        } catch {
+          listed = [];
+        }
+        for (const provider of Array.isArray(listed) ? listed : []) {
+          const providerId = typeof provider?.id === 'string' ? provider.id.trim() : '';
+          if (providerId === '') continue;
+          providers.set(providerId, typeof provider.name === 'string' && provider.name.trim() !== '' ? provider.name.trim() : providerId);
+          let entries;
+          try {
+            entries = await llm.listModels(providerId);
+          } catch {
+            // 一个 provider 的目录拉不到，不影响它的路由仍然可选（显示名退回 id）。
+            continue;
+          }
+          const byModel = new Map();
+          for (const model of Array.isArray(entries) ? entries : []) {
+            const modelId = typeof model?.id === 'string' ? model.id.trim() : '';
+            if (modelId === '') continue;
+            byModel.set(modelId, typeof model.name === 'string' && model.name.trim() !== '' ? model.name.trim() : modelId);
+          }
+          models.set(providerId, byModel);
+        }
+        return { at: Date.now(), providers, models, available: true };
       })();
       try {
-        const rows = await pending;
-        cached = rows;
-        cachedAt = Date.now();
-        return rows;
+        const value = await pending;
+        cached = value;
+        return value;
       } finally {
         pending = undefined;
       }
     };
   })();
+
+  /**
+   * 一个路由公布的思考强度层级（ZCode 的模型选择器旁边那一档）。取不到就不给。
+   * @param {{provider: string, model: string}} route
+   * @returns {Promise<{id: string, label: string}[]>}
+   */
+  const modelEfforts = (() => {
+    /** @type {Map<string, {at: number, rows: {id: string, label: string}[]}>} */
+    const cache = new Map();
+    return async function loadEfforts(route) {
+      const key = `${route.provider}/${route.model}`;
+      const cached = cache.get(key);
+      if (cached !== undefined && Date.now() - cached.at < 60000) return cached.rows;
+      /** @type {{id: string, label: string}[]} */
+      const rows = [];
+      const llm = ctx?.get?.('llm');
+      if (llm !== undefined && llm !== null && typeof llm.resolveModelInfo === 'function') {
+        try {
+          const info = await llm.resolveModelInfo(route.provider, route.model);
+          const efforts = Array.isArray(info?.reasoning?.efforts) ? info.reasoning.efforts : [];
+          for (const effort of efforts) {
+            const id = typeof effort?.id === 'string' ? effort.id.trim() : '';
+            if (id === '') continue;
+            rows.push({ id, label: typeof effort.name === 'string' && effort.name.trim() !== '' ? effort.name.trim() : id });
+          }
+        } catch {
+          // 强度是加分项：解析不到就当这个模型没有层级，不影响模型本身可选。
+        }
+      }
+      cache.set(key, { at: Date.now(), rows });
+      return rows;
+    };
+  })();
+
+  /**
+   * 启动确认里可选的子代理模型：本会话允许的路由 ∩ 可见目录，外加每一档的思考强度。
+   *
+   * @param {{sessionId: string, parentRoute?: {provider: string, model: string}}} request
+   * @returns {Promise<{id: string, label: string, efforts?: {id: string, label: string}[]}[]>}
+   */
+  const modelCatalog = async ({ sessionId, session, parentRoute }) => {
+    const allowed = await sessionPolicyRoutes(sessionId, session);
+    // 没有记录策略时不等于"什么都能选"：DSH 只放行父会话自己的路由。
+    const routes = allowed ?? (parentRoute === undefined ? [] : [parentRoute]);
+    if (routes.length === 0) {
+      logger.warn?.('zcode-workflow: the launch confirmation offers no subagent model: this Session recorded no model-selection policy and the calling model is unknown');
+      return [];
+    }
+    const directory = await llmDirectory();
+    if (!directory.available) {
+      logger.warn?.('zcode-workflow: the llm service is unavailable, so subagent models are listed by id only');
+    }
+    const rows = [];
+    const seen = new Set();
+    for (const route of routes) {
+      const id = `${route.provider}/${route.model}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const modelName = directory.models.get(route.provider)?.get(route.model);
+      const label = modelName === undefined ? id : modelName;
+      const efforts = await modelEfforts(route);
+      rows.push({ id, label, ...(efforts.length === 0 ? {} : { efforts }) });
+    }
+    return rows;
+  };
+
+  /**
+   * 父会话当前模型（子代理不显式选模型时走的路由），拆成 provider/model。
+   * @param {string | undefined} model
+   * @returns {{provider: string, model: string} | undefined}
+   */
+  const parentRouteOf = (model) => {
+    const route = resolveModelRoute(model);
+    if (route === undefined || typeof route.provider !== 'string' || typeof route.model !== 'string') return undefined;
+    return { provider: route.provider, model: route.model };
+  };
 
   /**
    * 脚本与弹窗都没指定模型时，子代理实际会用的路由：插件配置优先，否则继承调用会话当前模型。
@@ -1273,11 +1510,10 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       let maxConcurrency = requested.maxConcurrency;
       let subagentModel = requested.subagentModel;
       if (approval !== undefined) {
-        const catalogPromise = modelCatalog();
         const defaultModel = defaultSubagentModel(exec);
         const effectiveModel = subagentModel ?? defaultModel;
         const modelDefault = subagentModel === undefined;
-        const models = await catalogPromise;
+        const models = await modelCatalog({ sessionId, session: exec?.agent?.session, parentRoute: parentRouteOf(defaultModel) });
         const display = {
           kind: 'create_workflow',
           ok: true,
@@ -1293,7 +1529,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           worldCommands: prepared?.worldCommands,
           causalityGraph: prepared?.causalityGraph,
           max_concurrency: maxConcurrency,
-          ...(effectiveModel === undefined ? {} : { subagent_model: effectiveModel }),
+          // 只有显式选过模型才带 `subagent_model`：没选时留空，确认框才显示「沿用会话模型」
+          // （ZCode 的 `Tzt(Pon(input))` 在缺省时得到 `{kind:'session'}`，同理）。
+          ...(subagentModel === undefined ? {} : { subagent_model: subagentModel }),
           subagent_model_default: modelDefault,
           models,
           adjustable_settings: {
@@ -1313,8 +1551,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         });
         if (!decision.ok) return fail(decision.text, { rejected: true, reason: decision.reason ?? decision.text, reasonSource: decision.reasonSource, preserveReasonFormatting: decision.preserveReasonFormatting });
         if (decision.adjustments !== undefined) {
-          if (decision.adjustments.maxConcurrency !== undefined) maxConcurrency = decision.adjustments.maxConcurrency;
-          if (decision.adjustments.subagentModel !== undefined) subagentModel = decision.adjustments.subagentModel;
+          // null = 回到默认（ZCode 的 `subagent_model: null` / `max_concurrency: null`）。
+          if (decision.adjustments.maxConcurrency === null) maxConcurrency = undefined;
+          else if (typeof decision.adjustments.maxConcurrency === 'number') maxConcurrency = decision.adjustments.maxConcurrency;
+          if (decision.adjustments.subagentModel === null) subagentModel = undefined;
+          else if (typeof decision.adjustments.subagentModel === 'string') subagentModel = decision.adjustments.subagentModel;
         }
       }
 
@@ -1511,10 +1752,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         ? undefined
         : (typeof args?.max_concurrency === 'number' ? args.max_concurrency : previous.maxConcurrency);
       if (shouldAsk) {
-        const catalogPromise = modelCatalog();
         const effectiveModel = subagentModel ?? defaultModel;
         const modelDefault = subagentModel === undefined;
-        const models = await catalogPromise;
+        const models = await modelCatalog({ sessionId, session: exec?.agent?.session, parentRoute: parentRouteOf(defaultModel) });
         const display = {
           kind: 'amend_workflow',
           ok: true,
@@ -1531,7 +1771,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             script_inherited: inherited,
           },
           max_concurrency: maxConcurrency,
-          ...(effectiveModel === undefined ? {} : { subagent_model: effectiveModel }),
+          // 只有显式选过模型才带 `subagent_model`：没选时留空，确认框才显示「沿用会话模型」
+          // （ZCode 的 `Tzt(Pon(input))` 在缺省时得到 `{kind:'session'}`，同理）。
+          ...(subagentModel === undefined ? {} : { subagent_model: subagentModel }),
           subagent_model_default: modelDefault,
           models,
           causalityGraph: prepared?.causalityGraph,
@@ -1550,8 +1792,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         });
         if (!decision.ok) return fail(decision.text, { rejected: true, reason: decision.reason ?? decision.text, reasonSource: decision.reasonSource, preserveReasonFormatting: decision.preserveReasonFormatting });
         if (decision.adjustments !== undefined) {
-          if (decision.adjustments.maxConcurrency !== undefined) maxConcurrency = decision.adjustments.maxConcurrency;
-          if (decision.adjustments.subagentModel !== undefined) subagentModel = decision.adjustments.subagentModel;
+          // null = 回到默认（ZCode 的 `subagent_model: null` / `max_concurrency: null`）。
+          if (decision.adjustments.maxConcurrency === null) maxConcurrency = undefined;
+          else if (typeof decision.adjustments.maxConcurrency === 'number') maxConcurrency = decision.adjustments.maxConcurrency;
+          if (decision.adjustments.subagentModel === null) subagentModel = undefined;
+          else if (typeof decision.adjustments.subagentModel === 'string') subagentModel = decision.adjustments.subagentModel;
         }
       }
 

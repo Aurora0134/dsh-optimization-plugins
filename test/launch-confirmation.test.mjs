@@ -89,8 +89,23 @@ function createHarness(options = {}) {
     writeDraft: async () => undefined,
   };
   const compiler = { extractMetadataHeader: () => ({ ok: false }), compileWorkflowScript: () => ({ ok: true, diagnostics: [], phases: ['Plan'] }) };
+  // 会话投影：确认框的模型目录读的就是这份"本会话允许的子代理路由"。
+  // 没有记录策略时状态是 null，等价于"只允许父会话路由"。
+  const registrations = [];
+  const projections = {
+    register: async (definition) => {
+      registrations.push(definition);
+      return { stateOf: () => (options.policy === undefined ? null : options.policy) };
+    },
+  };
   const tools = createWorkflowTools({
-    ctx: { get: (key) => (key === 'llm' ? options.llm : undefined) },
+    ctx: {
+      get: (key) => {
+        if (key === 'llm') return options.llm;
+        if (key === 'sessionProjections') return projections;
+        return undefined;
+      },
+    },
     runtime,
     store,
     compiler,
@@ -122,6 +137,7 @@ function createHarness(options = {}) {
     started,
     amended,
     broker,
+    registrations,
     byName: Object.fromEntries(tools.map((tool) => [tool.name, tool])),
     /** @param {'GET'|'POST'} method @param {string} pathname */
     async call(method, pathname, options = {}) {
@@ -225,33 +241,74 @@ test('a cancelled call stops waiting at once instead of holding the answer slot'
   assert.equal(h.started.length, 0);
 });
 
-test('the launch confirmation carries the subagent model catalogue and the concurrency default', async () => {
-  const llm = {
-    listProviders: () => [{ id: 'prov', name: 'Provider' }],
-    listModels: async () => [{ id: 'm1', name: 'Model One' }, { id: 'm2', name: 'Model Two' }],
+/** 一个有两家 provider 的 LLM 目录：用来证明越权路由不会进确认框。 */
+function twoProviderLlm(extra = {}) {
+  return {
+    listProviders: () => [{ id: 'prov', name: 'Provider' }, { id: 'other', name: 'Other' }],
+    listModels: async (provider) => (provider === 'prov'
+      ? [{ id: 'm1', name: 'Model One' }, { id: 'm2', name: 'Model Two' }]
+      : [{ id: 'x1', name: 'Other One' }]),
+    ...extra,
   };
-  const h = createHarness({ llm });
-  const executing = h.byName.CreateWorkflow.execute(
-    { script: 'return 1;', name: 'nightly' },
-    execFor({
-      agent: {
-        session: {
-          header: { cwd: WORKSPACE },
-          requestHeader: () => ({ config: { provider: 'prov', model: 'm1' } }),
-        },
-        followup() {},
-      },
-    }),
-  );
-  const [pending] = await h.waiting();
-  assert.deepEqual(pending.input.models, [
-    { id: 'prov/m1', label: 'Model One' },
-    { id: 'prov/m2', label: 'Model Two' },
-  ]);
-  assert.equal(pending.input.subagent_model, 'prov/m1');
-  assert.equal(pending.input.subagent_model_default, true);
-  assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
+}
 
+/** 一个声明了可调设置但没显式选模型的启动。 */
+function launchWithoutModel() {
+  return execFor({
+    agent: {
+      session: {
+        header: { cwd: WORKSPACE },
+        requestHeader: () => ({ config: { provider: 'prov', model: 'm1' } }),
+      },
+      followup() {},
+    },
+  });
+}
+
+test('没有记录策略时目录只有会话模型，可调并发仍然送到确认框', async () => {
+  const h = createHarness({ llm: twoProviderLlm() });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending] = await h.waiting();
+  // 本会话没有记录策略：DSH 只放行父会话路由，所以目录里不能出现别的 provider 或别的模型。
+  assert.deepEqual(pending.input.models.map((row) => row.id), ['prov/m1']);
+  // 模型没显式传参：确认框仍要能以会话模型为准，并且并发是可调的（默认值随 payload 下发）。
+  assert.equal(pending.input.subagent_model, undefined);
+  assert.equal(pending.input.subagent_model_default, true);
+  assert.equal(pending.input.max_concurrency, undefined);
+  assert.equal(pending.input.adjustable_settings.subagent_model, true);
+  assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
+  assert.equal(h.started.length, 0);
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'deny' } });
+  await executing;
+});
+
+test('记录策略存在时目录恰好是那些路由，不出现越权地址', async () => {
+  const h = createHarness({
+    llm: twoProviderLlm({
+      resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }] } }),
+    }),
+    policy: [{ provider: 'prov', model: 'm2' }],
+  });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending] = await h.waiting();
+  // 只有策略里的路由：父会话路由(prov/m1) 与别家 provider(other/x1) 都不在目录里。
+  assert.deepEqual(pending.input.models, [{
+    id: 'prov/m2',
+    label: 'Model Two',
+    efforts: [{ id: 'low', label: 'Low' }, { id: 'high', label: 'High' }],
+  }]);
+  // 读的是官方那份投影定义，名字与版本必须和 dsh-tool-subagent 一致，才能共享同一个单元。
+  assert.equal(h.registrations.length, 1);
+  assert.equal(h.registrations[0].key, 'subagentModelSelectionPolicy');
+  assert.equal(h.registrations[0].stateVersion, 1);
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'deny' } });
+  await executing;
+});
+
+test('确认框选定的模型与并发写进本次 run 的启动参数', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), policy: [{ provider: 'prov', model: 'm2' }] });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending] = await h.waiting();
   const answered = await h.call('POST', BASE + '/run/approve', {
     body: {
       sessionId: SESSION,
@@ -265,6 +322,35 @@ test('the launch confirmation carries the subagent model catalogue and the concu
   assert.equal(result.ok, true, result.text);
   assert.equal(h.started[0].subagentModel, 'prov/m2');
   assert.equal(h.started[0].maxConcurrency, 3);
+});
+
+test('确认框选「沿用会话模型」时不写 subagent_model，越界并发被夹紧', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), policy: [{ provider: 'prov', model: 'm2' }] });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending] = await h.waiting();
+  const answered = await h.call('POST', BASE + '/run/approve', {
+    body: {
+      sessionId: SESSION,
+      runId: pending.runId,
+      optionId: 'allow_once',
+      // 会话模型 = null（不给本次 run 指定模型）；并发给一个越界值。
+      adjustments: { subagentModel: null, maxConcurrency: 5000 },
+    },
+  });
+  assert.equal(answered.status, 200);
+  const result = await executing;
+  assert.equal(result.ok, true, result.text);
+  assert.equal(h.started[0].subagentModel, undefined);
+  assert.equal(h.started[0].maxConcurrency, 1024);
+
+  const h2 = createHarness({ llm: twoProviderLlm(), policy: [{ provider: 'prov', model: 'm2' }] });
+  const second = h2.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending2] = await h2.waiting();
+  await h2.call('POST', BASE + '/run/approve', {
+    body: { sessionId: SESSION, runId: pending2.runId, optionId: 'allow_once', adjustments: { maxConcurrency: 0 } },
+  });
+  await second;
+  assert.equal(h2.started[0].maxConcurrency, 1, 'a concurrency below one is clamped instead of rejected');
 });
 
 test('an amend confirmation starts from the predecessor settings and applies the dialog changes', async () => {

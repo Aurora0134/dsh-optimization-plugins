@@ -15,6 +15,8 @@
  * show it.
  */
 
+import { RUNTIME_CAPS } from './concurrency.js';
+
 /** Answers the dialog can produce, mirroring ZCode's option ids. */
 export const APPROVAL_OPTIONS = ['allow_once', 'allow_session', 'deny', 'workflowRefine'];
 
@@ -27,7 +29,8 @@ const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
  * @property {string} optionId the dialog option the user picked
  * @property {string} [reason] rejection reason, or the revision text for `workflowRefine`
  * @property {string} [reasonSource] `workflow_refine_feedback` when the user asked for changes
- * @property {{ subagentModel?: string, maxConcurrency?: number }} [adjustments] edited settings
+ * @property {{ subagentModel?: string | null, maxConcurrency?: number | null }} [adjustments] edited settings;
+ *   a `null` field means the dialog reset it to the default
  */
 
 /**
@@ -249,20 +252,40 @@ export function createApprovalBroker({ timeoutMs = DEFAULT_TIMEOUT_MS, logger = 
 
 /**
  * Accept only the two adjustable settings the dialog can edit.
+ *
+ * 三态与 ZCode 的确认框一致：字段缺省 = 不改；`null` = 回到默认（子代理沿用会话模型 /
+ * 引擎的默认并发）；数字 = 新值，按 `max(1, floor(x))` 夹紧（同一份 `normalizeRunConcurrency`
+ * 规则，契约 cli.md:960），上界取运行期常量 `RUNTIME_CAPS.maxConcurrencyCeiling`。
+ *
  * @param {unknown} raw
- * @returns {{ subagentModel?: string, maxConcurrency?: number } | undefined}
+ * @returns {{ subagentModel?: string | null, maxConcurrency?: number | null } | undefined}
  */
 function readAdjustments(raw) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const record = /** @type {Record<string, unknown>} */ (raw);
-  const model = typeof record.subagentModel === 'string' ? record.subagentModel.trim() : '';
-  const limit = record.maxConcurrency;
-  const maxConcurrency = typeof limit === 'number' && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined;
-  if (model.length === 0 && maxConcurrency === undefined) return undefined;
+  // `??` 会把 null 当成"没有"，所以这里按属性是否存在取值：null 是有意义的三态之一。
+  const rawModel = Object.prototype.hasOwnProperty.call(record, 'subagentModel') ? record.subagentModel : record.subagent_model;
+  const model = typeof rawModel === 'string' ? rawModel.trim() : '';
+  const clearModel = rawModel === null;
+  const rawLimit = Object.prototype.hasOwnProperty.call(record, 'maxConcurrency') ? record.maxConcurrency : record.max_concurrency;
+  const clearLimit = rawLimit === null;
+  const maxConcurrency = readConcurrency(rawLimit);
+  if (!clearModel && model.length === 0 && !clearLimit && maxConcurrency === undefined) return undefined;
   return {
-    ...(model.length === 0 ? {} : { subagentModel: model }),
-    ...(maxConcurrency === undefined ? {} : { maxConcurrency }),
+    ...(clearModel ? { subagentModel: null } : model.length === 0 ? {} : { subagentModel: model }),
+    ...(clearLimit ? { maxConcurrency: null } : maxConcurrency === undefined ? {} : { maxConcurrency }),
   };
+}
+
+/**
+ * One concurrency value from the dialog, clamped the way the engine clamps a launch
+ * (`contract cli.md:960`). A non-number is not a value at all.
+ * @param {unknown} value
+ * @returns {number | undefined}
+ */
+function readConcurrency(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  return Math.min(Math.max(1, Math.floor(value)), RUNTIME_CAPS.maxConcurrencyCeiling);
 }
 
 /** Rejection text used when the user closes the dialog without choosing anything. */

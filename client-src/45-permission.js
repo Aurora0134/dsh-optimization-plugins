@@ -488,7 +488,7 @@ function WfPermissionSettings(props) {
 
   const boundValue = wfPermLimit(bound);
   const boundChanged = boundValue !== initial.bound && !(boundValue === undefined && initial.bound === undefined);
-  const modelChanged = model !== '' && model !== initial.model;
+  const modelChanged = model !== initial.model;
   const concurrency = boundValue;
   const modelRow = view.modelEditable === true && view.catalog.length > 0
     ? WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-settings-model' },
@@ -499,11 +499,10 @@ function WfPermissionSettings(props) {
         value: model,
         onChange: (event) => setModel(event.target.value),
       },
-      model === ''
-        ? WF_H('option', { value: '', key: 'none' }, say('chat.permission.workflow.settings.model.noCatalog'))
-        : null,
+      // 首项永远是「沿用会话模型」：空值就是不给本次 run 指定模型（ZCode 的 session 项）。
+      WF_H('option', { value: '', key: 'session' }, say('chat.permission.workflow.settings.model.noCatalog')),
       view.catalog.map((entry) => WF_H('option', { key: entry.id, value: entry.id }, entry.label))),
-      view.catalog.some((entry) => entry.id === model)
+      model === '' || view.catalog.some((entry) => entry.id === model)
         ? null
         : WF_H('span', { className: 'zwf-perm-badge', 'data-testid': 'workflow-permission-settings-model-unavailable' }, say('chat.permission.workflow.settings.model.unavailable')))
     : WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-subagent-model', title: say('chat.permission.workflow.settings.model.noCatalogReason') },
@@ -748,13 +747,14 @@ function WfPermissionSheet(props) {
   const canSubmit = runId !== '' && sessionId !== '' && busy !== true && (selected !== 'workflowRefine' || refine.trim() !== '');
 
   const boundDraft = wfPermLimit(draft.bound);
-  const modelChanged = draft.model !== '' && draft.model !== initial.model;
+  const modelChanged = draft.model !== initial.model;
   const boundChanged = boundDraft !== initial.bound && !(boundDraft === undefined && initial.bound === undefined);
   const changed = modelChanged || boundChanged;
   const adjustments = (() => {
     if (!changed) return undefined;
     const payload = {};
-    if (view.modelEditable === true && modelChanged) payload.subagentModel = draft.model;
+    // 选「沿用会话模型」时带 null：宿主据此清掉本次 run 的 subagent_model（ZCode 的 session 项同理）。
+    if (view.modelEditable === true && modelChanged) payload.subagentModel = draft.model === '' ? null : draft.model;
     if (boundChanged && boundDraft !== undefined) payload.maxConcurrency = boundDraft;
     return Object.keys(payload).length === 0 ? undefined : payload;
   })();
