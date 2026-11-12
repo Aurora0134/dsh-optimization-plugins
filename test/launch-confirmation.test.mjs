@@ -353,6 +353,37 @@ test('确认框选「沿用会话模型」时不写 subagent_model，越界并�
   assert.equal(h2.started[0].maxConcurrency, 1, 'a concurrency below one is clamped instead of rejected');
 });
 
+test('the run carries the tool call that launched it, so a card can claim it', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), policy: [{ provider: 'prov', model: 'm2' }] });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, execFor({ callId: 'call-42' }));
+  const [pending] = await h.waiting();
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'allow_once' } });
+  await executing;
+  assert.equal(h.started[0].toolCallId, 'call-42');
+});
+
+test('an amended run carries the tool call of the amendment', async () => {
+  const previous = {
+    id: 'run-prev',
+    runId: 'run-prev',
+    status: 'running',
+    parentSessionId: 'another-session',
+    name: 'previous',
+    cwd: WORKSPACE,
+    scriptPath: WORKSPACE + '/previous.ts',
+    scriptText: 'return 1;',
+    args: {},
+    maxConcurrency: 5,
+    subagentModel: 'prov/m1',
+  };
+  const h = createHarness({ llm: twoProviderLlm(), previous });
+  const executing = h.byName.AmendWorkflow.execute({ run_id: 'run-prev', script: 'return 2;' }, execFor({ callId: 'call-99' }));
+  const [pending] = await h.waiting();
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'allow_once' } });
+  await executing;
+  assert.equal(h.amended[0].request.toolCallId, 'call-99');
+});
+
 test('an amend confirmation starts from the predecessor settings and applies the dialog changes', async () => {
   const llm = {
     listProviders: () => [{ id: 'prov', name: 'Provider' }],

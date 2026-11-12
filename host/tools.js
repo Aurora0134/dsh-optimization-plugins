@@ -1571,6 +1571,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           maxConcurrency,
           subagentModel,
           runId: proposalId,
+          // 浏览器按工具调用 id 把自己的运行卡认领到这次 run（ZCode 的认领方式）。
+          ...(typeof exec?.callId === 'string' && exec.callId.length > 0 ? { toolCallId: exec.callId } : {}),
           origin,
         })
         : { ok: false, error: NO_EXECUTION_NOTE };
@@ -1807,6 +1809,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         name: typeof args?.name === 'string' ? args.name : previous.name,
         maxConcurrency,
         subagentModel,
+        // amend 与 start 用同一个字段名，浏览器才能按 callId 认领新的 run。
+        ...(typeof exec?.callId === 'string' && exec.callId.length > 0 ? { toolCallId: exec.callId } : {}),
         runner: runnerFor(exec, cwd),
         notify: notifierFor(exec.agent),
       };
