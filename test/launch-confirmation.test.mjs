@@ -53,9 +53,10 @@ function makeResponse() {
 /**
  * Wire the real broker, tools and routes over stub services.
  */
-function createHarness() {
+function createHarness(options = {}) {
   const registered = [];
   const started = [];
+  const amended = [];
   const broker = createApprovalBroker({ logger: { warn() {}, info() {} } });
   const runtime = {
     prepare: async (request) => ({
@@ -75,7 +76,12 @@ function createHarness() {
       started.push(request);
       return { ok: true, runId: request.runId, status: 'running' };
     },
-    getRun: async () => undefined,
+    defaultConcurrency: () => 8,
+    getRun: async () => options.previous,
+    amend: async (runId, request) => {
+      amended.push({ runId, request });
+      return { ok: true, runId: 'next', status: 'running' };
+    },
   };
   const store = {
     listRunsForSession: async () => [],
@@ -84,7 +90,7 @@ function createHarness() {
   };
   const compiler = { extractMetadataHeader: () => ({ ok: false }), compileWorkflowScript: () => ({ ok: true, diagnostics: [], phases: ['Plan'] }) };
   const tools = createWorkflowTools({
-    ctx: { get: () => undefined },
+    ctx: { get: (key) => (key === 'llm' ? options.llm : undefined) },
     runtime,
     store,
     compiler,
@@ -114,6 +120,7 @@ function createHarness() {
   return {
     tools,
     started,
+    amended,
     broker,
     byName: Object.fromEntries(tools.map((tool) => [tool.name, tool])),
     /** @param {'GET'|'POST'} method @param {string} pathname */
@@ -216,4 +223,99 @@ test('a cancelled call stops waiting at once instead of holding the answer slot'
   });
   assert.equal(late.status, 404);
   assert.equal(h.started.length, 0);
+});
+
+test('the launch confirmation carries the subagent model catalogue and the concurrency default', async () => {
+  const llm = {
+    listProviders: () => [{ id: 'prov', name: 'Provider' }],
+    listModels: async () => [{ id: 'm1', name: 'Model One' }, { id: 'm2', name: 'Model Two' }],
+  };
+  const h = createHarness({ llm });
+  const executing = h.byName.CreateWorkflow.execute(
+    { script: 'return 1;', name: 'nightly' },
+    execFor({
+      agent: {
+        session: {
+          header: { cwd: WORKSPACE },
+          requestHeader: () => ({ config: { provider: 'prov', model: 'm1' } }),
+        },
+        followup() {},
+      },
+    }),
+  );
+  const [pending] = await h.waiting();
+  assert.deepEqual(pending.input.models, [
+    { id: 'prov/m1', label: 'Model One' },
+    { id: 'prov/m2', label: 'Model Two' },
+  ]);
+  assert.equal(pending.input.subagent_model, 'prov/m1');
+  assert.equal(pending.input.subagent_model_default, true);
+  assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
+
+  const answered = await h.call('POST', BASE + '/run/approve', {
+    body: {
+      sessionId: SESSION,
+      runId: pending.runId,
+      optionId: 'allow_once',
+      adjustments: { subagentModel: 'prov/m2', maxConcurrency: 3 },
+    },
+  });
+  assert.equal(answered.status, 200);
+  const result = await executing;
+  assert.equal(result.ok, true, result.text);
+  assert.equal(h.started[0].subagentModel, 'prov/m2');
+  assert.equal(h.started[0].maxConcurrency, 3);
+});
+
+test('an amend confirmation starts from the predecessor settings and applies the dialog changes', async () => {
+  const llm = {
+    listProviders: () => [{ id: 'prov', name: 'Provider' }],
+    listModels: async () => [{ id: 'm1', name: 'Model One' }, { id: 'm2', name: 'Model Two' }],
+  };
+  const previous = {
+    id: 'run-prev',
+    runId: 'run-prev',
+    status: 'running',
+    parentSessionId: 'another-session',
+    name: 'previous',
+    cwd: WORKSPACE,
+    scriptPath: WORKSPACE + '/previous.ts',
+    scriptText: 'return 1;',
+    args: {},
+    maxConcurrency: 5,
+    subagentModel: 'prov/m1',
+  };
+  const h = createHarness({ llm, previous });
+  const executing = h.byName.AmendWorkflow.execute(
+    { run_id: 'run-prev', script: 'return 2;' },
+    execFor({
+      agent: {
+        session: {
+          header: { cwd: WORKSPACE },
+          requestHeader: () => ({ config: { provider: 'prov', model: 'm1' } }),
+        },
+        followup() {},
+      },
+    }),
+  );
+  const [pending] = await h.waiting();
+  assert.equal(pending.input.max_concurrency, 5);
+  assert.equal(pending.input.subagent_model, 'prov/m1');
+  assert.equal(pending.input.subagent_model_default, false);
+  assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
+
+  await h.call('POST', BASE + '/run/approve', {
+    body: {
+      sessionId: SESSION,
+      runId: pending.runId,
+      optionId: 'allow_once',
+      adjustments: { maxConcurrency: 2, subagentModel: 'prov/m2' },
+    },
+  });
+  const result = await executing;
+  assert.equal(result.ok, true, result.text);
+  assert.equal(h.amended.length, 1);
+  assert.equal(h.amended[0].runId, 'run-prev');
+  assert.equal(h.amended[0].request.maxConcurrency, 2);
+  assert.equal(h.amended[0].request.subagentModel, 'prov/m2');
 });

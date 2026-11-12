@@ -867,3 +867,62 @@ test('没给 name 的 run 不往 journal 写默认名（label 交给脚本首行
   assert.equal(journal.getRun(named.runId)?.name, '部署收口');
   await runtime.waitForRun(named.runId, { timeoutMs: 3000 });
 });
+
+test('subagentModel 是未指定模型 actor 的默认路由，脚本模型优先', async () => {
+  const base = {
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+    phases: ['look'],
+    sitePhases: new Map([['ask#1', 'look']]),
+    actors: [{ siteId: 'actor#1', name: 'reader' }],
+  };
+  const inherited = stubCompiler({
+    ...base,
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", void 0);',
+      'var answer = await __host.ask("ask#1", reader, "read the file");',
+      'return answer;',
+    ].join('\n'),
+  });
+  const inheritedCalls = [];
+  const first = createRuntime({ compiler: inherited, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await first.startRun({
+    code: '// stub',
+    name: 'default-model',
+    cwd: '/tmp/ws',
+    subagentModel: 'prov/m1',
+    runner: async (request) => {
+      inheritedCalls.push(request);
+      return { text: 'ok' };
+    },
+  });
+  assert.equal(started.ok, true, String(started.error));
+  await first.waitForRun(started.runId, { timeoutMs: 3000 });
+  assert.equal(inheritedCalls.length, 1);
+  assert.equal(inheritedCalls[0].actor.model, 'prov/m1');
+  const created = first.eventsAfter(started.runId, -1, 100).find((row) => row.type === 'actor-created');
+  assert.equal(created.event.persona.model, 'prov/m1');
+
+  const pinned = stubCompiler({
+    ...base,
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", { model: "script/m2" });',
+      'var answer = await __host.ask("ask#1", reader, "read the file");',
+      'return answer;',
+    ].join('\n'),
+  });
+  const pinnedCalls = [];
+  const second = createRuntime({ compiler: pinned, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const pinnedRun = await second.startRun({
+    code: '// stub',
+    name: 'script-model',
+    cwd: '/tmp/ws',
+    subagentModel: 'prov/m1',
+    runner: async (request) => {
+      pinnedCalls.push(request);
+      return { text: 'ok' };
+    },
+  });
+  assert.equal(pinnedRun.ok, true, String(pinnedRun.error));
+  await second.waitForRun(pinnedRun.runId, { timeoutMs: 3000 });
+  assert.equal(pinnedCalls[0].actor.model, 'script/m2');
+});

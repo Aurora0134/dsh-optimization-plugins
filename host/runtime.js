@@ -281,6 +281,8 @@ class WorkflowEngine {  /**
    */
   constructor({ runId, journal, driver, caps, askSpecs = new Map(), sitePhases = new Map(), holeTypes = new Map(), launch, now = Date.now }) {
     this.runId = runId;
+    // 启动时选择的子代理模型，作为脚本未给 actor 指定模型时的默认路由。
+    this.subagentModel = typeof launch?.subagentModel === 'string' && launch.subagentModel.length > 0 ? launch.subagentModel : undefined;
     this.journal = journal;
     this.driver = driver;
     this.caps = { maxConcurrency: Math.max(1, Math.floor(caps.maxConcurrency)) };
@@ -397,6 +399,8 @@ class WorkflowEngine {  /**
     const ref = { siteId, ordinal };
     const key = `${siteId}@${ordinal}`;
     const normalized = normalizePersona(name, persona);
+    // 脚本自己的 model() 优先；没有指定时沿用启动确认里选定的子代理模型。
+    if (normalized.model === undefined && this.subagentModel !== undefined) normalized.model = this.subagentModel;
     const actorName = normalized.name;
     if (actorName !== undefined && actorName !== '') {
       const first = this.actorNames.get(actorName);
@@ -3206,6 +3210,8 @@ export function createRuntime({
 
   return {
     prepare,
+    /** 本次启动的默认并发上限；确认对话框用它标出「默认」并作为初始值。 */
+    defaultConcurrency: () => defaultConcurrency,
     startRun,
     start: startRun,
     resumeRun,

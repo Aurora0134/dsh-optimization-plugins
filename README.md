@@ -95,12 +95,12 @@ plugin_manager(action="install_bundle", target="<本目录绝对路径>")
 3. **子代理**：DSH 的子代理没有会话中途动态注册工具的通道，因此 `submit_result`/`escalate` 用"逐字提示 + 回合制"等价实现：typed ask 要求返回可解析 JSON，违规走 repair、空回合走 nudge，升级提问由 `escalate` 文本触发并通过 `ResolveWorkflowQuestion` 回灌。
 4. **运行记录**：真实实现写在会话 SQLite；本插件用项目目录下的 JSONL/JSON 等价映射，字段与保留策略（每会话 8 条运行、产物 32 个 id / 16 个版本）一致。
 5. **amend**：以新运行取代旧运行，不做 transcript 种子与记录级缓存导入；`ResumeWorkflowRun` 才按 journal 重放已完成的工作。
-6. **模型清单**：Harness 未向插件暴露模型目录，启动确认里的模型一行只读，并发可调。
+6. **模型清单**：宿主从 llm 服务聚合已公布的 provider/model 随启动确认下发，模型与并发都可调；脚本里用 `model()` 指定的模型优先。
 7. **子代理会话正文**：没有按 actor 会话读消息的通道，子代理面以该 actor 的步骤台账呈现。
 
 ## 验证
 
-- 单元测试：`node --test test/*.test.mjs` → **244 个测试全部通过**，按文件：编译器 29、运行时 29、facade 6、数据面（journal 8 / projection 19 / phase-state 12 / store 17 / ui-api 39）、工具 54、消息 4、审批 12、工作区 11、插件加载 2、前端构建 2。
+- 单元测试：`node --test test/*.test.mjs` → **263 个测试全部通过**，按文件：编译器 29、运行时 32、facade 6、数据面（journal 8 / projection 19 / phase-state 12 / store 17 / ui-api 42）、工具 57、消息 4、审批 17、启动确认 5、工作区 11、插件加载 2、前端构建 2。
 - 加载探针（`test/plugin-apply.test.mjs`）：用最小 ctx 驱动 `apply`，断言 12 个工具、2 个命令、1 个提示段、3 个技能与 27 条路由全部注册且不抛错（含 22 条数据面路由、运行设置 `POST /run/configure` 与 4 条兼容旧前端的遗留路由）；并覆盖 `onDemand` 下不注册模型面工具、只留数据通道。
 - 前端构建：`node scripts/build-client.mjs` → 25 个 part、`node --check client.js` 通过、`client.js` 与源码一致。
 - 前端渲染冒烟：用构建产物和 stub React 逐个渲染七个槽组件（工具卡、确认块、详情、脚本步骤、目录页、设置行、状态入口）无异常。

@@ -838,6 +838,81 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
   const has = (name) => runtime !== undefined && runtime !== null && typeof runtime[name] === 'function';
 
   /**
+   * 子代理模型目录，按启动确认弹窗需要的形状给出。
+   *
+   * ZCode 的弹窗读渲染进程自己的模型选择视图；本移植没有等价的浏览器侧服务，所以由宿主把
+   * LLM 注册表里已公布的模型随启动 payload 下发。id 用 `provider/model`，和脚本里 model()
+   * 的写法、host/subagent.js 的 resolveModelRoute 保持同一套坐标。
+   */
+  const modelCatalog = (() => {
+    /** @type {{id: string, label: string}[] | undefined} */
+    let cached;
+    let cachedAt = 0;
+    /** @type {Promise<{id: string, label: string}[]> | undefined} */
+    let pending;
+    return async function loadModelCatalog() {
+      if (cached !== undefined && Date.now() - cachedAt < 30000) return cached;
+      if (pending !== undefined) return pending;
+      pending = (async () => {
+        try {
+          const llm = ctx?.get?.('llm');
+          if (llm === undefined || llm === null
+            || typeof llm.listProviders !== 'function' || typeof llm.listModels !== 'function') return [];
+          const rows = [];
+          for (const provider of llm.listProviders()) {
+            const providerId = typeof provider?.id === 'string' ? provider.id : '';
+            if (providerId === '') continue;
+            let models;
+            try {
+              models = await llm.listModels(providerId);
+            } catch {
+              // 一个 provider 的目录拉不到，不影响其他 provider 可供选择。
+              continue;
+            }
+            if (!Array.isArray(models)) continue;
+            for (const model of models) {
+              const modelId = typeof model?.id === 'string' ? model.id : '';
+              if (modelId === '') continue;
+              const name = typeof model.name === 'string' && model.name.trim() !== '' ? model.name.trim() : modelId;
+              rows.push({ id: `${providerId}/${modelId}`, label: name });
+            }
+          }
+          return rows;
+        } catch {
+          return [];
+        }
+      })();
+      try {
+        const rows = await pending;
+        cached = rows;
+        cachedAt = Date.now();
+        return rows;
+      } finally {
+        pending = undefined;
+      }
+    };
+  })();
+
+  /**
+   * 脚本与弹窗都没指定模型时，子代理实际会用的路由：插件配置优先，否则继承调用会话当前模型。
+   * @param {object} exec
+   * @returns {string | undefined}
+   */
+  const defaultSubagentModel = (exec) => {
+    if (typeof config.subagentModel === 'string' && config.subagentModel.trim() !== '') return config.subagentModel.trim();
+    try {
+      const requestConfig = exec?.agent?.session?.requestHeader?.()?.config;
+      if (requestConfig === null || typeof requestConfig !== 'object') return undefined;
+      const provider = typeof requestConfig.provider === 'string' ? requestConfig.provider.trim() : '';
+      const model = typeof requestConfig.model === 'string' ? requestConfig.model.trim() : '';
+      if (provider !== '' && model !== '') return `${provider}/${model}`;
+      return model === '' ? undefined : model;
+    } catch {
+      return undefined;
+    }
+  };
+
+  /**
    * Build the per-run subagent runner bound to the calling agent and workspace.
    * @param {object} exec
    * @param {string} cwd
@@ -1198,6 +1273,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       let maxConcurrency = requested.maxConcurrency;
       let subagentModel = requested.subagentModel;
       if (approval !== undefined) {
+        const catalogPromise = modelCatalog();
+        const defaultModel = defaultSubagentModel(exec);
+        const effectiveModel = subagentModel ?? defaultModel;
+        const modelDefault = subagentModel === undefined;
+        const models = await catalogPromise;
         const display = {
           kind: 'create_workflow',
           ok: true,
@@ -1213,7 +1293,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           worldCommands: prepared?.worldCommands,
           causalityGraph: prepared?.causalityGraph,
           max_concurrency: maxConcurrency,
-          subagent_model: subagentModel,
+          ...(effectiveModel === undefined ? {} : { subagent_model: effectiveModel }),
+          subagent_model_default: modelDefault,
+          models,
           adjustable_settings: {
             subagent_model: true,
             ...(typeof runtime.defaultConcurrency === 'function' ? { concurrency_ceiling: runtime.defaultConcurrency() } : {}),
@@ -1421,7 +1503,18 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         : previous.ownedByThisSession;
       const stopReason = previous.stopReason ?? previous.stop_reason;
       const shouldAsk = approval !== undefined && (owned === false || (previous.status === 'stopped' && stopReason === 'user'));
+      // 确认框展示这次 amend 实际会用的值：本次参数优先，否则沿用前序 run 的设置。
+      const defaultModel = defaultSubagentModel(exec);
+      const requestedModel = typeof args?.subagent_model === 'string' ? args.subagent_model : undefined;
+      let subagentModel = args?.subagent_model === null ? undefined : (requestedModel ?? previous.subagentModel);
+      let maxConcurrency = args?.max_concurrency === null
+        ? undefined
+        : (typeof args?.max_concurrency === 'number' ? args.max_concurrency : previous.maxConcurrency);
       if (shouldAsk) {
+        const catalogPromise = modelCatalog();
+        const effectiveModel = subagentModel ?? defaultModel;
+        const modelDefault = subagentModel === undefined;
+        const models = await catalogPromise;
         const display = {
           kind: 'amend_workflow',
           ok: true,
@@ -1437,8 +1530,10 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             owned_by_this_session: owned === true,
             script_inherited: inherited,
           },
-          max_concurrency: args?.max_concurrency,
-          subagent_model: args?.subagent_model,
+          max_concurrency: maxConcurrency,
+          ...(effectiveModel === undefined ? {} : { subagent_model: effectiveModel }),
+          subagent_model_default: modelDefault,
+          models,
           causalityGraph: prepared?.causalityGraph,
           adjustable_settings: {
             subagent_model: true,
@@ -1454,6 +1549,10 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           signal: exec?.signal,
         });
         if (!decision.ok) return fail(decision.text, { rejected: true, reason: decision.reason ?? decision.text, reasonSource: decision.reasonSource, preserveReasonFormatting: decision.preserveReasonFormatting });
+        if (decision.adjustments !== undefined) {
+          if (decision.adjustments.maxConcurrency !== undefined) maxConcurrency = decision.adjustments.maxConcurrency;
+          if (decision.adjustments.subagentModel !== undefined) subagentModel = decision.adjustments.subagentModel;
+        }
       }
 
       const wasRunning = isRunning(previous);
@@ -1461,8 +1560,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         ...(code === undefined ? {} : { code }),
         ...(scriptPath === undefined ? {} : { scriptPath }),
         name: typeof args?.name === 'string' ? args.name : previous.name,
-        maxConcurrency: args?.max_concurrency === null ? undefined : (typeof args?.max_concurrency === 'number' ? args.max_concurrency : previous.maxConcurrency),
-        subagentModel: args?.subagent_model === null ? undefined : (typeof args?.subagent_model === 'string' ? args.subagent_model : previous.subagentModel),
+        maxConcurrency,
+        subagentModel,
         runner: runnerFor(exec, cwd),
         notify: notifierFor(exec.agent),
       };

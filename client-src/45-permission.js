@@ -553,8 +553,9 @@ function WfPermissionSettings(props) {
           className: 'zwf-perm-step',
           'data-testid': 'workflow-permission-settings-bound-increase',
           'aria-label': say('chat.permission.workflow.settings.limit.increase'),
-          disabled: view.ceiling !== undefined && concurrency !== undefined && concurrency >= view.ceiling,
-          onClick: () => setBound(String(Math.min(view.ceiling ?? Number.MAX_SAFE_INTEGER, (concurrency ?? 0) + 1))),
+          // ceiling 是默认值而不是硬上限（ZCode 的加号只在无值时禁用）；真正的接纳上限由引擎钳制。
+          disabled: concurrency === undefined,
+          onClick: () => setBound(String((concurrency ?? 0) + 1)),
         }, '+')),
       WF_H('span', { className: 'zwf-perm-settings-trail' }, say('chat.permission.workflow.settings.limit.trail')),
       WF_H('span', { className: 'zwf-perm-settings-tail', 'data-testid': 'workflow-permission-settings-bound-tail' }, `\u00b7 ${tail}`),

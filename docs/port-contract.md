@@ -53,7 +53,7 @@
 
 **唯一的移植扩展**是 `StopWorkflowRun`：真实 ZCode 没有这个工具（停跑走通用后台任务工具），而 Harness 没有对应通道，所以本移植保留它作为停止入口。新增工具必须记入本表。
 
-启动确认：真实实现是工具调用内的权限对话框（阶段图 + 可调模型/并发 + 四选项）。Harness 没有插件级的逐工具确认通道，因此本移植用 `host/approval.js` 把同一次询问拆成「工具等待 + 浏览器作答」，选项 id 与语义不变：`allow_once`、`allow_session`、`deny`、`workflowRefine`（后者按真实实现记为**带理由的拒绝**）。
+启动确认：真实实现是工具调用内的权限对话框（阶段图 + 可调模型/并发 + 四选项）。Harness 没有插件级的逐工具确认通道，因此本移植用 `host/approval.js` 把同一次询问拆成「工具等待 + 浏览器作答」，选项 id 与语义不变：`allow_once`、`allow_session`、`deny`、`workflowRefine`（后者按真实实现记为**带理由的拒绝**）。启动 payload 额外带 `models`（`{id,label}`，id 为 `provider/model`）与 `subagent_model_default`：ZCode 的模型目录来自渲染进程本地，本移植没有该通道，改由宿主从 `llm` 服务聚合后随 payload 下发；`subagent_model` 只写显式选择，未选时沿用会话模型。
 
 拆开之后两边靠两条约定对齐，改动任一侧都要同时照顾另一侧：
 
@@ -80,7 +80,8 @@
 | 运行态存储 | 会话 SQLite（`dwf_run/actor/node/event`） | JSON 文件等价映射，字段与保留策略一致 | 插件没有会话库写入通道 |
 | 保存的工作流目录 | `.zcode/workflows`（全局 `~/.zcode/workflows`） | `.dsh/workflows`（全局 `$DSH_HOME/workflows`），读取兼容旧目录 | 跟随 Harness 的目录约定 |
 | `TaskOutput`/`TaskStop` | 通用后台任务工具 | 按 run 语义（`run_id`）使用；停止入口为本移植扩展 `StopWorkflowRun` | Harness 没有等价的后台任务工具 |
-| 模型可调行 | 可从模型目录挑选子代理模型 | 无模型目录通道，只留并发可调与模型只读展示 | Harness 未向插件暴露模型清单 |
+| 模型可调行 | 从渲染进程的模型选择视图挑选子代理模型 | 宿主从 `ctx.get('llm')` 聚合 provider/model，随启动 payload 下发；弹窗仍是模型下拉 + 默认值回写 | ZCode 的目录来自渲染进程本地服务；本移植没有该通道，只能由宿主随 payload 提供 |
+| 脚本命名模型 | 模型行只读，并单独列出脚本命名的模型 | 模型行仍可调；脚本 `model()` 优先，全局选择只作用于未指定模型的 actor | 未移植 `scriptNamesModels` 门禁 |
 | 运行目录视图 | 独立右栏 | 放进状态入口弹层的第二视图 | 没有对应的 `sidePane` 槽位 |
 | 启动已保存工作流 | 直接按名启动 | 开一条新会话并把名称与参数写进提示词 | 没有跨会话的启动路由 |
 | 子代理会话正文 | 打开 actor 的只读会话 | 只展示该 actor 的步骤台账与「尚未启动」两态 | Harness 没有给插件按 actor 会话读消息的通道；为只读视图新增数据面契约不划算 |
@@ -92,7 +93,7 @@
 | 工具并发安全 | 只读类工具声明 `concurrentSafe`，可并发调用 | 12 个工具一律 `isConcurrencySafe: () => false`（串行） | 保守取值；并发安全声明需要逐工具确认副作用面，未在本轮纳入 |
 | 技能加载门禁 | 未在本会话加载过技能前拒绝提交脚本 | 不设门禁：技能随插件注册即可读，提交直接编译 | Harness 没有"本会话已加载技能"的可读状态 |
 | 脚本类型检查 | TypeScript 严格类型检查，类型错误以诊断返回 | 只做语法 + 规则检查（9001、9003–9010、9012，加 TS 的 1184/2304 两条语法与未知名字文案），不做类型推导 | 无 TS 编译器通道；工具描述与技能已改成"语法与规则检查"口径 |
-| 模型可用性校验 | 9011 两条：目录在校验之后才出现该模型、fill 点了一个 run 不可用的模型 | 不产生 9011：`model("…")` 只校验"非空字面量"（9010） | 两条都要"这个 run 能用的模型集"，而 Harness 不向插件暴露模型清单，也没有 per-fill 的模型选择 |
+| 模型可用性校验 | 9011 两条：目录在校验之后才出现该模型、fill 点了一个 run 不可用的模型 | 不产生 9011：`model("…")` 只校验"非空字面量"（9010） | 两条都要"这个 run 能用的模型集"，但本移植没有 per-fill 的模型选择（目录只用于启动确认的全局子代理模型） |
 | actor 工具面 | 子代理看不到 `AskUserQuestion`/`EnterPlanMode`/`ExitPlanMode`/`CreateWorkflow`/`AmendWorkflow`/`ReadSessionContext`/`ResolveWorkflowQuestion` | 子代理工具集由 Harness 固定，插件无法下发 deny 列表；靠技能与提示词约束 | `subagents.startActivation` 没有工具策略参数 |
 | 总条目预算 | 单 run 条目总量 6144 | 只实现 `reports ≤ 64`、`pendingQuestions ≤ 32` | 6144 总预算需要跨表计数，本轮未做 |
 | 运行中 retune | 只改设置时原地 retune（`retuned` 输出） | 模型面 `AmendWorkflow` 仍整跑新 run；数据面 `POST /run/configure` 负责运行中改并发 | 原地 retune 的模型面路径未接线，UI 侧已可用 |
