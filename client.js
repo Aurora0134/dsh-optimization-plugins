@@ -59,19 +59,6 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Whether the switch is on, including the round trip in which the Session
-     * still carries the base preset. The mode label reads it so the label does
-     * not lose the creation layer for that round trip.
-     */
-    let creationOn = false
-    const creationListeners = new Set()
-    function setCreationOn(next) {
-      if (creationOn === next) return
-      creationOn = next
-      for (const listener of creationListeners) listener()
-    }
-
-    /**
      * Base mode used by a blank Session whose preset projection has not loaded
      * yet. The Host roster marks the effective default; the switch falls back to
      * it so a fresh new-session screen still offers "创造模式".
@@ -136,13 +123,6 @@ window.__ModuleLoader__.load({
         && base !== undefined
       ) bridging.current = true
       const on = creation || bridging.current
-
-      // The mode label shows the creation layer, so it has to know the switch is
-      // on before the Session carries the composition — not a paint later.
-      const useBeforePaint = React.useLayoutEffect ?? React.useEffect
-      useBeforePaint(() => {
-        setCreationOn(on)
-      }, [on])
 
       // Choosing another base mode while creation is on keeps creation on: the
       // shipped chip just switched the preset, so re-apply the new composition.
@@ -304,16 +284,16 @@ window.__ModuleLoader__.load({
           return parent !== null && parent.closest(headerScope) !== null
         }
         /**
-         * Mode a rendered string belongs to, and whether creation is on in it.
-         * The roster may already have resolved a base name before the composed
-         * preset arrives, so a resolved name counts as its base id.
+         * Mode a rendered string belongs to, and whether the text itself is a
+         * composed id. A base name is the chip's own label and never gains the
+         * creation layer from another Session's switch.
          */
         const resolve = (text) => {
           const composite = creationOf(text)
           if (composite !== undefined) return { base: composite, layer: true }
-          if (BASE_NAME_KEY[text] !== undefined) return { base: text, layer: creationOn }
+          if (BASE_NAME_KEY[text] !== undefined) return { base: text, layer: false }
           const named = Object.keys(BASE_NAME_KEY).find((mode) => t(BASE_NAME_KEY[mode]) === text)
-          return named === undefined ? undefined : { base: named, layer: creationOn }
+          return named === undefined ? undefined : { base: named, layer: false }
         }
         /**
          * Text a mode label shows. The chip offers a base mode, so creation stays
@@ -398,7 +378,6 @@ window.__ModuleLoader__.load({
           for (const node of [...patched.keys()]) relabel(node, true)
         }
         const unsubscribe = ctx.locale.subscribe(refreshAll)
-        creationListeners.add(refreshAll)
         /**
          * The selectors are the only link to the shipped labels, so a renamed
          * slot or class turns the rewrite off without raising anything and the
@@ -421,7 +400,6 @@ window.__ModuleLoader__.load({
         return () => {
           observer.disconnect()
           unsubscribe()
-          creationListeners.delete(refreshAll)
           window.clearInterval(diagnose)
           patched.clear()
         }
