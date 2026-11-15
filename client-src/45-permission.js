@@ -187,7 +187,7 @@ function wfPermView(run) {
     savedPath: wfPermText(saved?.path),
     savedArgs: wfPermRecord(saved?.args) ?? {},
     subagentModel: wfPermText(input.subagent_model) ?? wfPermText(input.subagentModel) ?? '',
-    modelDefault: wfPermBool(input.subagent_model_default) ?? wfPermBool(input.subagentModelDefault) ?? false,
+    scriptNamesModels: wfPermBool(input.scriptNamesModels) ?? wfPermBool(input.script_names_models) ?? false,
     maxConcurrency: wfPermLimit(input.max_concurrency) ?? wfPermLimit(input.maxConcurrency),
     ceiling: wfPermLimit(adjustable.concurrency_ceiling) ?? wfPermLimit(adjustable.concurrencyCeiling),
     modelEditable: wfPermBool(adjustable.subagent_model) === true || wfPermBool(adjustable.subagentModel) === true,
@@ -209,6 +209,27 @@ function wfPermBool(value) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return undefined;
+}
+
+/**
+ * Copy keys of the model row. The judgement is the host's "the script names its own models": the
+ * run-level model is then only the one the subagents fall back to, so the row says "by default".
+ * Whether the user picked a model is a different fact and must not stand in for this one.
+ * @param {unknown} scriptNamesModels
+ * @returns {{ lead: string, line: string, noCatalog: string }}
+ */
+function wfPermModelKeys(scriptNamesModels) {
+  return scriptNamesModels === true
+    ? {
+      lead: 'chat.permission.workflow.settings.model.leadDefault',
+      line: 'chat.permission.workflow.subagentModelDefault',
+      noCatalog: 'chat.permission.workflow.settings.model.noCatalogDefault',
+    }
+    : {
+      lead: 'chat.permission.workflow.settings.model.lead',
+      line: 'chat.permission.workflow.subagentModel',
+      noCatalog: 'chat.permission.workflow.settings.model.noCatalog',
+    };
 }
 
 /**
@@ -494,9 +515,10 @@ function WfPermissionSettings(props) {
   const boundChanged = boundValue !== initial.bound && !(boundValue === undefined && initial.bound === undefined);
   const modelChanged = model !== initial.model;
   const concurrency = boundValue;
+  const modelKeys = wfPermModelKeys(view.scriptNamesModels);
   const modelRow = view.modelEditable === true && view.catalog.length > 0
     ? WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-settings-model' },
-      WF_H('span', { className: 'zwf-perm-settings-lead' }, say(view.modelDefault ? 'chat.permission.workflow.settings.model.leadDefault' : 'chat.permission.workflow.settings.model.lead')),
+      WF_H('span', { className: 'zwf-perm-settings-lead' }, say(modelKeys.lead)),
       WF_H('select', {
         className: 'zwf-perm-select',
         'data-testid': 'workflow-permission-settings-model-trigger',
@@ -511,10 +533,10 @@ function WfPermissionSettings(props) {
         : WF_H('span', { className: 'zwf-perm-badge', 'data-testid': 'workflow-permission-settings-model-unavailable' }, say('chat.permission.workflow.settings.model.unavailable')))
     : WF_H('p', { className: 'zwf-perm-settings-row', 'data-testid': 'workflow-permission-subagent-model', title: say('chat.permission.workflow.settings.model.noCatalogReason') },
       view.modelEditable === true
-        ? say(view.modelDefault ? 'chat.permission.workflow.settings.model.noCatalogDefault' : 'chat.permission.workflow.settings.model.noCatalog')
+        ? say(modelKeys.noCatalog)
         : view.subagentModel === ''
           ? say('chat.permission.workflow.settings.model.noCatalog')
-          : say(view.modelDefault ? 'chat.permission.workflow.subagentModelDefault' : 'chat.permission.workflow.subagentModel', { model: view.subagentModel }));
+          : say(modelKeys.line, { model: view.subagentModel }));
 
   const tail = view.ceiling === undefined
     ? say('chat.permission.workflow.settings.limit.none')

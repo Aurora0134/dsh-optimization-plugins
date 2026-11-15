@@ -8,6 +8,7 @@
  * fails here instead of in a test session that waits fifteen minutes.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -70,7 +71,8 @@ function createHarness(options = {}) {
       artifacts: [],
       worldCommands: [],
       causalityGraph: { phases: [{ id: 'Plan', name: 'Plan' }], steps: [{ id: 's1', phase: 'Plan', kind: 'ask' }], holes: [] },
-      prepared: { code: request.code, filename: 'workflow.ts', compile: { ok: true, phases: ['Plan'], actors: [], holes: [], scriptHash: 'hash', askSpecs: new Map(), sitePhases: new Map() } },
+      // models 是编译期收集的 model() 字面名；确认框的模型行文案只认这一项。
+      prepared: { code: request.code, filename: 'workflow.ts', compile: { ok: true, phases: ['Plan'], actors: [], holes: [], scriptHash: 'hash', askSpecs: new Map(), sitePhases: new Map(), ...(options.models === undefined ? {} : { models: options.models }) } },
     }),
     start: async (request) => {
       started.push(request);
@@ -273,7 +275,6 @@ test('没有记录策略时目录只有会话模型，可调并发仍然送到�
   assert.deepEqual(pending.input.models.map((row) => row.id), ['prov/m1']);
   // 模型没显式传参：确认框仍要能以会话模型为准，并且并发是可调的（默认值随 payload 下发）。
   assert.equal(pending.input.subagent_model, undefined);
-  assert.equal(pending.input.subagent_model_default, true);
   assert.equal(pending.input.max_concurrency, undefined);
   assert.equal(pending.input.adjustable_settings.subagent_model, true);
   assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
@@ -418,7 +419,6 @@ test('an amend confirmation starts from the predecessor settings and applies the
   const [pending] = await h.waiting();
   assert.equal(pending.input.max_concurrency, 5);
   assert.equal(pending.input.subagent_model, 'prov/m1');
-  assert.equal(pending.input.subagent_model_default, false);
   assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
 
   await h.call('POST', BASE + '/run/approve', {
@@ -435,4 +435,137 @@ test('an amend confirmation starts from the predecessor settings and applies the
   assert.equal(h.amended[0].runId, 'run-prev');
   assert.equal(h.amended[0].request.maxConcurrency, 2);
   assert.equal(h.amended[0].request.subagentModel, 'prov/m2');
+});
+
+test('a script that names its own models says so in the launch payload', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), models: ['prov/m2'] });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'const ref = model("prov/m2");\nreturn 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending] = await h.waiting();
+  // 判据是「脚本自己点了名」，与用户有没有显式选模型无关。
+  assert.equal(pending.input.scriptNamesModels, true);
+  assert.equal(pending.input.subagent_model, undefined);
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'deny' } });
+  await executing;
+});
+
+test('a script that names no model leaves the model line to the run setting', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), models: [] });
+  const executing = h.byName.CreateWorkflow.execute({ script: 'return 1;', name: 'nightly' }, launchWithoutModel());
+  const [pending] = await h.waiting();
+  assert.equal(pending.input.scriptNamesModels, false);
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'deny' } });
+  await executing;
+});
+
+/** 客户端那份 45-permission 的一小片：只要 view 与模型行的文案键映射。 */
+function loadPermissionPart() {
+  const body = ['00-core.js', '45-permission.js']
+    .map((name) => readFileSync(new URL('../client-src/' + name, import.meta.url), 'utf8'))
+    .join('\n') + '\nreturn { wfPermView, wfPermModelKeys };\n';
+  const factory = new Function('React', 'WF_API', 'WF_H', 'WF_UI', 'WF_ICON', 'UI_EN', 'WF_STYLE_PARTS', 'wfCardRecord', 'document', 'window', body);
+  return factory(
+    { createElement: () => null },
+    { runs: async () => ({ runs: [] }) },
+    () => null,
+    { say: () => '' },
+    {},
+    {},
+    [],
+    (value) => value,
+    undefined,
+    undefined,
+  );
+}
+
+test('the model line keys its copy on the script naming models, not on the user picking one', () => {
+  const permission = loadPermissionPart();
+  // 用户没选模型、脚本点了名：这一行说的是「默认」，不是「就是它」。
+  const named = permission.wfPermView({
+    input: {
+      kind: 'create_workflow',
+      scriptNamesModels: true,
+      adjustable_settings: { subagent_model: true },
+      models: [{ id: 'prov/m1', label: 'Model One' }],
+    },
+  });
+  assert.equal(named.scriptNamesModels, true);
+  assert.deepEqual(permission.wfPermModelKeys(named.scriptNamesModels), {
+    lead: 'chat.permission.workflow.settings.model.leadDefault',
+    line: 'chat.permission.workflow.subagentModelDefault',
+    noCatalog: 'chat.permission.workflow.settings.model.noCatalogDefault',
+  });
+  // 脚本没点名：这一行是本次 run 的实际设置，不再是「默认」。
+  const plain = permission.wfPermView({ input: { kind: 'create_workflow', subagent_model: 'prov/m1' } });
+  assert.equal(plain.scriptNamesModels, false);
+  assert.deepEqual(permission.wfPermModelKeys(plain.scriptNamesModels), {
+    lead: 'chat.permission.workflow.settings.model.lead',
+    line: 'chat.permission.workflow.subagentModel',
+    noCatalog: 'chat.permission.workflow.settings.model.noCatalog',
+  });
+});
+
+/** 一次 amend 的前序 run：本会话自己的、还在跑、子代理路由在 prov 家。 */
+function ownedPredecessor(extra = {}) {
+  return {
+    id: 'run-prev',
+    runId: 'run-prev',
+    status: 'running',
+    parentSessionId: SESSION,
+    name: 'previous',
+    cwd: WORKSPACE,
+    scriptPath: WORKSPACE + '/previous.ts',
+    scriptText: 'return 1;',
+    args: {},
+    subagentModel: 'prov/m1',
+    ...extra,
+  };
+}
+
+test('an amend that brings in another provider asks, even though the run is ours', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), previous: ownedPredecessor(), models: ['other/x1'] });
+  const executing = h.byName.AmendWorkflow.execute(
+    { run_id: 'run-prev', script: 'const ref = model("other/x1");\nreturn 1;' },
+    launchWithoutModel(),
+  );
+  const [pending] = await h.waiting();
+  assert.deepEqual(pending.input.predecessor.introduces_providers, ['other']);
+  assert.equal(pending.input.scriptNamesModels, true);
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'allow_once' } });
+  await executing;
+  assert.equal(h.amended.length, 1);
+});
+
+test('an amend that names a model under another provider asks', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), previous: ownedPredecessor(), models: [] });
+  const executing = h.byName.AmendWorkflow.execute(
+    { run_id: 'run-prev', script: 'return 1;', subagent_model: 'other/x1' },
+    launchWithoutModel(),
+  );
+  const [pending] = await h.waiting();
+  assert.deepEqual(pending.input.predecessor.introduces_providers, ['other']);
+  assert.equal(pending.input.subagent_model, 'other/x1');
+  await h.call('POST', BASE + '/run/approve', { body: { sessionId: SESSION, runId: pending.runId, optionId: 'deny' } });
+  await executing;
+});
+
+test('an amend inside the providers the run already had asks nothing', async () => {
+  const h = createHarness({ llm: twoProviderLlm(), previous: ownedPredecessor(), models: ['prov/m2'] });
+  // 没有确认框：脚本点的是同一个 provider 的另一个模型，调用直接生效。
+  const result = await h.byName.AmendWorkflow.execute(
+    { run_id: 'run-prev', script: 'const ref = model("prov/m2");\nreturn 1;' },
+    launchWithoutModel(),
+  );
+  assert.equal(result.ok, true, result.text);
+  assert.equal(h.amended.length, 1);
+});
+
+test('a provider the predecessor already bound counts as authorized', async () => {
+  const previous = ownedPredecessor({ modelBindings: { helper: 'other/x1' } });
+  const h = createHarness({ llm: twoProviderLlm(), previous, models: ['other/x1'] });
+  const result = await h.byName.AmendWorkflow.execute(
+    { run_id: 'run-prev', script: 'const ref = model("other/x1");\nreturn 1;' },
+    launchWithoutModel(),
+  );
+  assert.equal(result.ok, true, result.text);
+  assert.equal(h.amended.length, 1);
 });

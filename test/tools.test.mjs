@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
+import { compileWorkflowScript, extractMetadataHeader } from '../host/compiler.js';
 import { createWorkflowTools } from '../host/tools.js';
 import {
   AMEND_BOTH_SCRIPTS,
@@ -173,6 +174,28 @@ function execFor(cwd = ROOT) {
     agent: { session: { header: { cwd } }, followup() {} },
   };
 }
+
+/**
+ * 一个带 3 行 metadata 头的脚本文件：正文第 2 行是编译错误（model() 只收字面量），
+ * 所以同一个错误在文件里是第 5 行、在正文里是第 2 行。
+ * @param {string} name file name inside the temp workspace
+ * @returns {Promise<string>} absolute path
+ */
+async function headedScriptFile(name) {
+  const dir = path.join(ROOT, 'headed');
+  await mkdir(dir, { recursive: true });
+  const file = path.join(dir, name);
+  await writeFile(file, '/* zcode-workflow\ndescription: headed script\n*/\nconst a = 1;\nconst ref = model(String(args.m));\nreturn a;\n', 'utf8');
+  return file;
+}
+
+/** A runtime whose prepare reports the real compiler's diagnostics for the body it was handed. */
+const realPrepare = {
+  prepare: async (request) => {
+    const compiled = compileWorkflowScript({ code: request.code, filename: request.scriptPath ?? 'workflow-script.ts' });
+    return { ok: false, diagnostics: compiled.diagnostics, draftPath: request.scriptPath, scriptPath: request.scriptPath };
+  },
+};
 
 /**
  * Diagnose one value against the JSON Schema subset the tool contracts use, plus the lossless-JSON
@@ -460,6 +483,51 @@ test('CreateWorkflow: compile diagnostics name the draft and say nothing ran', a
   assert.match(result.text, /NOTE: The workflow was NOT executed\. The script is saved at .*\.dwf\.ts\./u);
   assert.ok(result.text.includes('do not paste the script inline again.'));
   assert.equal(h.calls.some(([name]) => name === 'start'), false);
+});
+
+test('CreateWorkflow: a diagnostic in a headed file is reported on the file line', async () => {
+  const file = await headedScriptFile('headed.dwf.ts');
+  const h = harness({ compiler: { extractMetadataHeader, compileWorkflowScript }, runtime: realPrepare });
+  const result = await h.byName.CreateWorkflow.execute({ path: file }, execFor());
+  assert.equal(result.ok, false);
+  // 3 行头之后的正文第 2 行，在文件里是第 5 行；列号不随行偏移改变。
+  assert.match(result.text, /headed\.dwf\.ts:L5:C13 /u);
+  assert.doesNotMatch(result.text, /:L2:/u, 'the body line must not be reported as the file line');
+});
+
+test('AmendWorkflow: a diagnostic in a headed file is reported on the file line', async () => {
+  const file = await headedScriptFile('headed-amend.dwf.ts');
+  const h = harness({
+    compiler: { extractMetadataHeader, compileWorkflowScript },
+    runtime: {
+      ...realPrepare,
+      getRun: async () => ({
+        id: 'run-prev',
+        runId: 'run-prev',
+        status: 'completed',
+        ownedByThisSession: true,
+        name: 'previous',
+        cwd: ROOT,
+        scriptPath: path.join(ROOT, 'previous.ts'),
+        args: {},
+      }),
+    },
+  });
+  const result = await h.byName.AmendWorkflow.execute({ run_id: 'run-prev', path: file }, execFor());
+  assert.equal(result.ok, false);
+  assert.match(result.text, /headed-amend\.dwf\.ts:L5:C13 /u);
+  assert.doesNotMatch(result.text, /:L2:/u, 'the body line must not be reported as the file line');
+});
+
+test('SaveWorkflow: a diagnostic in a headed file is reported on the file line', async () => {
+  const file = await headedScriptFile('headed-save.dwf.ts');
+  const h = harness({ compiler: { extractMetadataHeader, compileWorkflowScript } });
+  const result = await h.byName.SaveWorkflow.execute({ name: 'saved-headed', description: 'd', scope: 'project', script_path: file }, execFor());
+  assert.equal(result.ok, false);
+  // 行号属于 script_path 那个文件，文件名也必须是它——不是一个还没写出来的存盘文件。
+  assert.match(result.text, /headed[\\/]headed-save\.dwf\.ts:L5:C13 /u);
+  assert.doesNotMatch(result.text, /:L2:/u, 'the body line must not be reported as the file line');
+  assert.doesNotMatch(result.text, /saved-headed/u, 'the diagnostic names the file its line numbers belong to');
 });
 
 test('CreateWorkflow: the saved source validates args and defaults its label', async () => {

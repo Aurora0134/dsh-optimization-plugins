@@ -51,9 +51,13 @@
 
 `CreateWorkflow`、`AmendWorkflow`、`ResumeWorkflowRun`、`GetWorkflowRun`、`ListWorkflowRuns`、`FillWorkflowHole`、`EvalWorkflowSnippet`、`SaveWorkflow`、`ListSavedWorkflows`、`ResolveWorkflowQuestion`、`TaskOutput` 与真实实现同名同参同文案。
 
+工具返回的编译诊断统一用 `{file}:L{line}:C{column} {message}`。文件名与行号只在**诊断指向一个已存在的文件**时同源：`path`/`script_path` 源剥掉 metadata 头后按该文件的行报、文件名也是它；`CreateWorkflow`/`AmendWorkflow` 的内联与 saved 源先把正文写成草稿再编译，行号是草稿行号、文件名是草稿。
+
+没有这样的文件时，名字只是**占位名**，行号属于调用方提供的那段输入：无源文件的 `workflow.ts`、片段固定 `snippet.ts`（path 源也一样，行号来自被读的文件）、留白补全的 `fill.ts`、`SaveWorkflow` 内联源的 `<name>.dwf.ts`（行号是正文行号，而存盘文件是 metadata 头 + 正文，映射不过去）。
+
 **唯一的移植扩展**是 `StopWorkflowRun`：真实 ZCode 没有这个工具（停跑走通用后台任务工具），而 Harness 没有对应通道，所以本移植保留它作为停止入口。新增工具必须记入本表。
 
-启动确认：真实实现是工具调用内的权限对话框（阶段图 + 可调模型/并发 + 四选项）。Harness 没有插件级的逐工具确认通道，因此本移植用 `host/approval.js` 把同一次询问拆成「工具等待 + 浏览器作答」，选项 id 与语义不变：`allow_once`、`allow_session`、`deny`、`workflowRefine`（后者按真实实现记为**带理由的拒绝**）。启动 payload 额外带 `models`（`{id,label,efforts?}`，id 为 `provider/model`）与 `subagent_model_default`：目录**只**取本会话被授权派子代理的路由，来源是 host-only 投影 `subagentModelSelectionPolicy`（key 与 `stateVersion` 与 DSH 的 `dsh-tool-subagent` 同名同构，投影注册表按引用计数共享同一单元）；没有该记录时目录只剩父会话那一条路由。`llm.listProviders()` 仅用于取显示名，全量 provider 目录不得下发——那里面既有本会话用不了、选中即被拒绝的路由，又缺会话真正在用的模型。`subagent_model` 只写显式选择，未选时不写该字段（前端据此显示「沿用会话模型」）。
+启动确认：真实实现是工具调用内的权限对话框（阶段图 + 可调模型/并发 + 四选项）。Harness 没有插件级的逐工具确认通道，因此本移植用 `host/approval.js` 把同一次询问拆成「工具等待 + 浏览器作答」，选项 id 与语义不变：`allow_once`、`allow_session`、`deny`、`workflowRefine`（后者按真实实现记为**带理由的拒绝**）。启动 payload 额外带 `models`（`{id,label,efforts?}`，id 为 `provider/model`）：目录**只**取本会话被授权派子代理的路由，来源是 host-only 投影 `subagentModelSelectionPolicy`（key 与 `stateVersion` 与 DSH 的 `dsh-tool-subagent` 同名同构，投影注册表按引用计数共享同一单元）；没有该记录时目录只剩父会话那一条路由。`llm.listProviders()` 仅用于取显示名，全量 provider 目录不得下发——那里面既有本会话用不了、选中即被拒绝的路由，又缺会话真正在用的模型。`subagent_model` 只写显式选择，未选时不写该字段（前端据此显示「沿用会话模型」）。另有 `scriptNamesModels`（布尔）：脚本自己用 `model("…")` 点了名时为真，确认框的模型行据此说「默认」。真实实现送的是 `model_bindings`（字面名 → canonical 模型 id），本移植没有把字面名解析成 canonical id 的通道，所以只下发这个布尔；确认框对它的用法与真实实现一致（见下方「脚本命名模型」一行）。（早期版本另发过 `subagent_model_default`（用户没显式选模型）；它既不是真实实现里的字段，模型行改用 `scriptNamesModels` 后也没有消费者，已删除。）
 
 拆开之后两边靠两条约定对齐，改动任一侧都要同时照顾另一侧：
 
@@ -81,7 +85,7 @@
 | 保存的工作流目录 | `.zcode/workflows`（全局 `~/.zcode/workflows`） | `.dsh/workflows`（全局 `$DSH_HOME/workflows`），读取兼容旧目录 | 跟随 Harness 的目录约定 |
 | `TaskOutput`/`TaskStop` | 通用后台任务工具 | 按 run 语义（`run_id`）使用；停止入口为本移植扩展 `StopWorkflowRun` | Harness 没有等价的后台任务工具 |
 | 模型可调行 | 从渲染进程的模型选择视图挑选子代理模型 | 目录取本会话授权的子代理路由（投影 `subagentModelSelectionPolicy`；无记录时只剩父会话路由），随启动 payload 下发；弹窗仍是模型下拉 + 默认值回写 | ZCode 的目录来自渲染进程本地服务；本移植没有该通道，只能由宿主随 payload 提供，且必须与 DSH 的子代理路由守卫同源 |
-| 脚本命名模型 | 模型行只读，并单独列出脚本命名的模型 | 模型行仍可调；脚本 `model()` 优先，全局选择只作用于未指定模型的 actor | 未移植 `scriptNamesModels` 门禁 |
+| 脚本命名模型 | 脚本点名后模型行只读，行内文案从「子代理运行在 {model}」改成「子代理默认运行在 {model}」，并可单独列出脚本命名的模型 | 行内文案同判据（脚本 `model()` 非空则说「默认」，判据来自启动 payload 的 `scriptNamesModels`），但模型行仍可调，也不单独列出脚本命名的模型；脚本 `model()` 优先，全局选择只作用于未指定模型的 actor | 只读门禁与「列出脚本命名的模型」尚未移植；文案判据已对齐，因为它只依赖编译期就能拿到的名字集合 |
 | 运行目录视图 | 独立右栏 | 放进状态入口弹层的第二视图 | 没有对应的 `sidePane` 槽位 |
 | 启动已保存工作流 | 直接按名启动 | 开一条新会话并把名称与参数写进提示词 | 没有跨会话的启动路由 |
 | 子代理会话正文 | 打开 actor 的只读会话 | 只展示该 actor 的步骤台账与「尚未启动」两态 | Harness 没有给插件按 actor 会话读消息的通道；为只读视图新增数据面契约不划算 |
@@ -100,7 +104,7 @@
 | 会话身份来源 | 组件从会话绑定读取 | 座位 standard props 携带 `sessionId`；工具卡的 owner 载荷另带 `callId`，卡片据此认领 run | DSH 渲染器按 kit → registration.inject → slot 注入 → ownerProps 合并，inject 传的是会话绑定键，与会话身份同值，故不再声明 inject |
 | 思考强度选择器 | 模型行旁一条独立的 effort 选择器，取值进模型串 | 不提供：`efforts` 已随目录下发但界面未渲染，子代理模型串是 `provider/model`，没有层级位 | 需要先在模型串里定层级位并让 `host/subagent.js` 解析成 `reasoningEffort`；本轮未纳入 |
 | 运行卡的 run 认领 | 会话 run 列表建 `toolCallId → run` 映射，卡片据此认领（不解析结果文案） | 同语义；run 行与 `/runs` 摘要都带 `toolCallId`，历史行缺失时由已投影的 run 快照回填 | 透传来源：`host/tools.js` 把 `exec.callId` 交给 `runtime.start()`/`amend()`，`host/runtime.js` 同时写进 run 行（`tool_call_id`）与 `run-launched` 事件载荷；投影只从该事件取值，`/runs` 摘要先读存储行、仅在历史行没有该列时用快照回填（不回填磁盘） |
-| 运行中 retune | 只改设置时原地 retune（`retuned` 输出） | 模型面 `AmendWorkflow` 仍整跑新 run；数据面 `POST /run/configure` 负责运行中改并发 | 原地 retune 的模型面路径未接线，UI 侧已可用 |
+| amend 引入新 provider 的撤回 | `predecessor.introduces_providers`：本次 amend 的模型选择（显式 `subagent_model` 与脚本 `model()` 的 canonical id）里，provider 不属于已授权集时撤回静默放行、弹常规确认框。已授权集 = 模型目录里 `current` 那个模型的 provider ∪ 前序 run 的 `subagentModel` ∪ 前序 run 的 `modelBindings`；providerId 取模型 id 里 `/` 之前那段，没有 `/` 的裸模型 id 不计（ZCode 的 `DHa`/`d9o`） | 同语义，但基准差一份数据：本移植的「当前模型 provider」取的是**子代理默认路由**的 provider（插件配置 `subagentModel`，否则调用会话 `requestHeader` 的 provider/model），查已授权集；前序 run 的 `modelBindings` 只有在 run 记录里真有这个字段时才计入（本移植目前不写它） | 没有读取"模型目录 current 模型"的通道：`llm.listModels` 只给模型清单，不给 `current` 标记。差异方向如实记两条：①基准 provider 解析不出来（没配置、`requestHeader` 缺 provider、裸模型 id）或前序 run 没有 `modelBindings` 时，已授权集偏小 → 更容易判成"引入新 provider" → **偏保守**（多问一次，不会漏问）；②插件配置的 `subagentModel` 落在与调用会话当前模型不同的 provider 上时，已授权集整个换成配置那一家：动到配置 provider 时比真实实现大 → **偏松**（这一次不问），同一局面下调用会话自己的 provider 反而不在已授权集，动到它时比真实实现小 → **偏保守**（多问一次）。两个方向都只影响"问不问"，不影响 run 实际跑在哪 |
 
 ## 验收
 

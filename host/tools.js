@@ -344,14 +344,39 @@ const TASK_OUTPUT_SCHEMA = {
 };
 
 /**
+ * The script body a metadata-header extraction produced. The compiler reports it as `script`,
+ * the store's reader as `body`; read either so a headed file strips to its body.
+ * @param {{ script?: unknown, body?: unknown }} header
+ * @returns {string | undefined}
+ */
+function headerBody(header) {
+  if (typeof header?.script === 'string') return header.script;
+  if (typeof header?.body === 'string') return header.body;
+  return undefined;
+}
+
+/**
+ * How many lines the metadata header took: a diagnostic counted in body lines is reported on the
+ * file line, so every caller that stripped a header adds this back (ZCode's `script_line_offset`).
+ * @param {{ bodyLineOffset?: unknown }} header
+ * @returns {number}
+ */
+function headerLineOffset(header) {
+  const offset = header?.bodyLineOffset;
+  return Number.isInteger(offset) && offset > 0 ? offset : 0;
+}
+
+/**
  * Render one diagnostic list in ZCode's `{file}:L{line}:C{column} {message}` form.
  * @param {string} file
  * @param {readonly { line?: number, column?: number, message: string }[]} diagnostics
+ * @param {number} [lineOffset] header lines already stripped from the compiled body
  * @returns {string}
  */
-function renderDiagnostics(file, diagnostics) {
+function renderDiagnostics(file, diagnostics, lineOffset = 0) {
+  const base = Number.isInteger(lineOffset) && lineOffset > 0 ? lineOffset : 0;
   return diagnostics
-    .map((diagnostic) => `${file}:L${diagnostic.line ?? 1}:C${diagnostic.column ?? 1} ${diagnostic.message}`)
+    .map((diagnostic) => `${file}:L${(diagnostic.line ?? 1) + base}:C${diagnostic.column ?? 1} ${diagnostic.message}`)
     .join('\n');
 }
 
@@ -1188,11 +1213,83 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       return { ok: false, message: `no saved workflow named "${saved.name}". Use ListSavedWorkflows to see the names that exist.` };
     }
     const header = compiler.extractMetadataHeader(entry.code);
-    const body = header.ok ? header.body : entry.code;
+    // 存盘文件带 metadata 头：剥掉后写进草稿，诊断报的是草稿行号，所以这里不需要偏移。
+    const body = header.ok ? (headerBody(header) ?? entry.code) : entry.code;
     const declarations = header.ok ? header.meta?.args ?? {} : entry.meta?.args ?? {};
     const validated = validateSavedArgs(saved.args ?? {}, declarations);
     if (!validated.ok) return { ok: false, message: validated.message };
     return { ok: true, code: body, meta: header.ok ? header.meta : entry.meta, args: validated.args, entry };
+  };
+
+  /**
+   * The models the script names literally (`model("…")`), collected while compiling. ZCode maps
+   * those names to canonical ids (`model_bindings`); the only thing the confirmation reads off it
+   * is whether the set is non-empty, which makes the run-level model a default rather than the
+   * model every subagent uses.
+   *
+   * @param {object | undefined} prepared `runtime.prepare` result, when the runtime has one
+   * @param {string} code the script body that was compiled
+   * @param {string | undefined} filename the file the body came from, for a second compile
+   * @returns {string[]}
+   */
+  const scriptModelNames = (prepared, code, filename) => {
+    const fromPrepare = prepared?.prepared?.compile?.models;
+    if (Array.isArray(fromPrepare)) return fromPrepare.filter((name) => typeof name === 'string' && name.length > 0);
+    try {
+      if (typeof compiler.compileWorkflowScript !== 'function') return [];
+      const compiled = compiler.compileWorkflowScript({ code, filename: filename ?? 'workflow-script.ts', mode: 'workflow' });
+      const models = compiled?.models;
+      return Array.isArray(models) ? models.filter((name) => typeof name === 'string' && name.length > 0) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  /**
+   * The provider a model id belongs to: the part before the first `/`. A bare model id names no
+   * provider, so it can never introduce one (ZCode's `d9o`).
+   * @param {unknown} value
+   * @returns {string | undefined}
+   */
+  const providerOfModel = (value) => {
+    if (typeof value !== 'string') return undefined;
+    const slash = value.indexOf('/');
+    return slash > 0 ? value.slice(0, slash) : undefined;
+  };
+
+  /**
+   * The providers an amend would bring in that the run was not already allowed to use — ZCode's
+   * `introduces_providers`. Authorized: the provider of the model the subagents fall back to, plus
+   * whatever the predecessor ran or had bound. Introduced: this amend's own model choices, the
+   * explicit one and the script's literal `model()` names.
+   *
+   * Known deviation from ZCode: its baseline is the provider of the model catalog's `current`
+   * model, while this host can only read the subagent fallback route — so the authorized set is
+   * not always the same one. Both directions and their effect are written down in the deviation
+   * table of `docs/port-contract.md`.
+   *
+   * @param {{ subagentModel?: string, scriptModels?: readonly string[], predecessor?: object, fallbackModel?: string }} input
+   * @returns {string[]} sorted provider ids; empty means nothing new
+   */
+  const introducedProviders = ({ subagentModel: model, scriptModels = [], predecessor, fallbackModel }) => {
+    const authorized = new Set();
+    for (const known of [fallbackModel, predecessor?.subagentModel]) {
+      const provider = providerOfModel(known);
+      if (provider !== undefined) authorized.add(provider);
+    }
+    const bindings = predecessor?.modelBindings;
+    if (bindings !== null && typeof bindings === 'object' && !Array.isArray(bindings)) {
+      for (const bound of Object.values(bindings)) {
+        const provider = providerOfModel(bound);
+        if (provider !== undefined) authorized.add(provider);
+      }
+    }
+    const introduced = new Set();
+    for (const chosen of [model, ...scriptModels]) {
+      const provider = providerOfModel(chosen);
+      if (provider !== undefined && !authorized.has(provider)) introduced.add(provider);
+    }
+    return [...introduced].sort();
   };
 
   /** @param {unknown} runId */
@@ -1293,8 +1390,9 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
    * @param {'draft'|'path'} options.kind
    * @param {string} [options.savedName]
    * @param {string} [options.savedPath]
+   * @param {number} [options.lineOffset] header lines stripped from the compiled body
    */
-  const compileFailure = ({ cwd, diagnostics, absolutePath, kind, savedName, savedPath }) => {
+  const compileFailure = ({ cwd, diagnostics, absolutePath, kind, savedName, savedPath, lineOffset }) => {
     const described = typeof absolutePath === 'string' && absolutePath.length > 0 ? describePath(cwd, absolutePath) : undefined;
     const file = described ?? 'workflow.ts';
     const title = savedName === undefined
@@ -1305,7 +1403,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       : scriptFileNote({ kind, described });
     return fail([
       title,
-      renderDiagnostics(file, diagnostics),
+      renderDiagnostics(file, diagnostics, lineOffset),
       '',
       note,
     ].join('\n'), { diagnostics, scriptPath: absolutePath });
@@ -1416,6 +1514,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       let origin;
       let savedName;
       let savedPath;
+      // 只有 path 源会剥掉 metadata 头，而诊断报的是那个文件；草稿里的行号就是正文行号。
+      let lineOffset = 0;
       if (args?.script !== undefined) {
         code = String(args.script);
         origin = 'inline';
@@ -1425,9 +1525,12 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         scriptPath = file.absolute;
         origin = 'path';
         const header = compiler.extractMetadataHeader(file.text);
-        if (header.ok && header.meta !== undefined) {
+        const body = headerBody(header);
+        if (header.ok && header.meta !== undefined && body !== undefined) {
           meta = header.meta;
-          code = header.body;
+          code = body;
+          // 诊断按文件行报：正文第 1 行是这个文件的第 bodyLineOffset+1 行。
+          lineOffset = headerLineOffset(header);
           runName = runName ?? meta.name;
           runArgs = validateSavedArgs(runArgs, meta.args ?? {});
           if (!runArgs.ok) return fail(`${runArgs.message} Nothing ran.`, { diagnostics: [] });
@@ -1490,6 +1593,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             kind: args?.path !== undefined ? PATH_KIND : DRAFT_KIND,
             savedName,
             savedPath,
+            lineOffset,
           });
         }
         return fail(prepared.error ?? 'the workflow could not start. Nothing ran.');
@@ -1502,6 +1606,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           kind: args?.path !== undefined ? PATH_KIND : DRAFT_KIND,
           savedName,
           savedPath,
+          lineOffset,
         });
       }
 
@@ -1512,7 +1617,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       if (approval !== undefined) {
         const defaultModel = defaultSubagentModel(exec);
         const effectiveModel = subagentModel ?? defaultModel;
-        const modelDefault = subagentModel === undefined;
         const models = await modelCatalog({ sessionId, session: exec?.agent?.session, parentRoute: parentRouteOf(defaultModel) });
         const display = {
           kind: 'create_workflow',
@@ -1532,7 +1636,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           // 只有显式选过模型才带 `subagent_model`：没选时留空，确认框才显示「沿用会话模型」
           // （ZCode 的 `Tzt(Pon(input))` 在缺省时得到 `{kind:'session'}`，同理）。
           ...(subagentModel === undefined ? {} : { subagent_model: subagentModel }),
-          subagent_model_default: modelDefault,
+          // 脚本自己点了模型名：模型行说的就只是「默认」用的那个（ZCode 的 model_bindings 非空）。
+          scriptNamesModels: scriptModelNames(prepared, code, draftPath).length > 0,
           models,
           adjustable_settings: {
             subagent_model: true,
@@ -1586,6 +1691,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             kind: args?.path !== undefined ? PATH_KIND : DRAFT_KIND,
             savedName,
             savedPath,
+            lineOffset,
           });
         }
         return fail(started?.error ?? 'the workflow could not start. Nothing ran.');
@@ -1662,6 +1768,8 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       let scriptPath;
       let kind;
       let described;
+      // 内联 script 原样写成草稿，诊断行号就是草稿行号；从文件读来的才剥头、才要补偏移。
+      let lineOffset = 0;
       const inherited = args?.script === undefined && args?.path === undefined;
       if (args?.script !== undefined) {
         code = String(args.script);
@@ -1676,7 +1784,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         described = file.described;
         kind = PATH_KIND;
         const header = compiler.extractMetadataHeader(file.text);
-        if (header.ok && header.meta !== undefined) code = header.body;
+        const body = headerBody(header);
+        if (header.ok && header.meta !== undefined && body !== undefined) {
+          code = body;
+          lineOffset = headerLineOffset(header);
+        }
         const predecessorPath = typeof previous.scriptPath === 'string' ? previous.scriptPath : undefined;
         if (predecessorPath !== undefined) {
           const previousText = await fsp.readFile(predecessorPath, 'utf8').catch(() => undefined);
@@ -1694,7 +1806,11 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             described = previousFile.described;
             kind = PATH_KIND;
             const header = compiler.extractMetadataHeader(code);
-            if (header.ok && header.meta !== undefined) code = header.body;
+            const body = headerBody(header);
+            if (header.ok && header.meta !== undefined && body !== undefined) {
+              code = body;
+              lineOffset = headerLineOffset(header);
+            }
           }
         }
         if (code === undefined && typeof store.getRun === 'function') {
@@ -1730,7 +1846,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           if (diagnostics.length === 0) return fail(prepared?.error ?? 'the revised workflow could not be compiled. Nothing was stopped or created.');
           return fail([
             'The revised workflow script has errors:',
-            renderDiagnostics(describedDraft.length > 0 ? describedDraft : 'workflow.ts', diagnostics),
+            renderDiagnostics(describedDraft.length > 0 ? describedDraft : 'workflow.ts', diagnostics, lineOffset),
             '',
             describedDraft.length > 0
               ? scriptFileNote({ kind, described: describedDraft })
@@ -1745,7 +1861,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         ? previous.parentSessionId === sessionId
         : previous.ownedByThisSession;
       const stopReason = previous.stopReason ?? previous.stop_reason;
-      const shouldAsk = approval !== undefined && (owned === false || (previous.status === 'stopped' && stopReason === 'user'));
       // 确认框展示这次 amend 实际会用的值：本次参数优先，否则沿用前序 run 的设置。
       const defaultModel = defaultSubagentModel(exec);
       const requestedModel = typeof args?.subagent_model === 'string' ? args.subagent_model : undefined;
@@ -1753,9 +1868,13 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       let maxConcurrency = args?.max_concurrency === null
         ? undefined
         : (typeof args?.max_concurrency === 'number' ? args.max_concurrency : previous.maxConcurrency);
+      const scriptModels = scriptModelNames(prepared, code, scriptPath);
+      // 引入新的 provider 就撤回静默放行：这次 amend 会让子代理跑在这个会话还没授权过的一家上。
+      const introduced = introducedProviders({ subagentModel, scriptModels, predecessor: previous, fallbackModel: defaultModel });
+      const shouldAsk = approval !== undefined
+        && (owned === false || (previous.status === 'stopped' && stopReason === 'user') || introduced.length > 0);
       if (shouldAsk) {
         const effectiveModel = subagentModel ?? defaultModel;
-        const modelDefault = subagentModel === undefined;
         const models = await modelCatalog({ sessionId, session: exec?.agent?.session, parentRoute: parentRouteOf(defaultModel) });
         const display = {
           kind: 'amend_workflow',
@@ -1771,12 +1890,13 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
             stop_reason: stopReason,
             owned_by_this_session: owned === true,
             script_inherited: inherited,
+            ...(introduced.length === 0 ? {} : { introduces_providers: introduced }),
           },
           max_concurrency: maxConcurrency,
           // 只有显式选过模型才带 `subagent_model`：没选时留空，确认框才显示「沿用会话模型」
           // （ZCode 的 `Tzt(Pon(input))` 在缺省时得到 `{kind:'session'}`，同理）。
           ...(subagentModel === undefined ? {} : { subagent_model: subagentModel }),
-          subagent_model_default: modelDefault,
+          scriptNamesModels: scriptModels.length > 0,
           models,
           causalityGraph: prepared?.causalityGraph,
           adjustable_settings: {
@@ -1829,7 +1949,7 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           const describedDraft = typeof draftPath === 'string' ? describePath(cwd, draftPath) : undefined;
           return fail([
             'The revised workflow script has errors:',
-            renderDiagnostics(describedDraft ?? 'workflow.ts', diagnostics),
+            renderDiagnostics(describedDraft ?? 'workflow.ts', diagnostics, lineOffset),
             '',
             describedDraft === undefined ? COMPILE_FAILED_NOTE : scriptFileNote({ kind: kind ?? DRAFT_KIND, described: describedDraft }),
             `Run ${runId} was not touched.`,
@@ -2260,25 +2380,37 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       }
       const cwd = sessionCwd(ctx, exec);
       let code;
+      // 只有 script_path 源会剥掉已有的 metadata 头，剥了才要补行偏移；偏移属于那个文件。
+      let lineOffset = 0;
+      let sourceFile;
       if (hasScript) {
         code = String(args.script);
         if (/^\s*\/\*\s*zcode-workflow/u.test(code)) return fail(SAVE_BODY_ONLY);
       } else {
         const file = await readWorkspaceFile(cwd, String(args.script_path));
         if (!file.ok) return fail(`${file.message}. Nothing was saved.`);
+        sourceFile = file.described;
         const header = compiler.extractMetadataHeader(file.text);
-        code = header.ok ? header.body : file.text;
+        const body = headerBody(header);
+        if (header.ok && body !== undefined) {
+          code = body;
+          lineOffset = headerLineOffset(header);
+        } else {
+          code = file.text;
+        }
       }
       const nameCheck = typeof store.validateSavedWorkflowName === 'function'
         ? store.validateSavedWorkflowName(args.name)
         : { ok: true };
       if (nameCheck.ok === false) return fail(`${nameCheck.message ?? 'invalid workflow name'} Nothing was saved.`);
-      const filename = `${args.name}.dwf.ts`;
-      const compiled = compiler.compileWorkflowScript({ code, filename, mode: 'workflow' });
+      const savedFile = `${args.name}.dwf.ts`;
+      // 印出的文件名必须与行号同源：路径源的行号属于那个文件；内联正文没有文件，行号就是调用方
+      // 给的那几行，所以名字用它将存成的文件。
+      const compiled = compiler.compileWorkflowScript({ code, filename: savedFile, mode: 'workflow' });
       if (!compiled.ok) {
         return fail([
           'The workflow script has errors:',
-          renderDiagnostics(filename, compiled.diagnostics),
+          renderDiagnostics(sourceFile ?? savedFile, compiled.diagnostics, lineOffset),
           '',
           'NOTE: Nothing was saved — fix the errors above and call the tool again.',
         ].join('\n'), { diagnostics: compiled.diagnostics });
