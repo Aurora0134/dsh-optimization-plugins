@@ -9,6 +9,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { apply } from '../index.js';
+import { createRuntime } from '../host/runtime.js';
+import { createMemoryJournal } from '../host/journal-memory.js';
+import { projectRunEvents } from '../host/projection.js';
 import {
   decodedBase64ByteLength,
   projectArtifactFields,
@@ -255,7 +258,7 @@ function createFixture(options = {}) {
     },
     async projectRun(runId) {
       calls.push(['projectRun', runId]);
-      return {
+      const surface = {
         runId,
         status: 'running',
         phaseNames: ['review', 'ship'],
@@ -264,8 +267,12 @@ function createFixture(options = {}) {
         actors: [{ siteId: 'actor-a', ordinal: 0, status: 'running' }],
         nodes: [],
         holes: [{ siteId: 'site-a', ordinal: 0, name: 'target', state: 'waiting' }],
-        ...(options.projectedRun ?? {}),
       };
+      // A caller that hands over a real journal gets the real reducer, so nothing the projection is
+      // supposed to derive (the card's tool call id included) can be stubbed into existence here.
+      const events = typeof options.events === 'function' ? options.events(runId) : options.events;
+      if (!Array.isArray(events) || events.length === 0) return { ...surface, ...(options.projectedRun ?? {}) };
+      return { ...surface, ...projectRunEvents(events, { runId }), ...(options.projectedRun ?? {}) };
     },
   };
   const run = {
@@ -523,9 +530,74 @@ test('GET /runs puts a launch waiting for an answer first, shaped the way the di
   assert.equal(detail.json.run.toolCallId, 'tool-9');
 });
 
-test('a run summary keeps the tool call that launched it, even when its stored row lost it', async () => {
-  // runtime 建 run 行时不写 tool_call_id（那是 launch 事件带的），投影快照里有；摘要必须从快照补，
-  // 否则浏览器里的运行卡永远认领不到这次 run。
+/**
+ * The same fake compiler shape `test/runtime.test.mjs` uses: one lowering body, no sites. A real
+ * runtime is what makes the run row and the journal below real.
+ */
+function stubWorkflowCompiler() {
+  return {
+    compileWorkflowScript({ mode } = {}) {
+      return {
+        ok: true,
+        diagnostics: [],
+        lowered: 'return 1;',
+        js: '(async (__host) => {\nreturn 1;\n})',
+        scriptHash: 's-card-claim',
+        sites: [],
+        askSpecs: new Map(),
+        sitePhases: new Map(),
+        phases: [],
+        actors: [],
+        holes: [],
+        artifacts: [],
+        worldReads: [],
+        models: [],
+        interfaces: {},
+        mode,
+      };
+    },
+  };
+}
+
+test('GET /runs carries the tool call that launched the run, end to end from a real run journal', async () => {
+  // Nothing about the claim is stubbed here: a real runtime starts the run, the journal it wrote is
+  // the listing's rows, and its events go through the real reducer the Host projects with. The card
+  // in the transcript claims its run by this field alone, so losing it makes the card a static shell.
+  const journal = createMemoryJournal();
+  const runtime = createRuntime({
+    compiler: stubWorkflowCompiler(),
+    journal,
+    workspaceFor: () => undefined,
+    logger: { warn() {}, info() {} },
+  });
+  const started = await runtime.start({
+    code: 'return 1;',
+    name: 'claimed',
+    cwd: WORKSPACE,
+    toolCallId: 'call-42',
+    runner: async () => ({ text: '' }),
+  });
+  assert.equal(started.ok, true, String(started.error));
+  await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+
+  const fixture = createFixture({
+    runRows: () => [journal.getRun(started.runId)],
+    events: () => (journal.listEvents(started.runId) ?? []).map((entry) => ({
+      sequence: entry.sequence,
+      type: entry.event?.type ?? entry.type,
+      payload: entry.event ?? entry,
+    })),
+  });
+  const listed = await call(fixture, 'GET', `${BASE}/runs`, { query: { sessionId: 'session-1' } });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.json.runs.length, 1);
+  assert.equal(listed.json.runs[0].runId, started.runId);
+  assert.equal(listed.json.runs[0].toolCallId, 'call-42', 'the row the card claims must carry the launching tool call');
+});
+
+test('a legacy run row that never stored the tool call still gets it from the projection', async () => {
+  // Runs written before the runtime passed the id through have no `tool_call_id`; their launch event
+  // is still the source of truth, so the summary must keep taking it from the projected run.
   const fixture = createFixture({
     runRows: (row) => [{ ...row, id: 'run-1', toolCallId: undefined }],
     projectedRun: { toolCallId: 'call-42' },

@@ -99,7 +99,7 @@
 | 启动确认的呈现面 | 工具调用内的权限对话框 | 同一份确认有卡片内确认块与遮罩对话框两个面，按 run 互斥：卡片仍挂载在会话里时不自动弹遮罩，卡片不在（折叠、被移除、另一会话）时才弹；标题栏状态入口点 pending run 永远可开遮罩 | 浏览器端无法判断卡片是否在意视口内，而会话转录不虚拟化，「挂载」等价于「仍在会话里」 |
 | 会话身份来源 | 组件从会话绑定读取 | 座位 standard props 携带 `sessionId`；工具卡的 owner 载荷另带 `callId`，卡片据此认领 run | DSH 渲染器按 kit → registration.inject → slot 注入 → ownerProps 合并，inject 传的是会话绑定键，与会话身份同值，故不再声明 inject |
 | 思考强度选择器 | 模型行旁一条独立的 effort 选择器，取值进模型串 | 不提供：`efforts` 已随目录下发但界面未渲染，子代理模型串是 `provider/model`，没有层级位 | 需要先在模型串里定层级位并让 `host/subagent.js` 解析成 `reasoningEffort`；本轮未纳入 |
-| 运行卡的 run 认领 | 会话 run 列表建 `toolCallId → run` 映射，卡片据此认领（不解析结果文案） | 同语义；要求 run 行与 `/runs` 摘要都带 `toolCallId`，存储行缺失时由已投影的 run 快照回填 | 存储行历史上没写该字段，只有 `run-launched` 事件带；回填是等价手段 |
+| 运行卡的 run 认领 | 会话 run 列表建 `toolCallId → run` 映射，卡片据此认领（不解析结果文案） | 同语义；run 行与 `/runs` 摘要都带 `toolCallId`，历史行缺失时由已投影的 run 快照回填 | 透传来源：`host/tools.js` 把 `exec.callId` 交给 `runtime.start()`/`amend()`，`host/runtime.js` 同时写进 run 行（`tool_call_id`）与 `run-launched` 事件载荷；投影只从该事件取值，`/runs` 摘要先读存储行、仅在历史行没有该列时用快照回填（不回填磁盘） |
 | 运行中 retune | 只改设置时原地 retune（`retuned` 输出） | 模型面 `AmendWorkflow` 仍整跑新 run；数据面 `POST /run/configure` 负责运行中改并发 | 原地 retune 的模型面路径未接线，UI 侧已可用 |
 
 ## 验收

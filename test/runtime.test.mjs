@@ -926,3 +926,88 @@ test('subagentModel 是未指定模型 actor 的默认路由，脚本模型优�
   await second.waitForRun(pinnedRun.runId, { timeoutMs: 3000 });
   assert.equal(pinnedCalls[0].actor.model, 'script/m2');
 });
+
+/* ------------------------------ 运行卡认领 ------------------------------ */
+
+/**
+ * The card claims its run by the tool call that launched it: host/tools.js hands `exec.callId` to
+ * `runtime.start()`, so the run row and the run-launched event must both carry it. The projection
+ * reads it only from that event, and /runs summarises it for the browser.
+ */
+test('start 把发起它的工具调用 id 透传给 run 行、run-launched 事件与 getRun() 快照', async () => {
+  const journal = createMemoryJournal();
+  const runtime = createRuntime({
+    compiler: stubCompiler({ lowered: 'return 1;' }),
+    journal,
+    workspaceFor: stubWorkspace,
+    logger: { warn() {}, info() {} },
+  });
+  const started = await runtime.start({
+    code: 'return 1;',
+    name: 'claimed',
+    cwd: '/tmp/ws',
+    toolCallId: 'call-42',
+    runner: async () => ({ text: '' }),
+  });
+  assert.equal(started.ok, true, String(started.error));
+  await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+
+  assert.equal(journal.getRun(started.runId)?.toolCallId, 'call-42', 'run 行必须带着发起它的工具调用 id');
+
+  const launched = runtime.eventsAfter(started.runId, -1, 100).find((row) => row.type === 'run-launched');
+  assert.ok(launched !== undefined, 'run-launched 事件存在');
+  assert.equal(launched.event.toolCallId, 'call-42', 'run-launched 载荷也必须带着它（投影只从这里取）');
+
+  const snapshot = await runtime.getRun(started.runId);
+  assert.equal(snapshot.toolCallId, 'call-42', 'getRun() 的 run 快照也带着它');
+});
+
+test('没有工具调用 id 的 start 不往 run 行、run-launched 与 getRun() 里塞空字段', async () => {
+  const journal = createMemoryJournal();
+  const runtime = createRuntime({
+    compiler: stubCompiler({ lowered: 'return 1;' }),
+    journal,
+    workspaceFor: stubWorkspace,
+    logger: { warn() {}, info() {} },
+  });
+  const started = await runtime.start({ code: 'return 1;', cwd: '/tmp/ws', runner: async () => ({ text: '' }) });
+  assert.equal(started.ok, true, String(started.error));
+
+  assert.equal(journal.getRun(started.runId)?.toolCallId, undefined);
+  const launched = runtime.eventsAfter(started.runId, -1, 100).find((row) => row.type === 'run-launched');
+  assert.equal('toolCallId' in launched.event, false);
+
+  await runtime.waitForRun(started.runId, { timeoutMs: 3000 });
+  const snapshot = await runtime.getRun(started.runId);
+  assert.equal('toolCallId' in snapshot, false);
+});
+
+test('AmendWorkflow 的后继 run 照样带着发起这次 amend 的工具调用 id', async () => {
+  const journal = createMemoryJournal();
+  const runtime = createRuntime({
+    compiler: stubCompiler({ lowered: 'return 1;' }),
+    journal,
+    workspaceFor: stubWorkspace,
+    logger: { warn() {}, info() {} },
+  });
+  const first = await runtime.start({ code: 'return 1;', name: 'before', cwd: '/tmp/ws', toolCallId: 'call-1', runner: async () => ({ text: '' }) });
+  assert.equal(first.ok, true, String(first.error));
+  await runtime.waitForRun(first.runId, { timeoutMs: 3000 });
+
+  const amended = await runtime.amend(first.runId, {
+    code: 'return 1;',
+    name: 'after',
+    cwd: '/tmp/ws',
+    toolCallId: 'call-77',
+    runner: async () => ({ text: '' }),
+  });
+  assert.equal(amended.ok, true, String(amended.error ?? amended.code));
+  const successor = amended.runId;
+  assert.notEqual(successor, first.runId);
+  await runtime.waitForRun(successor, { timeoutMs: 3000 });
+
+  assert.equal(journal.getRun(successor)?.toolCallId, 'call-77');
+  const launched = runtime.eventsAfter(successor, -1, 200).find((row) => row.type === 'run-launched');
+  assert.ok(launched !== undefined, '后继 run 的 run-launched 事件存在');
+  assert.equal(launched.event.toolCallId, 'call-77');
+});
