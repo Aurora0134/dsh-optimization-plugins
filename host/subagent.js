@@ -67,6 +67,12 @@ function textOf(output) {
 
 /**
  * 从 activation 结果里取 token 用量（字段名随 provider 不同，能取到就记）。
+ *
+ * rc.3 的 `SubagentResult` 只有 `{output, structured, diagnostic, stopReason}`
+ * （dsh-subagent/lib/typert.host.js:855-856），所以这几个字段在 rc.3 上恒为 undefined；
+ * 真实的用量读口见 {@link childUsageTokens}。保留本函数是为了不改动调用方契约：
+ * 将来的 provider 若真的把 usage 放进 result，这里仍能接住。
+ *
  * @param {object} result
  * @returns {number | undefined}
  */
@@ -81,6 +87,53 @@ function tokensOf(result) {
     if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
   }
   return undefined;
+}
+
+/** 子会话用量投影的 key（dsh-token-meter/lib/index.js:396）。 */
+const USAGE_PROJECTION_KEY = 'tokenUsage';
+
+/**
+ * 读这次 activation 真实消耗的 token：子会话自己的用量账本。
+ *
+ * rc.3 没有把用量放进 `SubagentResult`，但子会话是一等会话，它的 provider 用量按
+ * 「每步一次抽样」折进 `tokenUsage` 会话投影（dsh-token-meter/lib/index.js:395-428 注册，
+ * usage-projection.js:371-375 从 `assistant/message`/`assistant/attempt` 的 stream 取样本）。
+ * 该投影带 wire view，所以不必注册同名单元也能按 key 读：
+ * `sessionProjections.snapshot(session, keys)`（dsh-session-projection/lib/index.js:233-247）。
+ *
+ * 全链路的身份是同一个：`activation.childId` 就是子会话 id（typert.host.js:788、
+ * index.js:1496-1524），而 `sessions.get(id)` 是官方按 id 取会话的服务面
+ * （index.js:1803 用它查重、ui-api.js:626 用它取会话）。`tokenMeter` 由 dsh-base 挂载
+ * （cordis.patch.yml:353-354），且投影表是进程级的（dsh-web-app/cordis.patch.yml:570-572），
+ * 所以子会话的账本在桥这一侧可读。
+ *
+ * 四个桶互不重叠（dsh-token-meter/lib/index.js:781-783 的 usageTokens 就是这套加总），
+ * 合计即这次 activation 的花费。读不到一律 undefined：用量是附加信息，
+ * 既不能编一个近似值，也不能让 ask 因此失败。
+ *
+ * @param {object} ctx 插件上下文
+ * @param {string | undefined} childId activation 返回的子会话 id
+ * @returns {number | undefined}
+ */
+function childUsageTokens(ctx, childId) {
+  if (typeof childId !== 'string' || childId.length === 0) return undefined;
+  try {
+    const session = ctx?.get?.('sessions')?.get?.(childId);
+    if (session === undefined || session === null) return undefined;
+    const projections = ctx?.get?.('sessionProjections');
+    if (typeof projections?.snapshot !== 'function') return undefined;
+    const usage = projections.snapshot(session, [USAGE_PROJECTION_KEY])?.values?.[USAGE_PROJECTION_KEY];
+    if (usage === null || typeof usage !== 'object') return undefined;
+    let total = 0;
+    for (const value of [usage.uncachedInputTokens, usage.outputTokens, usage.cacheReadTokens, usage.cacheWriteTokens]) {
+      if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined;
+      total += value;
+    }
+    // 全零说明这次 activation 还没有任何一步上报过用量，不是「真的花了 0」。
+    return total > 0 ? total : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -173,7 +226,6 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
         }
         throw new Error(`workflow subagent "${label}" failed (stopReason: ${String(result.stopReason)})${diagnostic}`);
       }
-      const tokens = tokensOf(result);
       // rc.3 的 activation 带 childId 与 name（typert.host.js:788）：前者是子会话身份，
       // 后者是它在父会话里的成员名，留给上层把 actor 与子会话关联。
       const childId = typeof activation.childId === 'string' && activation.childId.length > 0
@@ -182,6 +234,10 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
       const childName = typeof activation.name === 'string' && activation.name.length > 0
         ? activation.name
         : undefined;
+      // 用量不在 SubagentResult 里（typert.host.js:855-856），所以先读子会话的账本，
+      // 再把 result 上的遗留字段当作兜底。必须在下面 dispose() 之前读——dispose 之后
+      // 子会话随时会被回收。
+      const tokens = childUsageTokens(ctx, childId) ?? tokensOf(result);
       return {
         text: textOf(result.output),
         ...(result.structured === undefined ? {} : { structured: result.structured }),

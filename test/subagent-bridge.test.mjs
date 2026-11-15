@@ -230,3 +230,88 @@ test('正常路径返回 {text, structured?, tokens?, childId, childName}', asyn
   assert.equal(spec.prompt[0].type, 'text');
   assert.match(spec.prompt[0].text, /you are probe/);
 });
+/**
+ * 假 ctx：按 DSH 的服务名提供 subagents / sessions / sessionProjections。
+ * 这三个服务在默认 profile 里都由 dsh-base 挂载（cordis.patch.yml:41-42 session、
+ * :173-174 session-projection、:353-354 token-meter），所以桥在生产里能拿到同样三件东西。
+ */
+function declaredCtx(services) {
+  return { get: (key) => services[key] };
+}
+
+/** 一个子会话对象；桥只需要它作为 snapshot() 的入参。 */
+const childSession = (id) => ({ id });
+
+test('子代理用量从子会话的 tokenUsage 投影读出（SubagentResult 本身不带 usage）', async () => {
+  const subagents = declaredSurface({ childId: 'child-9' });
+  const session = childSession('child-9');
+  const projections = {
+    calls: [],
+    snapshot(target, keys) {
+      this.calls.push({ target, keys });
+      return {
+        asOfSeq: 7,
+        values: { tokenUsage: { uncachedInputTokens: 1000, outputTokens: 250, cacheReadTokens: 5000, cacheWriteTokens: 0 } },
+      };
+    },
+  };
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: (id) => (id === 'child-9' ? session : undefined) },
+      sessionProjections: projections,
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  // 四桶是 provider 上报的四类互不重叠的用量，合计才是这次 activation 的真账。
+  assert.equal(answer.tokens, 6250);
+  assert.equal(projections.calls.length, 1, '应当只读一次用量投影');
+  assert.equal(projections.calls[0].target, session, '必须按 activation.childId 找到子会话本身再读');
+  assert.deepEqual(projections.calls[0].keys, ['tokenUsage']);
+});
+
+test('子会话拿不到 / 投影抛错时 tokens 缺席，既不编 0 也不让 ask 失败', async () => {
+  const cases = {
+    '没有 sessions 服务': { subagents: declaredSurface(), sessionProjections: { snapshot: () => ({ values: {} }) } },
+    '子会话不在库里': { subagents: declaredSurface(), sessions: { get: () => undefined }, sessionProjections: { snapshot: () => ({ values: {} }) } },
+    '没有投影服务': { subagents: declaredSurface(), sessions: { get: () => childSession('child-1') } },
+    '投影抛错': {
+      subagents: declaredSurface(),
+      sessions: { get: () => childSession('child-1') },
+      sessionProjections: { snapshot: () => { throw new Error('projection blew up'); } },
+    },
+    '投影没算过用量': {
+      subagents: declaredSurface(),
+      sessions: { get: () => childSession('child-1') },
+      sessionProjections: { snapshot: () => ({ values: { tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } }) },
+    },
+  };
+  for (const [label, services] of Object.entries(cases)) {
+    const run = createSubagentRunner({ ctx: declaredCtx(services), config: {}, logger: quietLogger });
+    const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+    assert.equal(answer.text, 'PONG', label);
+    assert.equal(Object.hasOwn(answer, 'tokens'), false, `${label}：取不到用量时应缺席，不能填一个近似值`);
+  }
+});
+
+test('投影读到的用量优先于 result 里的遗留字段', async () => {
+  const subagents = declaredSurface({
+    childId: 'child-2',
+    result: { output: [{ type: 'text', text: 'PONG' }], stopReason: 'completed', usage: { totalTokens: 42 } },
+  });
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: () => childSession('child-2') },
+      sessionProjections: {
+        snapshot: () => ({ values: { tokenUsage: { uncachedInputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 } } }),
+      },
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  assert.equal(answer.tokens, 15, '投影是本次 activation 的持久账本，优先于 result 上的遗留字段');
+});
