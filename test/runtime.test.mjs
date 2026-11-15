@@ -1015,7 +1015,8 @@ test('子代理用量进 run 快照：spentTokens 来自子会话的 tokenUsage 
   const { createSubagentRunner } = await import('../host/subagent.js');
   // 假 subagents 服务：返回一个带 childId 的 activation（rc.3 的 SubagentActivation 就是这三件套）。
   const subagents = {
-    getProvider: () => ({ name: 'spawn' }),
+    // spawn 不继承父上下文，所以子会话账本里只有子代理自己的用量。
+    getProvider: () => ({ name: 'spawn', inheritsParentContext: false }),
     async startActivation(spec) {
       return {
         childId: 'child-usage',

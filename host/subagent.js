@@ -95,28 +95,45 @@ const USAGE_PROJECTION_KEY = 'tokenUsage';
 /**
  * 读这次 activation 真实消耗的 token：子会话自己的用量账本。
  *
- * rc.3 没有把用量放进 `SubagentResult`，但子会话是一等会话，它的 provider 用量按
- * 「每步一次抽样」折进 `tokenUsage` 会话投影（dsh-token-meter/lib/index.js:395-428 注册，
- * usage-projection.js:371-375 从 `assistant/message`/`assistant/attempt` 的 stream 取样本）。
+ * rc.3 没有把用量放进 `SubagentResult`（dsh-subagent/lib/typert.host.js:855-856），但子会话
+ * 是一等会话，它的 provider 用量按「每步一次抽样」折进 `tokenUsage` 会话投影：定义见
+ * dsh-token-meter/lib/index.js:395-428，注册见同文件 :807，样本取自 `assistant/message` /
+ * `assistant/attempt` 的 stream（dsh-token-meter/lib/types/usage-projection.js:60 的 `usageOf`）。
  * 该投影带 wire view，所以不必注册同名单元也能按 key 读：
  * `sessionProjections.snapshot(session, keys)`（dsh-session-projection/lib/index.js:233-247）。
  *
- * 全链路的身份是同一个：`activation.childId` 就是子会话 id（typert.host.js:788、
- * index.js:1496-1524），而 `sessions.get(id)` 是官方按 id 取会话的服务面
- * （index.js:1803 用它查重、ui-api.js:626 用它取会话）。`tokenMeter` 由 dsh-base 挂载
- * （cordis.patch.yml:353-354），且投影表是进程级的（dsh-web-app/cordis.patch.yml:570-572），
+ * 全链路的身份是同一个：`activation.childId` 就是子会话 id（dsh-subagent/lib/typert.host.js:787-788、
+ * dsh-subagent/lib/index.js:1496-1524），而 `sessions.get(id)` 是官方按 id 取会话的服务面
+ * （dsh-subagent/lib/index.js:1803 用它查重、host/ui-api.js:626 用它取会话）。`tokenMeter` 由 dsh-base 挂载
+ * （dsh-base/cordis.patch.yml:353-354），且投影表是进程级的（dsh-web-app/cordis.patch.yml:570-572），
  * 所以子会话的账本在桥这一侧可读。
  *
  * 四个桶互不重叠（dsh-token-meter/lib/index.js:781-783 的 usageTokens 就是这套加总），
  * 合计即这次 activation 的花费。读不到一律 undefined：用量是附加信息，
  * 既不能编一个近似值，也不能让 ask 因此失败。
  *
+ * ## 只有不继承父上下文的 provider 才能这么读
+ *
+ * fork provider（dsh-base/cordis.patch.yml:380-381 默认挂载）把父会话**已结束回合**的整段
+ * 日志当 seed（dsh-subagent-fork-in-process/lib/index.js:23-28、46-49，从 seq 0 起），并把它
+ * 记成子会话的 `inheritedEventCount`（dsh-subagent/lib/index.js:1521）。而会话投影是**从
+ * seq 0 折叠全量日志**的（dsh-session-projection/lib/index.js:505-507、518），`tokenUsage` 的
+ * `init` 又忽略 `inheritedEventCount`（dsh-token-meter/lib/index.js:399-401）——于是 fork 下
+ * 子会话的这份账本里躺着父会话的历史用量，每次 ask 都会把它重复计一遍。
+ *
+ * 所以只有 provider 明确声明 `inheritsParentContext === false` 时才读；为 true 或读不到该
+ * 能力时返回 undefined。不从总数里减父会话用量：继承的是日志前缀而非某个可引用的快照，
+ * 没有可靠的减法基准，减出来的数只会是另一种错。
+ *
  * @param {object} ctx 插件上下文
  * @param {string | undefined} childId activation 返回的子会话 id
+ * @param {{inheritsParentContext?: boolean} | undefined} provider 已解析的 subagent provider
  * @returns {number | undefined}
  */
-function childUsageTokens(ctx, childId) {
+function childUsageTokens(ctx, childId, provider) {
   if (typeof childId !== 'string' || childId.length === 0) return undefined;
+  // 见上：继承父上下文的 provider 会把父会话历史用量混进子会话账本。
+  if (provider?.inheritsParentContext !== false) return undefined;
   try {
     const session = ctx?.get?.('sessions')?.get?.(childId);
     if (session === undefined || session === null) return undefined;
@@ -161,7 +178,8 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     if (typeof subagents.getProvider !== 'function') {
       throw new Error('workflow subagents are unavailable: the subagents service does not expose getProvider(name), so the subagent provider cannot be resolved');
     }
-    if (subagents.getProvider(providerName) === undefined) {
+    const provider = subagents.getProvider(providerName);
+    if (provider === undefined) {
       throw new Error(`workflow subagents are unavailable: subagent provider "${providerName}" is not registered in this profile`);
     }
     // 兼容两种调用方：runtime 的 `{actor:{name,persona,model}, system, prompt, parent}`，
@@ -234,10 +252,10 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
       const childName = typeof activation.name === 'string' && activation.name.length > 0
         ? activation.name
         : undefined;
-      // 用量不在 SubagentResult 里（typert.host.js:855-856），所以先读子会话的账本，
+      // 用量不在 SubagentResult 里（dsh-subagent/lib/typert.host.js:855-856），所以先读子会话的账本，
       // 再把 result 上的遗留字段当作兜底。必须在下面 dispose() 之前读——dispose 之后
       // 子会话随时会被回收。
-      const tokens = childUsageTokens(ctx, childId) ?? tokensOf(result);
+      const tokens = childUsageTokens(ctx, childId, provider) ?? tokensOf(result);
       return {
         text: textOf(result.output),
         ...(result.structured === undefined ? {} : { structured: result.structured }),

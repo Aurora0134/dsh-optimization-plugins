@@ -34,7 +34,9 @@ function assertDeclaredSpec(spec) {
  * 只实现 DSH 声明面的假 subagents 服务：有 getProvider(name) 与 startActivation(spec)，没有 list()。
  * 假服务不是橡皮图章——它按 rc.3 的扁平 spec 断言，桥漏传 parent / signal 或退回嵌套 request 都会红。
  */
-function declaredSurface({ providers = ['spawn'], result, childId = 'child-1', name = 'probe-1' } = {}) {
+function declaredSurface({ providers = ['spawn'], result, childId = 'child-1', name = 'probe-1', inheritsParentContext = false } = {}) {
+  // null 是「这枚字段不存在」的哨兵：childId:null 表示 activation 没给 id，
+  // inheritsParentContext:null 表示 provider 没声明该能力。两者都与 false / 有值不同。
   const calls = [];
   let disposed = 0;
   return {
@@ -47,7 +49,8 @@ function declaredSurface({ providers = ['spawn'], result, childId = 'child-1', n
       return {
         name: providerName,
         capabilities: { agentOptions: true, agentPreset: true, outputSchema: true, depthLimit: true },
-        inheritsParentContext: false,
+        // null = provider 没声明这个能力，与 false 是两件事。
+        ...(inheritsParentContext === null ? {} : { inheritsParentContext }),
         prepareContinuable: async () => ({}),
       };
     },
@@ -55,7 +58,7 @@ function declaredSurface({ providers = ['spawn'], result, childId = 'child-1', n
       assertDeclaredSpec(spec);
       calls.push(spec);
       return {
-        childId,
+        childId: childId === null ? undefined : childId,
         name,
         result: Promise.resolve(result ?? { output: [{ type: 'text', text: 'PONG' }], stopReason: 'completed' }),
         dispose: async () => {
@@ -314,4 +317,121 @@ test('投影读到的用量优先于 result 里的遗留字段', async () => {
   });
   const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
   assert.equal(answer.tokens, 15, '投影是本次 activation 的持久账本，优先于 result 上的遗留字段');
+});
+const zeroUsage = { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+const fullUsage = { uncachedInputTokens: 1000, outputTokens: 250, cacheReadTokens: 5000, cacheWriteTokens: 0 };
+const usageSnapshot = (tokenUsage) => ({ asOfSeq: 7, values: { tokenUsage } });
+
+test('继承父上下文的 provider（fork）不读子会话用量：那份账本里混着父会话历史', async () => {
+  const subagents = declaredSurface({ childId: 'child-9', inheritsParentContext: true });
+  const projections = {
+    reads: 0,
+    snapshot() {
+      this.reads += 1;
+      return usageSnapshot(fullUsage);
+    },
+  };
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: () => childSession('child-9') },
+      sessionProjections: projections,
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  assert.equal(Object.hasOwn(answer, 'tokens'), false, 'fork 下不能把父会话历史算到子代理头上');
+  assert.equal(projections.reads, 0, '明知会混账就根本不该去读');
+});
+
+test('provider 没声明 inheritsParentContext 时不读用量，也不崩', async () => {
+  const subagents = declaredSurface({ childId: 'child-9', inheritsParentContext: null });
+  const projections = {
+    reads: 0,
+    snapshot() {
+      this.reads += 1;
+      return usageSnapshot(fullUsage);
+    },
+  };
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: () => childSession('child-9') },
+      sessionProjections: projections,
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  assert.equal(answer.text, 'PONG');
+  assert.equal(Object.hasOwn(answer, 'tokens'), false, '能力未知时按「可能混账」处理，退化为不含用量');
+  assert.equal(projections.reads, 0);
+});
+
+test('用量在 dispose 之前读：dispose 之后子会话账本就回收了', async () => {
+  const subagents = declaredSurface({ childId: 'child-9' });
+  const projections = {
+    reads: 0,
+    snapshot() {
+      // dispose 之后子会话已从库里摘掉，真实实现这时读不到任何东西。
+      if (subagents.disposed > 0) return { asOfSeq: 0, values: {} };
+      this.reads += 1;
+      return usageSnapshot(fullUsage);
+    },
+  };
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: () => childSession('child-9') },
+      sessionProjections: projections,
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  assert.equal(answer.tokens, 6250, '必须在 dispose 之前把用量取走');
+  assert.equal(subagents.disposed, 1);
+  assert.equal(projections.reads, 1);
+});
+
+test('用量投影缺桶字段时 tokens 缺席：半份账不能当整份用', async () => {
+  const subagents = declaredSurface({ childId: 'child-9' });
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: () => childSession('child-9') },
+      // cacheRead/cacheWrite 缺席：这四桶本应总是齐全（projectionSchema 要求四个非负整数）。
+      sessionProjections: { snapshot: () => usageSnapshot({ uncachedInputTokens: 10, outputTokens: 5 }) },
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  assert.equal(Object.hasOwn(answer, 'tokens'), false);
+});
+
+test('activation 没有 childId 时不读用量：拿不到子会话身份', async () => {
+  const subagents = declaredSurface({ childId: null });
+  const projections = {
+    reads: 0,
+    snapshot() {
+      this.reads += 1;
+      return usageSnapshot(fullUsage);
+    },
+  };
+  const run = createSubagentRunner({
+    ctx: declaredCtx({
+      subagents,
+      sessions: { get: () => childSession('child-9') },
+      sessionProjections: projections,
+    }),
+    config: {},
+    logger: quietLogger,
+  });
+  const answer = await run({ parent: { id: 'sess-1' }, prompt: 'ping', actor: { name: 'probe' } });
+  assert.equal(answer.text, 'PONG');
+  assert.equal(Object.hasOwn(answer, 'tokens'), false);
+  assert.equal(projections.reads, 0);
+  assert.equal(Object.hasOwn(answer, 'childId'), false, '没有 childId 时也不应塞一个空串');
 });
