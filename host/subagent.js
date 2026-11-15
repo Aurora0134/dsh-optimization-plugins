@@ -90,7 +90,7 @@ function tokensOf(result) {
  * @param {object} options.ctx 插件上下文（需要 `ctx.get('subagents')`）
  * @param {object} [options.config] 插件配置（subagentProvider / subagentModel）
  * @param {object} [options.logger]
- * @returns {(request: object) => Promise<{text: string, structured?: unknown, tokens?: number, toolCalls?: number, childId?: string}>}
+ * @returns {(request: object) => Promise<{text: string, structured?: unknown, tokens?: number, toolCalls?: number, childId?: string, childName?: string}>}
  */
 export function createSubagentRunner({ ctx, config = {}, logger = console }) {
   return async function runActorTurn(request) {
@@ -101,17 +101,15 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     const providerName = typeof config.subagentProvider === 'string' && config.subagentProvider.length > 0
       ? config.subagentProvider
       : 'spawn';
-    // 现行 DSH 的 subagents 服务用 getProvider(name) 做查询（typert.host.js 方法表），
-    // 没有枚举名单的 list()；旧实现的 `subagents.list()` 在磁盘实证里就是
-    // "subagents.list is not a function" 的根因，所以这里只依赖单点查询。
-    if (typeof subagents.getProvider === 'function') {
-      if (subagents.getProvider(providerName) === undefined) {
-        throw new Error(`workflow subagents are unavailable: subagent provider "${providerName}" is not registered in this profile`);
-      }
-    } else {
-      // 版本漂移兜底：查询面再变也不要让桥自己当闸门（上一版就是死在 list() 上）。
-      // startActivation 内部会用 expectProvider(spec.provider) 给出它自己的可读错误。
-      logger.warn?.('zcode-workflow: subagents service does not expose getProvider(name); skipping the provider pre-check');
+    // DSH 0.2.2-rc.3 的 subagents 服务用 getProvider(name) 做查询
+    // （typert.host.js:239-240），没有枚举名单的 list()；旧实现的 `subagents.list()`
+    // 在磁盘实证里就是 "subagents.list is not a function" 的根因。
+    // 查询面缺失时给出可读错误，而不是让调用现场退化成 "is not a function"。
+    if (typeof subagents.getProvider !== 'function') {
+      throw new Error('workflow subagents are unavailable: the subagents service does not expose getProvider(name), so the subagent provider cannot be resolved');
+    }
+    if (subagents.getProvider(providerName) === undefined) {
+      throw new Error(`workflow subagents are unavailable: subagent provider "${providerName}" is not registered in this profile`);
     }
     // 兼容两种调用方：runtime 的 `{actor:{name,persona,model}, system, prompt, parent}`，
     // 以及工具层旧包装的 `{agentName, persona, model, prompt, agent}`（`agent` 即父会话）。
@@ -121,15 +119,15 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     const model = request.actor?.model ?? request.model;
     const route = resolveModelRoute(model ?? config.subagentModel);
     const label = typeof actorName === 'string' && actorName.length > 0 ? actorName : 'Workflow subagent';
-    // manager 的身份校验是 `agents.get(request.parent.id) !== request.parent`（index.js:3060），
+    // rc.3 的身份校验是 `agents.get(spec.parent.id) !== spec.parent`（index.js:3025），
     // 所以 parent 必须是一个真正的活 Agent。缺了它旧实现会先抛 TypeError（读 undefined.id），
     // 这里改成可读的前置错误，说明是「工作流子代理需要父会话」。
     const parent = request.parent ?? request.agent;
     if (parent === null || typeof parent !== 'object' || typeof parent.id !== 'string' || parent.id.length === 0) {
       throw new Error(`workflow subagent "${label}" needs a live parent session: the workflow runner was called without a parent agent (request.parent / request.agent missing or not an Agent)`);
     }
-    // manager 无条件使用 spec.signal（manager.js:354），所以调用方没给信号时桥自己兜底一个，
-    // 否则 provider 侧会因 undefined 抛错。
+    // rc.3 的 startLocal/startExternal 都把 spec.signal 直接交给 trackStartup
+    // （index.js:1494、1600），所以调用方没给信号时桥自己兜底一个，否则 provider 侧会因 undefined 抛错。
     const signal = request.signal?.throwIfAborted === undefined ? new AbortController().signal : request.signal;
     const prompt = [{
       type: 'text',
@@ -143,19 +141,20 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     /** @type {object | undefined} */
     let activation;
     try {
+      // rc.3 的 SubagentActivationSpec 是扁平的（typert.host.js:791-792）：
+      // provider/label/signal/delivery 与 prompt/parent/cwd/agentOptions/outputSchema 同层，
+      // 没有嵌套的 request 字段（index.js:3025、1480、1558 都直接读 spec.parent/spec.prompt）。
       activation = await subagents.startActivation({
         provider: providerName,
         label,
-        request: {
-          prompt,
-          parent,
-          ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
-          ...(route === undefined ? {} : { agentOptions: { ...route } }),
-          // typed ask：把编译期 schema 交给 provider，能返回结构化输出时优先用它。
-          ...(request.schema === undefined ? {} : { outputSchema: request.schema }),
-        },
+        prompt,
+        parent,
         signal,
         delivery: 'caller',
+        ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
+        ...(route === undefined ? {} : { agentOptions: { ...route } }),
+        // typed ask：把编译期 schema 交给 provider，能返回结构化输出时优先用它。
+        ...(request.schema === undefined ? {} : { outputSchema: request.schema }),
       });
     } catch (error) {
       throw new Error(`workflow subagent "${label}" could not start: ${error instanceof Error ? error.message : String(error)}`);
@@ -175,14 +174,20 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
         throw new Error(`workflow subagent "${label}" failed (stopReason: ${String(result.stopReason)})${diagnostic}`);
       }
       const tokens = tokensOf(result);
+      // rc.3 的 activation 带 childId 与 name（typert.host.js:788）：前者是子会话身份，
+      // 后者是它在父会话里的成员名，留给上层把 actor 与子会话关联。
       const childId = typeof activation.childId === 'string' && activation.childId.length > 0
         ? activation.childId
+        : undefined;
+      const childName = typeof activation.name === 'string' && activation.name.length > 0
+        ? activation.name
         : undefined;
       return {
         text: textOf(result.output),
         ...(result.structured === undefined ? {} : { structured: result.structured }),
         ...(tokens === undefined ? {} : { tokens }),
         ...(childId === undefined ? {} : { childId }),
+        ...(childName === undefined ? {} : { childName }),
       };
     } finally {
       try {
