@@ -1011,3 +1011,54 @@ test('AmendWorkflow 的后继 run 照样带着发起这次 amend 的工具调用
   assert.ok(launched !== undefined, '后继 run 的 run-launched 事件存在');
   assert.equal(launched.event.toolCallId, 'call-77');
 });
+test('子代理用量进 run 快照：spentTokens 来自子会话的 tokenUsage 投影', async () => {
+  const { createSubagentRunner } = await import('../host/subagent.js');
+  // 假 subagents 服务：返回一个带 childId 的 activation（rc.3 的 SubagentActivation 就是这三件套）。
+  const subagents = {
+    // spawn 不继承父上下文，所以子会话账本里只有子代理自己的用量。
+    getProvider: () => ({ name: 'spawn', inheritsParentContext: false }),
+    async startActivation(spec) {
+      return {
+        childId: 'child-usage',
+        name: 'probe',
+        result: Promise.resolve({ output: [{ type: 'text', text: 'done' }], stopReason: 'completed' }),
+        dispose: async () => {},
+      };
+    },
+  };
+  const projections = {
+    snapshot: () => ({
+      asOfSeq: 3,
+      values: { tokenUsage: { uncachedInputTokens: 1200, outputTokens: 300, cacheReadTokens: 4000, cacheWriteTokens: 100 } },
+    }),
+  };
+  const ctx = {
+    get: (key) => ({
+      subagents,
+      sessions: { get: (id) => (id === 'child-usage' ? { id: 'child-usage' } : undefined) },
+      sessionProjections: projections,
+    })[key],
+  };
+  const bridge = createSubagentRunner({ ctx, config: {}, logger: { warn() {} } });
+  const compiler = stubCompiler({
+    lowered: [
+      'var reader = __host.createActor("actor#1", "reader", void 0);',
+      'return await __host.ask("ask#1", reader, "one");',
+    ].join('\n'),
+    askSpecs: new Map([['ask#1', { typed: false }]]),
+    actors: [{ siteId: 'actor#1', name: 'reader' }],
+  });
+  const runtime = createRuntime({ compiler, workspaceFor: stubWorkspace, logger: { warn() {}, info() {} } });
+  const started = await runtime.startRun({
+    code: '// stub',
+    name: 'usage',
+    cwd: '/tmp/ws',
+    // runtime 的 runner 契约不带 parent，生产路径由 tools.js 补上；这里照做。
+    runner: (request) => bridge({ ...request, parent: { id: 'sess-1' } }),
+  });
+  const settled = await runtime.waitForRun(started.runId, { timeoutMs: 5000 });
+  assert.equal(settled.status, 'completed');
+  const run = await runtime.getRun(started.runId);
+  assert.equal(run.usage.spentTokens, 5600, '四桶合计必须进 run 快照');
+  assert.equal(run.spentTokens, 5600);
+});
