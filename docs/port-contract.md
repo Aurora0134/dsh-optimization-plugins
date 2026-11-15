@@ -51,7 +51,9 @@
 
 `CreateWorkflow`、`AmendWorkflow`、`ResumeWorkflowRun`、`GetWorkflowRun`、`ListWorkflowRuns`、`FillWorkflowHole`、`EvalWorkflowSnippet`、`SaveWorkflow`、`ListSavedWorkflows`、`ResolveWorkflowQuestion`、`TaskOutput` 与真实实现同名同参同文案。
 
-工具返回的编译诊断统一用 `{file}:L{line}:C{column} {message}`，且**文件名与行号必须同源**：`path`/`script_path` 源剥掉 metadata 头后按那个文件的行报（文件名也是它），内联 `script` 没有文件可指，行号就是调用方给的那几行，名字用它将存成的文件。
+工具返回的编译诊断统一用 `{file}:L{line}:C{column} {message}`。文件名与行号只在**诊断指向一个已存在的文件**时同源：`path`/`script_path` 源剥掉 metadata 头后按该文件的行报、文件名也是它；`CreateWorkflow`/`AmendWorkflow` 的内联与 saved 源先把正文写成草稿再编译，行号是草稿行号、文件名是草稿。
+
+没有这样的文件时，名字只是**占位名**，行号属于调用方提供的那段输入：无源文件的 `workflow.ts`、片段固定 `snippet.ts`（path 源也一样，行号来自被读的文件）、留白补全的 `fill.ts`、`SaveWorkflow` 内联源的 `<name>.dwf.ts`（行号是正文行号，而存盘文件是 metadata 头 + 正文，映射不过去）。
 
 **唯一的移植扩展**是 `StopWorkflowRun`：真实 ZCode 没有这个工具（停跑走通用后台任务工具），而 Harness 没有对应通道，所以本移植保留它作为停止入口。新增工具必须记入本表。
 
