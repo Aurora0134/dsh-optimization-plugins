@@ -326,6 +326,8 @@ class WorkflowEngine {  /**
         scriptPath: launch?.scriptPath,
         scriptHash: launch?.scriptHash,
         args: launch?.args,
+        // 卡片按发起这次 run 的工具调用 id 认领自己：落盘这一列是投影与 /runs 的第二个来源。
+        ...(typeof launch?.toolCallId === 'string' && launch.toolCallId !== '' ? { toolCallId: launch.toolCallId } : {}),
         ...(launch?.resumedFrom === undefined ? {} : { resumedFrom: launch.resumedFrom }),
         timeCreated: now(),
       });
@@ -2513,6 +2515,9 @@ export function createRuntime({
         scriptHash: compileResult.scriptHash,
         subagentModel: request.subagentModel,
         phaseNames,
+        // 浏览器按 toolCallId 把它的运行卡认领到这次 run（ZCode 的认领方式）：
+        // host/tools.js 把 exec.callId 交给了 start()/amend()，这里一路带到 run 行与 run-launched 事件。
+        ...(typeof request.toolCallId === 'string' && request.toolCallId !== '' ? { toolCallId: request.toolCallId } : {}),
         ...(request.resumedFrom === undefined ? {} : { resumedFrom: request.resumedFrom }),
       },
     });
@@ -2901,6 +2906,7 @@ export function createRuntime({
         : { stopReason: stored?.stopReason ?? entry?.meta?.stopReason }),
       ...(stored?.supersededBy === undefined ? {} : { supersededBy: stored.supersededBy }),
       ...(stored?.resumedFrom === undefined ? {} : { resumedFrom: stored.resumedFrom }),
+      ...(typeof stored?.toolCallId === 'string' && stored.toolCallId !== '' ? { toolCallId: stored.toolCallId } : {}),
       ...(stored?.scriptPath === undefined ? {} : { scriptPath: stored.scriptPath }),
       ...(stored?.cwd === undefined ? {} : { cwd: stored.cwd }),
       ...(stored?.caps?.maxConcurrency === undefined ? {} : { maxConcurrency: stored.caps.maxConcurrency }),

@@ -316,6 +316,33 @@ test('a launch card claims the run of its tool call, not the run its arguments o
   }
 });
 
+test('a claimed run that is still running renders a running card with its details entry', async () => {
+  // The Host side of the claim (runtime passing the tool call id through, the projection and /runs
+  // carrying it) is covered in runtime.test.mjs and ui-api.test.mjs. This guards the card's own half:
+  // once a row carries the launching tool call id, the card must render the live run, not a shell.
+  const client = startClient((url) => {
+    if (url.startsWith('/zcode-workflow/runs')) {
+      return { runs: [runRow({ runId: 'run-live', id: 'run-live', toolCallId: 'call-1', label: 'live-run', status: 'running' })] };
+    }
+    return { run: runRow({ runId: 'run-live', id: 'run-live', toolCallId: 'call-1', label: 'live-run', status: 'running' }) };
+  });
+  try {
+    const card = client.cardFor('CreateWorkflow');
+    assert.ok(card !== undefined, 'the CreateWorkflow card is registered');
+    const props = launchProps({ toolName: 'CreateWorkflow' });
+    client.render(client.React.createElement(card.component, props));
+    await settle();
+    const rendered = client.render(client.React.createElement(card.component, props));
+
+    const section = byTestId(rendered, 'workflow-card');
+    assert.equal(section.props['data-workflow-run-id'], 'run-live', 'the card shows the run its tool call launched');
+    assert.equal(section.props['data-workflow-card-state'], 'running', 'a claimed running run is not a static shell');
+    assert.ok(byTestId(rendered, 'workflow-card-open-details') !== undefined, 'the claimed run offers a details entry');
+  } finally {
+    client.dispose();
+  }
+});
+
 test('a launch card claims nothing when its tool call has no run row, even though arguments and result name one', async () => {
   const client = startClient((url) => {
     if (url.startsWith('/zcode-workflow/runs')) {
