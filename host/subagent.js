@@ -90,7 +90,7 @@ function tokensOf(result) {
  * @param {object} options.ctx 插件上下文（需要 `ctx.get('subagents')`）
  * @param {object} [options.config] 插件配置（subagentProvider / subagentModel）
  * @param {object} [options.logger]
- * @returns {(request: object) => Promise<{text: string, structured?: unknown, tokens?: number, toolCalls?: number}>}
+ * @returns {(request: object) => Promise<{text: string, structured?: unknown, tokens?: number, toolCalls?: number, childId?: string}>}
  */
 export function createSubagentRunner({ ctx, config = {}, logger = console }) {
   return async function runActorTurn(request) {
@@ -98,11 +98,20 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     if (subagents === undefined) {
       throw new Error('workflow subagents are unavailable: this profile has no subagents service');
     }
-    const provider = typeof config.subagentProvider === 'string' && config.subagentProvider.length > 0
+    const providerName = typeof config.subagentProvider === 'string' && config.subagentProvider.length > 0
       ? config.subagentProvider
       : 'spawn';
-    if (!subagents.list().includes(provider)) {
-      throw new Error(`workflow subagents are unavailable: subagent provider "${provider}" is not registered (available: ${subagents.list().join(', ') || 'none'})`);
+    // 现行 DSH 的 subagents 服务用 getProvider(name) 做查询（typert.host.js 方法表），
+    // 没有枚举名单的 list()；旧实现的 `subagents.list()` 在磁盘实证里就是
+    // "subagents.list is not a function" 的根因，所以这里只依赖单点查询。
+    if (typeof subagents.getProvider === 'function') {
+      if (subagents.getProvider(providerName) === undefined) {
+        throw new Error(`workflow subagents are unavailable: subagent provider "${providerName}" is not registered in this profile`);
+      }
+    } else {
+      // 版本漂移兜底：查询面再变也不要让桥自己当闸门（上一版就是死在 list() 上）。
+      // startActivation 内部会用 expectProvider(spec.provider) 给出它自己的可读错误。
+      logger.warn?.('zcode-workflow: subagents service does not expose getProvider(name); skipping the provider pre-check');
     }
     // 兼容两种调用方：runtime 的 `{actor:{name,persona,model}, system, prompt, parent}`，
     // 以及工具层旧包装的 `{agentName, persona, model, prompt, agent}`（`agent` 即父会话）。
@@ -110,9 +119,18 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     const persona = request.actor?.persona
       ?? (typeof request.persona === 'string' ? request.persona : request.persona?.system);
     const model = request.actor?.model ?? request.model;
-    const parent = request.parent ?? request.agent;
     const route = resolveModelRoute(model ?? config.subagentModel);
     const label = typeof actorName === 'string' && actorName.length > 0 ? actorName : 'Workflow subagent';
+    // manager 的身份校验是 `agents.get(request.parent.id) !== request.parent`（index.js:3060），
+    // 所以 parent 必须是一个真正的活 Agent。缺了它旧实现会先抛 TypeError（读 undefined.id），
+    // 这里改成可读的前置错误，说明是「工作流子代理需要父会话」。
+    const parent = request.parent ?? request.agent;
+    if (parent === null || typeof parent !== 'object' || typeof parent.id !== 'string' || parent.id.length === 0) {
+      throw new Error(`workflow subagent "${label}" needs a live parent session: the workflow runner was called without a parent agent (request.parent / request.agent missing or not an Agent)`);
+    }
+    // manager 无条件使用 spec.signal（manager.js:354），所以调用方没给信号时桥自己兜底一个，
+    // 否则 provider 侧会因 undefined 抛错。
+    const signal = request.signal?.throwIfAborted === undefined ? new AbortController().signal : request.signal;
     const prompt = [{
       type: 'text',
       text: composeActorPrompt({
@@ -126,17 +144,17 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     let activation;
     try {
       activation = await subagents.startActivation({
-        provider,
+        provider: providerName,
         label,
         request: {
           prompt,
-          ...(parent === undefined ? {} : { parent }),
+          parent,
           ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
           ...(route === undefined ? {} : { agentOptions: { ...route } }),
           // typed ask：把编译期 schema 交给 provider，能返回结构化输出时优先用它。
           ...(request.schema === undefined ? {} : { outputSchema: request.schema }),
         },
-        signal: request.signal,
+        signal,
         delivery: 'caller',
       });
     } catch (error) {
@@ -144,17 +162,27 @@ export function createSubagentRunner({ ctx, config = {}, logger = console }) {
     }
     try {
       const result = await activation.result;
-      if (result.stopReason === 'error') {
-        throw new Error(result.diagnostic ?? `workflow subagent "${label}" failed`);
-      }
-      if (result.stopReason === 'aborted') {
-        throw new Error(`workflow subagent "${label}" was stopped`);
+      // stopReason 只有 'completed' 算成功。旧实现只认 error/aborted，
+      // 'max-tokens'、'refusal' 会带着（通常为空的）文本被当成成功返回，
+      // 上层就把空答复记成了 actor 的答案。
+      if (result.stopReason !== 'completed') {
+        const diagnostic = typeof result.diagnostic === 'string' && result.diagnostic.length > 0
+          ? `: ${result.diagnostic}`
+          : '';
+        if (result.stopReason === 'aborted') {
+          throw new Error(`workflow subagent "${label}" was stopped (stopReason: aborted)${diagnostic}`);
+        }
+        throw new Error(`workflow subagent "${label}" failed (stopReason: ${String(result.stopReason)})${diagnostic}`);
       }
       const tokens = tokensOf(result);
+      const childId = typeof activation.childId === 'string' && activation.childId.length > 0
+        ? activation.childId
+        : undefined;
       return {
         text: textOf(result.output),
         ...(result.structured === undefined ? {} : { structured: result.structured }),
         ...(tokens === undefined ? {} : { tokens }),
+        ...(childId === undefined ? {} : { childId }),
       };
     } finally {
       try {
