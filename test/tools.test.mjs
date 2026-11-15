@@ -524,9 +524,10 @@ test('SaveWorkflow: a diagnostic in a headed file is reported on the file line',
   const h = harness({ compiler: { extractMetadataHeader, compileWorkflowScript } });
   const result = await h.byName.SaveWorkflow.execute({ name: 'saved-headed', description: 'd', scope: 'project', script_path: file }, execFor());
   assert.equal(result.ok, false);
-  // 存盘时同名文件就是这个头 + 正文，所以诊断按文件行报。
-  assert.match(result.text, /saved-headed\.dwf\.ts:L5:C13 /u);
+  // 行号属于 script_path 那个文件，文件名也必须是它——不是一个还没写出来的存盘文件。
+  assert.match(result.text, /headed[\\/]headed-save\.dwf\.ts:L5:C13 /u);
   assert.doesNotMatch(result.text, /:L2:/u, 'the body line must not be reported as the file line');
+  assert.doesNotMatch(result.text, /saved-headed/u, 'the diagnostic names the file its line numbers belong to');
 });
 
 test('CreateWorkflow: the saved source validates args and defaults its label', async () => {

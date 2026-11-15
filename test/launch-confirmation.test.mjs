@@ -275,7 +275,6 @@ test('没有记录策略时目录只有会话模型，可调并发仍然送到�
   assert.deepEqual(pending.input.models.map((row) => row.id), ['prov/m1']);
   // 模型没显式传参：确认框仍要能以会话模型为准，并且并发是可调的（默认值随 payload 下发）。
   assert.equal(pending.input.subagent_model, undefined);
-  assert.equal(pending.input.subagent_model_default, true);
   assert.equal(pending.input.max_concurrency, undefined);
   assert.equal(pending.input.adjustable_settings.subagent_model, true);
   assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
@@ -420,7 +419,6 @@ test('an amend confirmation starts from the predecessor settings and applies the
   const [pending] = await h.waiting();
   assert.equal(pending.input.max_concurrency, 5);
   assert.equal(pending.input.subagent_model, 'prov/m1');
-  assert.equal(pending.input.subagent_model_default, false);
   assert.equal(pending.input.adjustable_settings.concurrency_ceiling, 8);
 
   await h.call('POST', BASE + '/run/approve', {
@@ -485,7 +483,6 @@ test('the model line keys its copy on the script naming models, not on the user 
   const named = permission.wfPermView({
     input: {
       kind: 'create_workflow',
-      subagent_model_default: true,
       scriptNamesModels: true,
       adjustable_settings: { subagent_model: true },
       models: [{ id: 'prov/m1', label: 'Model One' }],
@@ -498,7 +495,7 @@ test('the model line keys its copy on the script naming models, not on the user 
     noCatalog: 'chat.permission.workflow.settings.model.noCatalogDefault',
   });
   // 脚本没点名：这一行是本次 run 的实际设置，不再是「默认」。
-  const plain = permission.wfPermView({ input: { kind: 'create_workflow', subagent_model: 'prov/m1', subagent_model_default: false } });
+  const plain = permission.wfPermView({ input: { kind: 'create_workflow', subagent_model: 'prov/m1' } });
   assert.equal(plain.scriptNamesModels, false);
   assert.deepEqual(permission.wfPermModelKeys(plain.scriptNamesModels), {
     lead: 'chat.permission.workflow.settings.model.lead',

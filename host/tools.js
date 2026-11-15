@@ -1617,7 +1617,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       if (approval !== undefined) {
         const defaultModel = defaultSubagentModel(exec);
         const effectiveModel = subagentModel ?? defaultModel;
-        const modelDefault = subagentModel === undefined;
         const models = await modelCatalog({ sessionId, session: exec?.agent?.session, parentRoute: parentRouteOf(defaultModel) });
         const display = {
           kind: 'create_workflow',
@@ -1637,7 +1636,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           // 只有显式选过模型才带 `subagent_model`：没选时留空，确认框才显示「沿用会话模型」
           // （ZCode 的 `Tzt(Pon(input))` 在缺省时得到 `{kind:'session'}`，同理）。
           ...(subagentModel === undefined ? {} : { subagent_model: subagentModel }),
-          subagent_model_default: modelDefault,
           // 脚本自己点了模型名：模型行说的就只是「默认」用的那个（ZCode 的 model_bindings 非空）。
           scriptNamesModels: scriptModelNames(prepared, code, draftPath).length > 0,
           models,
@@ -1877,7 +1875,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         && (owned === false || (previous.status === 'stopped' && stopReason === 'user') || introduced.length > 0);
       if (shouldAsk) {
         const effectiveModel = subagentModel ?? defaultModel;
-        const modelDefault = subagentModel === undefined;
         const models = await modelCatalog({ sessionId, session: exec?.agent?.session, parentRoute: parentRouteOf(defaultModel) });
         const display = {
           kind: 'amend_workflow',
@@ -1899,7 +1896,6 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
           // 只有显式选过模型才带 `subagent_model`：没选时留空，确认框才显示「沿用会话模型」
           // （ZCode 的 `Tzt(Pon(input))` 在缺省时得到 `{kind:'session'}`，同理）。
           ...(subagentModel === undefined ? {} : { subagent_model: subagentModel }),
-          subagent_model_default: modelDefault,
           scriptNamesModels: scriptModels.length > 0,
           models,
           causalityGraph: prepared?.causalityGraph,
@@ -2384,14 +2380,16 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
       }
       const cwd = sessionCwd(ctx, exec);
       let code;
-      // 存盘文件由这份正文加一个 metadata 头写成，所以诊断按那个文件的行走。
+      // 只有 script_path 源会剥掉已有的 metadata 头，剥了才要补行偏移；偏移属于那个文件。
       let lineOffset = 0;
+      let sourceFile;
       if (hasScript) {
         code = String(args.script);
         if (/^\s*\/\*\s*zcode-workflow/u.test(code)) return fail(SAVE_BODY_ONLY);
       } else {
         const file = await readWorkspaceFile(cwd, String(args.script_path));
         if (!file.ok) return fail(`${file.message}. Nothing was saved.`);
+        sourceFile = file.described;
         const header = compiler.extractMetadataHeader(file.text);
         const body = headerBody(header);
         if (header.ok && body !== undefined) {
@@ -2405,12 +2403,14 @@ export function createWorkflowTools({ ctx, runtime, store, compiler, approval, c
         ? store.validateSavedWorkflowName(args.name)
         : { ok: true };
       if (nameCheck.ok === false) return fail(`${nameCheck.message ?? 'invalid workflow name'} Nothing was saved.`);
-      const filename = `${args.name}.dwf.ts`;
-      const compiled = compiler.compileWorkflowScript({ code, filename, mode: 'workflow' });
+      const savedFile = `${args.name}.dwf.ts`;
+      // 印出的文件名必须与行号同源：路径源的行号属于那个文件；内联正文没有文件，行号就是调用方
+      // 给的那几行，所以名字用它将存成的文件。
+      const compiled = compiler.compileWorkflowScript({ code, filename: savedFile, mode: 'workflow' });
       if (!compiled.ok) {
         return fail([
           'The workflow script has errors:',
-          renderDiagnostics(filename, compiled.diagnostics, lineOffset),
+          renderDiagnostics(sourceFile ?? savedFile, compiled.diagnostics, lineOffset),
           '',
           'NOTE: Nothing was saved — fix the errors above and call the tool again.',
         ].join('\n'), { diagnostics: compiled.diagnostics });
