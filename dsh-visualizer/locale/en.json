@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Visual output",
+    "description": "Lets an agent draw SVG diagrams, charts, and UI sketches inline in the conversation.",
+    "detail": "docs/DETAIL.md"
+  }
+}
