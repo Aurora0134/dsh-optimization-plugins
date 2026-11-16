@@ -1,0 +1,8 @@
+node_modules/
+.tmp*
+*.log
+Thumbs.db
+Desktop.ini
+# Run journals and drafts this plugin writes when it is exercised inside its own checkout.
+.dsh/
+.zcode/
