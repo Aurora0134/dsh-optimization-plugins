@@ -1,0 +1,25 @@
+{
+  "name": "dsh-team-slot-reclaim",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Adds a delete_teammate tool to Agent Teams: the Team Lead can delete an idle teammate and free its member slot.",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

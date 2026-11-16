@@ -1,0 +1,4 @@
+# Rows this bundle inserts. The row name must be this package's exact name.
+- insert:
+    - id: team-slot-reclaim
+      name: dsh-team-slot-reclaim
