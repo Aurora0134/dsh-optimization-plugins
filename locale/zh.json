@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "可视化输出",
+    "description": "让 agent 在对话里直接绘制 SVG 示意图、图表和界面草图，不用打开文件。",
+    "detail": "docs/DETAIL.md"
+  }
+}
