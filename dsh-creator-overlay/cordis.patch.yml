@@ -1,0 +1,6 @@
+# Rows this bundle inserts. The row name must be this package's exact name:
+# the Host's Client module scan reads that package's `dsh.client` declaration
+# before it serves the browser half.
+- insert:
+    - id: creator-overlay
+      name: dsh-creator-overlay
